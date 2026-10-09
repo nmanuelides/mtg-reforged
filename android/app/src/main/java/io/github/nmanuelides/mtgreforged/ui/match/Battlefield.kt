@@ -77,7 +77,7 @@ private fun plan(items: List<FieldItem>, maxW: Float, maxH: Float, minCard: Floa
         var rowWidth = 0f
         var lastSection = -1
         for (item in items) {
-            val w = if (item.tapped) cardH else cardW
+            val w = (if (item.tapped) cardH else cardW) + fanStep(item.cards.size, cardW) * (item.cards.size - 1)
             val h = cardH * (1 + ATTACH_PEEK * item.attachments.size)
             val newRow = rows.isEmpty() || item.section != lastSection || rowWidth + GAP_DP + w > maxW
             if (newRow) {
@@ -141,16 +141,17 @@ internal fun Battlefield(
     }
 }
 
+/** Horizontal offset between copies in a pile: generous for a few, squeezed for many. */
+private fun fanStep(count: Int, cardWidth: Float): Float =
+    if (count <= 1) 0f else minOf(cardWidth * 0.3f, cardWidth * 1.6f / (count - 1))
+
 @Composable
 private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions) {
     val cardHeight = cardWidth / CARD_ASPECT
-    // Tapping a pile acts on the first card that still needs a decision.
-    val target = item.cards.firstOrNull { it.id in state.selectableIds }
-        ?: item.cards.firstOrNull { state.combat?.attackers?.containsKey(it.id) != true }
-        ?: item.top
-    val mark = item.cards.map(state::markFor).firstOrNull { it != CardMark.None } ?: CardMark.None
+    val slotWidth = if (item.tapped) cardHeight else cardWidth
+    val step = fanStep(item.cards.size, cardWidth.value).dp
 
-    Box(contentAlignment = Alignment.BottomCenter) {
+    Box(contentAlignment = Alignment.BottomStart) {
         item.attachments.forEachIndexed { i, a ->
             var held by remember { mutableStateOf(false) }
             Box(
@@ -162,30 +163,44 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                 HoldZoom(a, held)
             }
         }
-        // Holding a permanent zooms it in place until the finger lifts.
-        var held by remember { mutableStateOf(false) }
-        Box(
-            Modifier
-                .size(if (item.tapped) cardHeight else cardWidth, cardHeight)
-                .tapOrHold(target.id, onTap = { actions.onCard(target.id) }, onHold = { h, _ -> held = h }),
-            contentAlignment = Alignment.Center,
-        ) {
-            CardTile(item.top, cardWidth, mark = mark)
-            HoldZoom(item.top, held)
-            if (item.cards.size > 1) {
-                Text(
-                    "×${item.cards.size}",
-                    Modifier
-                        .align(Alignment.Center)
-                        .background(Color(0xE6101218), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Palette.TextPrimary,
-                )
+        // Identical permanents fan out so each copy can be tapped (or picked) on its own.
+        // Holding any copy zooms it in place until the finger lifts.
+        item.cards.forEachIndexed { i, card ->
+            var held by remember(card.id) { mutableStateOf(false) }
+            Box(
+                Modifier
+                    .offset(x = step * i)
+                    .size(slotWidth, cardHeight)
+                    .tapOrHold(card.id, onTap = { actions.onCard(card.id) }, onHold = { h, _ -> held = h }),
+                contentAlignment = Alignment.Center,
+            ) {
+                CardTile(card, cardWidth, mark = state.markFor(card))
+                state.attackTargetName(card.id)?.let { target ->
+                    Text(
+                        "→ $target",
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .background(Palette.Terracotta)
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Palette.PaperLight,
+                        maxLines = 1,
+                    )
+                }
+                HoldZoom(card, held)
             }
         }
     }
+}
+
+/** Who (or which planeswalker) a declared attacker is going after. */
+internal fun MatchUiState.attackTargetName(cardId: Int): String? {
+    val combat = combat ?: return null
+    if (!combat.attackers.containsKey(cardId)) return null
+    val defender = combat.attackers[cardId] ?: return "?"
+    players.firstOrNull { it.id == defender }?.let { return if (it.isLocal) "You" else it.name }
+    return players.firstNotNullOfOrNull { p -> p.battlefield.firstOrNull { it.id == defender }?.name } ?: "?"
 }
 
 internal fun MatchUiState.markFor(card: CardUi): CardMark = when {

@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -61,6 +62,7 @@ fun BootScreen(
 ) {
     // Everything but the window fades out during the first half of the reveal.
     val fade = (1f - reveal * 2f).coerceIn(0f, 1f)
+    val accent = rememberArtAccent(art)
 
     Box(Modifier.fillMaxSize().parchment()) {
         Box(Modifier.fillMaxSize().alpha(fade).ornateFrame(inset = 6.dp))
@@ -91,18 +93,17 @@ fun BootScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                val accent = rememberArtAccent(art)
                 OrnateDivider(width = 260.dp, color = accent)
                 Text("MTG Reforged", style = MaterialTheme.typography.displayLarge, color = accent, textAlign = TextAlign.Center)
                 OrnateDivider(width = 260.dp, color = accent)
                 when (status) {
                     is Engine.Status.InstallingData -> {
                         Caption("Installing card data…")
-                        ProgressRule(status.progress)
+                        ProgressRule(status.progress, accent)
                     }
                     is Engine.Status.Loading -> {
                         Caption(status.step)
-                        ProgressRule(status.progress)
+                        ProgressRule(status.progress, accent)
                     }
                     is Engine.Status.Failed -> {
                         Caption("The engine could not start")
@@ -111,9 +112,9 @@ fun BootScreen(
                     }
                     Engine.Status.Ready -> {
                         Caption("Ready")
-                        ProgressRule(1f)
+                        ProgressRule(1f, accent)
                     }
-                    else -> ProgressRule(null)
+                    else -> ProgressRule(null, accent)
                 }
             }
         }
@@ -142,7 +143,7 @@ private fun Caption(text: String) {
 
 /** Framed bar like the reference's health bar; slides back and forth when indeterminate. */
 @Composable
-private fun ProgressRule(progress: Float?) {
+private fun ProgressRule(progress: Float?, color: Color) {
     val sweep by rememberInfiniteTransition(label = "sweep").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "sweep",
     )
@@ -151,13 +152,13 @@ private fun ProgressRule(progress: Float?) {
             .width(320.dp)
             .height(18.dp)
             .background(Palette.PaperLight)
-            .ornateFrame(Palette.LineStrong, inset = 3.dp, corners = false)
+            .ornateFrame(color, inset = 3.dp, corners = false)
             .padding(5.dp),
     ) {
         if (progress != null) {
-            Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(Palette.Terracotta))
+            Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).fillMaxHeight().background(color))
         } else {
-            Box(Modifier.fillMaxWidth(0.25f + 0.75f * sweep).fillMaxHeight().background(Palette.Terracotta.copy(alpha = 0.35f + 0.5f * sweep)))
+            Box(Modifier.fillMaxWidth(0.25f + 0.75f * sweep).fillMaxHeight().background(color.copy(alpha = 0.35f + 0.5f * sweep)))
         }
     }
 }

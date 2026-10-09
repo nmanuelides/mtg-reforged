@@ -113,6 +113,8 @@ data class MatchUiState(
     val highlightedIds: Set<Int> = emptySet(),
     /** Players the engine is currently asking us to pick from (start player, targets...). */
     val choosablePlayerIds: Set<Int> = emptySet(),
+    /** While declaring attackers: the player (or planeswalker) new attackers will target. */
+    val attackTargetId: Int? = null,
     val log: List<String> = emptyList(),
     val gameOver: GameOverUi? = null,
 ) {

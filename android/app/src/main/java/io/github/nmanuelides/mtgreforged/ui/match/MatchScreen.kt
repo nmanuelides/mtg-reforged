@@ -56,6 +56,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
@@ -449,12 +454,14 @@ private fun PhaseTrack(phase: PhaseType?, modifier: Modifier) {
 @Composable
 private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardActions, modifier: Modifier = Modifier, compact: Boolean = false) {
     val targetable = player.id in state.highlightedIds || player.id in state.choosablePlayerIds
+    val underAttack = player.id == state.attackTargetId
     Row(
         modifier
             .fillMaxWidth()
             .background(if (player.isActive) Palette.Terracotta.copy(alpha = 0.16f) else Palette.PaperLight.copy(alpha = 0.8f))
             .ornateFrame(
                 when {
+                    underAttack -> Palette.Attacking
                     targetable -> Palette.Selectable
                     player.isActive -> Palette.Terracotta
                     else -> Palette.Line
@@ -519,15 +526,7 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
         if (player.poison > 0) {
             Text("☠ ${player.poison}", color = Palette.Poison, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp))
         }
-        Text("♥", Modifier.padding(start = 8.dp), color = Palette.Terracotta, fontSize = if (compact) 16.sp else 20.sp)
-        Text(
-            "${player.life}",
-            Modifier.padding(start = 4.dp),
-            fontFamily = Cinzel,
-            fontSize = if (compact) 22.sp else 28.sp,
-            color = if (player.life <= 5) Palette.Terracotta else Palette.Ink,
-            fontWeight = FontWeight.Bold,
-        )
+        LifeCounter(player.life, compact)
     }
 }
 
@@ -745,7 +744,7 @@ private fun CastSpotlight(state: MatchUiState) {
     LaunchedEffect(top?.id, top?.source != null) {
         if (top == null || top.source == null || !seen.add(top.id)) return@LaunchedEffect
         spotlight = top
-        kotlinx.coroutines.delay(1800)
+        kotlinx.coroutines.delay(3500)
         spotlight = null
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -769,14 +768,24 @@ private fun CastSpotlight(state: MatchUiState) {
 private fun PlayerChoices(state: MatchUiState, onPlayer: (Int) -> Unit) {
     val choices = state.players.filter { it.id in state.choosablePlayerIds }
     if (choices.isEmpty()) return
+    val attacking = state.attackTargetId != null
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (attacking) {
+            // Declaring attackers: make the current target unmistakable.
+            Text(
+                "Tap creatures to attack the marked player. Tap another player to switch.",
+                style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+            )
+        }
         choices.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 row.forEach { player ->
+                    val isTarget = player.id == state.attackTargetId
                     OrnateButton(
-                        if (player.isLocal) "You" else player.name,
+                        (if (isTarget) "⚔ " else "") + (if (player.isLocal) "You" else player.name),
                         { onPlayer(player.id) },
                         Modifier.weight(1f),
+                        style = if (isTarget) OrnateStyle.Primary else OrnateStyle.Secondary,
                         accent = if (player.isLocal) Palette.Terracotta else Palette.Slate,
                         height = 44.dp,
                         textStyle = MaterialTheme.typography.labelMedium,
@@ -784,6 +793,69 @@ private fun PlayerChoices(state: MatchUiState, onPlayer: (Int) -> Unit) {
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
+        }
+    }
+}
+
+/**
+ * Life total with feedback: on a change the heart shakes and flashes and the difference
+ * floats up from the number ("-3" in red, "+2" in green).
+ */
+@Composable
+private fun LifeCounter(life: Int, compact: Boolean) {
+    var previous by remember { mutableStateOf(life) }
+    var delta by remember { mutableStateOf(0) }
+    val rise = remember { Animatable(1f) }
+    val shake = remember { Animatable(0f) }
+    LaunchedEffect(life) {
+        if (life == previous) return@LaunchedEffect
+        delta = life - previous
+        previous = life
+        launch {
+            if (delta < 0) {
+                repeat(3) {
+                    shake.animateTo(6f, tween(45))
+                    shake.animateTo(-6f, tween(45))
+                }
+                shake.animateTo(0f, tween(45))
+            }
+        }
+        rise.snapTo(0f)
+        rise.animateTo(1f, tween(1600, easing = LinearOutSlowInEasing))
+    }
+    val hurt = delta < 0 && rise.value < 1f
+    Box(contentAlignment = Alignment.Center) {
+        Row(
+            Modifier
+                .graphicsLayer { translationX = shake.value.dp.toPx() }
+                .background(if (hurt) Palette.Life.copy(alpha = 0.25f * (1f - rise.value)) else Color.Transparent)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("♥", Modifier.padding(start = 4.dp), color = Palette.Terracotta, fontSize = if (compact) 16.sp else 20.sp)
+            Text(
+                "$life",
+                Modifier.padding(start = 4.dp),
+                fontFamily = Cinzel,
+                fontSize = if (compact) 22.sp else 28.sp,
+                color = if (life <= 5) Palette.Terracotta else Palette.Ink,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        if (rise.value < 1f && delta != 0) {
+            Text(
+                if (delta > 0) "+$delta" else "$delta",
+                Modifier.graphicsLayer {
+                    translationY = -rise.value * 46.dp.toPx()
+                    alpha = 1f - rise.value
+                    scaleX = 1.4f - 0.4f * rise.value
+                    scaleY = 1.4f - 0.4f * rise.value
+                },
+                fontFamily = Cinzel,
+                fontWeight = FontWeight.Bold,
+                fontSize = if (compact) 24.sp else 30.sp,
+                color = if (delta < 0) Palette.Life else Palette.Sage,
+            )
         }
     }
 }

@@ -17,7 +17,10 @@ import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
 import forge.gamemodes.match.AbstractGuiGame
 import forge.gamemodes.match.HostedMatch
+import forge.gamemodes.match.input.InputAttack
 import forge.gamemodes.match.input.InputPassPriority
+import forge.game.GameEntity
+import forge.game.card.Card
 import forge.gamemodes.match.input.InputSelectTargets
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
@@ -144,6 +147,9 @@ class ComposeGuiGame : AbstractGuiGame() {
         cardsById = cards
         playersById = players
         val choosable = runCatching { choosablePlayerIds(view) }.getOrDefault(emptySet())
+        // While declaring attackers, which player new attackers go after.
+        val attackTarget = (currentInput() as? InputAttack)
+            ?.let { runCatching { fieldValue(it, "currentDefender") as? GameEntity }.getOrNull() }?.id
         return MatchUiState(
             players = playerUis,
             turn = view.turn,
@@ -155,6 +161,7 @@ class ComposeGuiGame : AbstractGuiGame() {
             selectableIds = selectable,
             highlightedIds = highlighted,
             choosablePlayerIds = choosable,
+            attackTargetId = attackTarget,
             log = log,
             gameOver = gameOver,
         )
@@ -201,7 +208,43 @@ class ComposeGuiGame : AbstractGuiGame() {
 
     fun tapCard(id: Int) {
         val cv = cardsById[id] ?: return
-        onGameThread { gameController?.selectCard(cv, null, Tap) }
+        onGameThread {
+            val controller = gameController as? PlayerControllerHuman ?: return@onGameThread
+            if (!undeclareElsewhereAttacker(controller, cv)) controller.selectCard(cv, null, Tap)
+        }
+    }
+
+    /**
+     * Forge only removes an attacker when it attacks the *current* defender; otherwise a
+     * tap re-targets it. When the player taps an attacker aimed elsewhere they mean "take
+     * it out", so briefly switch to its defender, undeclare it, and switch back.
+     */
+    private fun undeclareElsewhereAttacker(controller: PlayerControllerHuman, cv: CardView): Boolean {
+        val input = currentInput() as? InputAttack ?: return false
+        val card = controller.getCard(cv) ?: return false
+        val defender = controller.game.combat?.getDefenderByAttacker(card) ?: return false
+        val current = fieldValue(input, "currentDefender") as? GameEntity ?: return false
+        if (defender == current) return false
+        selectDefender(controller, defender)
+        controller.selectCard(cv, null, Tap)
+        selectDefender(controller, current)
+        return true
+    }
+
+    private fun selectDefender(controller: PlayerControllerHuman, defender: GameEntity) {
+        when (defender) {
+            is Player -> controller.selectPlayer(defender.view, Tap)
+            is Card -> controller.selectCard(defender.view, null, Tap)
+        }
+    }
+
+    private fun fieldValue(target: Any, name: String): Any? {
+        var type: Class<*>? = target.javaClass
+        while (type != null) {
+            runCatching { return type!!.getDeclaredField(name).apply { isAccessible = true }.get(target) }
+            type = type.superclass
+        }
+        return null
     }
 
     fun tapPlayer(id: Int) {
