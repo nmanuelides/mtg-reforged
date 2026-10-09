@@ -98,7 +98,7 @@ kotlin {
 // both always match. The app extracts it on first run and after every update.
 
 val dataExcludes = listOf(
-    "adventure/**", "music/**", "sound/**", "skins/**", "fonts/**",
+    "adventure/**", "music/**", "skins/**", "fonts/**",
     "cardsfolder/**", "**/*.xcf", "**/*.psd",
 )
 

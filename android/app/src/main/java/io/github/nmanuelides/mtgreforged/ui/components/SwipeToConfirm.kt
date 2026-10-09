@@ -61,7 +61,7 @@ fun SwipeToConfirm(
             .height(height)
             .alpha(if (enabled) 1f else 0.45f)
             .background(Palette.Terracotta)
-            .ornateFrame(Palette.PaperLight.copy(alpha = 0.75f), inset = 3.dp, corners = false)
+            .ornateFrame(Palette.OnAccent.copy(alpha = 0.75f), inset = 3.dp, corners = false)
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
                 val threshold = maxOf(size.width * 0.3f, 80.dp.toPx())
@@ -92,7 +92,7 @@ fun SwipeToConfirm(
             if (hint) "Swipe  →" else "${text.uppercase()}  ›››",
             Modifier.offset { IntOffset((nudge.value * 24.dp.toPx()).roundToInt(), 0) },
             style = MaterialTheme.typography.labelLarge,
-            color = Palette.PaperLight.copy(alpha = 0.75f + 0.25f * nudge.value),
+            color = Palette.OnAccent.copy(alpha = 0.75f + 0.25f * nudge.value),
         )
     }
 }

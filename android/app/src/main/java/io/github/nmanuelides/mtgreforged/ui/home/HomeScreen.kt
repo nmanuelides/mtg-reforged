@@ -39,7 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import io.github.nmanuelides.mtgreforged.ui.theme.ThemeMode
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -144,6 +150,22 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     UpdateBanner(update, onInstallUpdate)
+                    // Light / dark switch, a small paper tab in the corner of the art.
+                    val context = LocalContext.current
+                    Box(
+                        Modifier
+                            .align(Alignment.End)
+                            .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                            .background(Palette.Paper)
+                            .clickable { ThemeMode.toggle(context) }
+                            .padding(10.dp),
+                    ) {
+                        Icon(
+                            if (ThemeMode.dark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (ThemeMode.dark) "Light theme" else "Dark theme",
+                            tint = accent,
+                        )
+                    }
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)

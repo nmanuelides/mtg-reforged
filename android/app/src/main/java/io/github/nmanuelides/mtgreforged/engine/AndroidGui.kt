@@ -16,6 +16,7 @@ import forge.localinstance.skin.FSkinProp
 import forge.localinstance.skin.ISkinImage
 import forge.sound.IAudioClip
 import forge.sound.IAudioMusic
+import forge.sound.SoundSystem
 import forge.util.FSerializableFunction
 import forge.util.ImageFetcher
 import io.github.nmanuelides.mtgreforged.BuildConfig
@@ -143,8 +144,9 @@ class AndroidGui(private val context: Context, private val assetsDir: String) : 
     override fun chooseCard(title: String?, message: String?, list: List<PaperCard>): PaperCard? =
         getChoices("$title - $message", 1, 1, list, null, null).firstOrNull()
 
-    override fun isSupportedAudioFormat(file: File?) = false
-    override fun createAudioClip(filename: String?): IAudioClip? = null
+    override fun isSupportedAudioFormat(file: File?) = file?.extension?.lowercase() in setOf("mp3", "wav", "ogg")
+    override fun createAudioClip(filename: String?): IAudioClip? =
+        filename?.let { SoundSystem.instance.getSoundResource(it) }?.let(AndroidAudioClip::load)
     override fun createAudioMusic(filename: String?): IAudioMusic? = null
     override fun startAltSoundSystem(filename: String?, isSynchronized: Boolean) {}
 

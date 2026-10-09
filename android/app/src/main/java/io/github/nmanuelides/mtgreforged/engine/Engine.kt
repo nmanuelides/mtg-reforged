@@ -13,6 +13,8 @@ import forge.localinstance.properties.ForgeConstants
 import forge.localinstance.properties.ForgePreferences.FPref
 import forge.model.FModel
 import forge.player.GamePlayerUtil
+import forge.sound.SoundEffectType
+import forge.sound.SoundSystem
 import forge.util.ThreadUtil
 import io.github.nmanuelides.mtgreforged.match.ComposeGuiGame
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,11 +75,13 @@ object Engine {
             if (prefs.getPref(FPref.PLAYER_NAME).isNullOrBlank()) prefs.setPref(FPref.PLAYER_NAME, "Jugador")
             // We draw our own UI; Forge's own deck-generation matrix only slows boot down.
             prefs.setPref(FPref.DECKGEN_CARDBASED, false)
-            // No audio backend yet (AndroidGui returns no clips).
-            prefs.setPref(FPref.UI_ENABLE_SOUNDS, false)
+            // Sound effects play through AndroidAudioClip; there is no music player (yet).
+            prefs.setPref(FPref.UI_ENABLE_SOUNDS, true)
             prefs.setPref(FPref.UI_ENABLE_MUSIC, false)
             null
         }
+        // Warm up every sound effect so the first play of each isn't lost to async loading.
+        Thread({ SoundEffectType.entries.forEach { runCatching { SoundSystem.instance.hasResource(it) } } }, "Sounds").start()
         _status.value = Status.Ready
     }
 

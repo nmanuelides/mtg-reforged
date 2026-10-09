@@ -184,7 +184,7 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                             .padding(horizontal = 5.dp, vertical = 1.dp),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Palette.PaperLight,
+                        color = Palette.OnAccent,
                         maxLines = 1,
                     )
                 }

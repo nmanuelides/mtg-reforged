@@ -1,6 +1,7 @@
 package io.github.nmanuelides.mtgreforged
 
 import android.app.Application
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -35,6 +36,7 @@ import io.github.nmanuelides.mtgreforged.ui.home.UpdateUi
 import io.github.nmanuelides.mtgreforged.ui.match.MatchScreen
 import io.github.nmanuelides.mtgreforged.ui.prompts.PromptDialog
 import io.github.nmanuelides.mtgreforged.ui.theme.MtgTheme
+import io.github.nmanuelides.mtgreforged.ui.theme.ThemeMode
 import io.github.nmanuelides.mtgreforged.update.AppUpdater
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,10 +55,18 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        ThemeMode.init(this, systemDark)
         Engine.start(this)
 
         setContent {
             MtgTheme {
+                // Status/navigation bar icons must contrast with the paper in either theme.
+                LaunchedEffect(ThemeMode.dark) {
+                    val transparent = android.graphics.Color.TRANSPARENT
+                    val style = if (ThemeMode.dark) SystemBarStyle.dark(transparent) else SystemBarStyle.light(transparent, transparent)
+                    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                }
                 val status by Engine.status.collectAsStateWithLifecycle()
                 val match by Engine.match.collectAsStateWithLifecycle()
                 val prompt by PromptHost.current.collectAsStateWithLifecycle()

@@ -196,7 +196,7 @@ fun OrnateButton(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val (fill, frame, ink) = when (style) {
-        OrnateStyle.Primary -> Triple(accent, Palette.PaperLight.copy(alpha = 0.75f), Palette.PaperLight)
+        OrnateStyle.Primary -> Triple(accent, Palette.OnAccent.copy(alpha = 0.75f), Palette.OnAccent)
         OrnateStyle.Secondary -> Triple(Palette.PaperLight, frameColor, accent)
         OrnateStyle.Quiet -> Triple(Palette.Paper, Palette.Line, Palette.Ink)
     }
@@ -274,7 +274,7 @@ fun Pill(text: String, color: Color = Palette.Sage, modifier: Modifier = Modifie
             .ornatePillRule()
             .padding(horizontal = 16.dp, vertical = 5.dp),
         style = MaterialTheme.typography.labelMedium,
-        color = Palette.PaperLight,
+        color = Palette.OnAccent,
     )
 }
 
@@ -298,7 +298,7 @@ fun StatBar(label: String, value: Float, display: String, color: Color, glyph: S
                 diamond(center, size.minDimension / 2, color)
                 diamond(center, size.minDimension / 2 - 3.dp.toPx(), Palette.PaperLight, filled = false)
             }
-            Text(glyph, color = Palette.PaperLight, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(glyph, color = Palette.OnAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.width(8.dp))
         Box(

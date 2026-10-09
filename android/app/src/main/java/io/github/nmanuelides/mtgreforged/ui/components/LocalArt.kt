@@ -23,6 +23,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import io.github.nmanuelides.mtgreforged.R
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import io.github.nmanuelides.mtgreforged.ui.theme.ThemeMode
 
 /**
  * Bundled Magic wallpapers used as decorative art. [focusX]/[focusY] (0..1) mark the
@@ -86,17 +87,18 @@ object LandingArt {
 @Composable
 fun rememberArtAccent(art: LocalArt): Color {
     val resources = LocalContext.current.resources
-    val accent by produceState(accentCache[art] ?: Palette.Terracotta, art) {
-        value = accentCache[art] ?: withContext(Dispatchers.Default) {
+    val key = art to ThemeMode.dark
+    val accent by produceState(accentCache[key] ?: Palette.Terracotta, key) {
+        value = accentCache[key] ?: withContext(Dispatchers.Default) {
             val bitmap = BitmapFactory.decodeResource(resources, art.res, BitmapFactory.Options().apply { inSampleSize = 8 })
             val swatches = AndroidPalette.from(bitmap).maximumColorCount(24).generate().swatches
             readableOnPaper(mostVividCommon(swatches) ?: Palette.Terracotta.toArgb())
-        }.also { accentCache[art] = it }
+        }.also { accentCache[key] = it }
     }
     return animateColorAsState(accent, tween(600), label = "accent").value
 }
 
-private val accentCache = HashMap<LocalArt, Color>()
+private val accentCache = HashMap<Pair<LocalArt, Boolean>, Color>()
 
 /**
  * Among colours covering a fair share of the image, the most saturated one at a usable
@@ -122,8 +124,10 @@ private fun readableOnPaper(rgb: Int): Color {
     hsl[1] = hsl[1].coerceAtLeast(0.45f)
     var color = ColorUtils.HSLToColor(hsl)
     // Title and Play are large type, so 3:1 contrast is enough and keeps the colour lively.
-    while (ColorUtils.calculateContrast(color, paper) < 3.0 && hsl[2] > 0.05f) {
-        hsl[2] -= 0.03f
+    // On dark paper the colour is lifted instead of deepened.
+    val step = if (ThemeMode.dark) 0.03f else -0.03f
+    while (ColorUtils.calculateContrast(color, paper) < 3.0 && hsl[2] in 0.05f..0.95f) {
+        hsl[2] += step
         color = ColorUtils.HSLToColor(hsl)
     }
     return Color(color)

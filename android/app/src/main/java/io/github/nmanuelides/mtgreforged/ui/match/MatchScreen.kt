@@ -445,7 +445,7 @@ private fun PhaseTrack(phase: PhaseType?, modifier: Modifier) {
                 fontFamily = Cinzel,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (active) Palette.PaperLight else Palette.InkSoft,
+                color = if (active) Palette.OnAccent else Palette.InkSoft,
             )
         }
     }
@@ -482,7 +482,7 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
             if (portrait != null) {
                 ArtImage(portrait, Modifier.fillMaxSize().clip(CircleShape), placeholder = ring, alignment = Alignment.Center)
             } else {
-                Text(player.name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.PaperLight)
+                Text(player.name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.OnAccent)
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -492,7 +492,7 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
                     Text(
                         "TURN",
                         Modifier.background(Palette.Terracotta).padding(horizontal = 6.dp, vertical = 1.dp),
-                        style = MaterialTheme.typography.labelSmall, color = Palette.PaperLight,
+                        style = MaterialTheme.typography.labelSmall, color = Palette.OnAccent,
                     )
                     Spacer(Modifier.width(6.dp))
                 }

@@ -111,15 +111,15 @@ private fun CardFallback(card: CardUi, width: Dp) {
             fontWeight = FontWeight.Bold,
             maxLines = if (compact) 3 else 2,
             overflow = TextOverflow.Ellipsis,
-            color = Palette.PaperLight,
+            color = Palette.OnAccent,
             lineHeight = if (compact) 9.sp else 14.sp,
         )
         if (!compact) {
             Text(card.manaCost, fontSize = 10.sp, color = Palette.Ochre)
-            Text(card.typeLine, fontSize = 10.sp, color = Palette.PaperDeep, maxLines = 2)
-            Text(card.text, fontSize = 9.sp, color = Palette.PaperLight, maxLines = 8, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
+            Text(card.typeLine, fontSize = 10.sp, color = Color(0xFFE6D5B3), maxLines = 2)
+            Text(card.text, fontSize = 9.sp, color = Palette.OnAccent, maxLines = 8, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
         } else {
-            Text(card.typeLine.substringBefore(" -").substringBefore(" —"), fontSize = 7.sp, color = Palette.PaperDeep, maxLines = 1)
+            Text(card.typeLine.substringBefore(" -").substringBefore(" —"), fontSize = 7.sp, color = Color(0xFFE6D5B3), maxLines = 1)
         }
     }
 }
