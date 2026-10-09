@@ -1,0 +1,194 @@
+package io.github.nmanuelides.mtgreforged.ui.match
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import io.github.nmanuelides.mtgreforged.match.CardUi
+import io.github.nmanuelides.mtgreforged.match.MatchUiState
+import io.github.nmanuelides.mtgreforged.match.PlayerUi
+import io.github.nmanuelides.mtgreforged.ui.components.CARD_ASPECT
+import io.github.nmanuelides.mtgreforged.ui.components.CardMark
+import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+
+/**
+ * One slot on the battlefield: a permanent with whatever is attached to it, or several
+ * identical permanents (basic lands, token swarms) collapsed into a single pile.
+ */
+private class FieldItem(val cards: List<CardUi>, val attachments: List<CardUi>, val section: Int) {
+    val top get() = cards.first()
+    val tapped get() = top.tapped
+}
+
+private const val ATTACH_PEEK = 0.16f
+private const val GAP_DP = 6f
+
+private fun groupKey(c: CardUi) =
+    listOf(c.name, c.tapped, c.sick, c.power, c.toughness, c.damage, c.counters, c.token, c.faceDown)
+
+private fun buildItems(cards: List<CardUi>, mirrored: Boolean): List<FieldItem> {
+    val ids = cards.mapTo(HashSet()) { it.id }
+    val attached = cards.filter { it.attachedToId != null && it.attachedToId in ids }.groupBy { it.attachedToId }
+    val roots = cards.filter { it.attachedToId == null || it.attachedToId !in ids }
+
+    fun section(c: CardUi) = when {
+        c.isCreature -> 0
+        !c.isLand -> 1
+        else -> 2
+    }.let { if (mirrored) 2 - it else it }
+
+    val items = ArrayList<FieldItem>()
+    roots.groupBy { section(it) }.toSortedMap().forEach { (sec, inSection) ->
+        // Only bare permanents are stacked; anything with attachments stays on its own.
+        val (plain, decorated) = inSection.partition { attached[it.id].isNullOrEmpty() }
+        plain.groupBy(::groupKey).values.forEach { items += FieldItem(it, emptyList(), sec) }
+        decorated.forEach { items += FieldItem(listOf(it), attached[it.id].orEmpty(), sec) }
+    }
+    return items
+}
+
+private class Placement(val item: FieldItem, val x: Float, val y: Float, val w: Float, val h: Float)
+private class Plan(val cardWidth: Float, val placements: List<Placement>)
+
+/** Finds the largest card width at which every item fits, packing rows section by section. */
+private fun plan(items: List<FieldItem>, maxW: Float, maxH: Float, minCard: Float, maxCard: Float): Plan {
+    fun layout(cardW: Float): Pair<Float, List<Placement>> {
+        val cardH = cardW / CARD_ASPECT
+        val rows = ArrayList<MutableList<Pair<FieldItem, Pair<Float, Float>>>>()
+        var rowWidth = 0f
+        var lastSection = -1
+        for (item in items) {
+            val w = if (item.tapped) cardH else cardW
+            val h = cardH * (1 + ATTACH_PEEK * item.attachments.size)
+            val newRow = rows.isEmpty() || item.section != lastSection || rowWidth + GAP_DP + w > maxW
+            if (newRow) {
+                rows += mutableListOf<Pair<FieldItem, Pair<Float, Float>>>()
+                rowWidth = w
+            } else {
+                rowWidth += GAP_DP + w
+            }
+            rows.last() += item to (w to h)
+            lastSection = item.section
+        }
+        val placements = ArrayList<Placement>()
+        var y = 0f
+        rows.forEach { row ->
+            val rowH = row.maxOf { it.second.second }
+            val total = row.sumOf { it.second.first.toDouble() }.toFloat() + GAP_DP * (row.size - 1)
+            var x = (maxW - total) / 2
+            row.forEach { (item, size) ->
+                placements += Placement(item, x, y + (rowH - size.second) / 2, size.first, size.second)
+                x += size.first + GAP_DP
+            }
+            y += rowH + GAP_DP
+        }
+        return (y - GAP_DP) to placements
+    }
+
+    var width = maxCard
+    while (width > minCard) {
+        val (height, placements) = layout(width)
+        if (height <= maxH) return Plan(width, placements)
+        width -= 2f
+    }
+    return Plan(minCard, layout(minCard).second)
+}
+
+@Composable
+internal fun Battlefield(
+    player: PlayerUi,
+    state: MatchUiState,
+    actions: BoardActions,
+    mirrored: Boolean,
+    maxCardWidth: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val items = remember(player.battlefield, mirrored) { buildItems(player.battlefield, mirrored) }
+    BoxWithConstraints(modifier) {
+        val plan = remember(items, maxWidth, maxHeight, maxCardWidth) {
+            plan(items, maxWidth.value, maxHeight.value, 28f, maxCardWidth.value)
+        }
+        // Opponents' fields hug the top edge of their area, ours the bottom one.
+        val usedHeight = plan.placements.maxOfOrNull { it.y + it.h } ?: 0f
+        val shiftY = if (mirrored) 0f else (maxHeight.value - usedHeight).coerceAtLeast(0f)
+        plan.placements.forEach { p ->
+            Box(
+                Modifier.offset(p.x.dp, (p.y + shiftY).dp).size(p.w.dp, p.h.dp),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                FieldItemView(p.item, plan.cardWidth.dp, state, actions)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions) {
+    val cardHeight = cardWidth / CARD_ASPECT
+    // Tapping a pile acts on the first card that still needs a decision.
+    val target = item.cards.firstOrNull { it.id in state.selectableIds }
+        ?: item.cards.firstOrNull { state.combat?.attackers?.containsKey(it.id) != true }
+        ?: item.top
+    val mark = item.cards.map(state::markFor).firstOrNull { it != CardMark.None } ?: CardMark.None
+
+    Box(contentAlignment = Alignment.BottomCenter) {
+        item.attachments.forEachIndexed { i, a ->
+            CardTile(
+                a, cardWidth,
+                Modifier.offset(y = -(cardHeight * ATTACH_PEEK * (item.attachments.size - i))),
+                mark = state.markFor(a),
+                onClick = { actions.onCard(a.id) },
+                onLongClick = { actions.onInspect(a) },
+            )
+        }
+        Box(Modifier.size(if (item.tapped) cardHeight else cardWidth, cardHeight), contentAlignment = Alignment.Center) {
+            CardTile(
+                item.top, cardWidth,
+                mark = mark,
+                onClick = { actions.onCard(target.id) },
+                onLongClick = { actions.onInspect(item.top) },
+            )
+            if (item.cards.size > 1) {
+                Text(
+                    "×${item.cards.size}",
+                    Modifier
+                        .align(Alignment.Center)
+                        .background(Color(0xE6101218), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Palette.TextPrimary,
+                )
+            }
+        }
+    }
+}
+
+internal fun MatchUiState.markFor(card: CardUi): CardMark = when {
+    card.id in selectableIds -> CardMark.Selectable
+    card.id in highlightedIds -> CardMark.Highlighted
+    combat?.attackers?.containsKey(card.id) == true -> CardMark.Attacking
+    combat?.blockers?.values?.any { card.id in it } == true -> CardMark.Blocking
+    else -> CardMark.None
+}
+
+internal class BoardActions(
+    val onCard: (Int) -> Unit,
+    val onPlayer: (Int) -> Unit,
+    val onInspect: (CardUi) -> Unit,
+    val onZone: (String, List<CardUi>) -> Unit,
+)

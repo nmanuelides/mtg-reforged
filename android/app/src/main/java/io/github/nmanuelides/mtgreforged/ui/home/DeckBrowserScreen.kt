@@ -1,0 +1,296 @@
+package io.github.nmanuelides.mtgreforged.ui.home
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import forge.card.MagicColor
+import io.github.nmanuelides.mtgreforged.engine.DeckSummary
+import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
+import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
+import io.github.nmanuelides.mtgreforged.ui.components.Pill
+import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.components.StatBar
+import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
+import io.github.nmanuelides.mtgreforged.ui.components.parchment
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private val COLOR_NAMES = mapOf(
+    MagicColor.WHITE to "White", MagicColor.BLUE to "Blue", MagicColor.BLACK to "Black",
+    MagicColor.RED to "Red", MagicColor.GREEN to "Green",
+)
+
+private fun colorOf(c: Byte) = when (c) {
+    MagicColor.WHITE -> Palette.Ochre
+    MagicColor.BLUE -> Palette.Slate
+    MagicColor.BLACK -> Palette.Plum
+    MagicColor.RED -> Palette.Terracotta
+    else -> Palette.Sage
+}
+
+/** Character-sheet style deck chooser: one deck at a time, with arrows and a search list. */
+@Composable
+fun DeckBrowserScreen(
+    title: String,
+    decks: List<DeckEntry>,
+    initial: DeckEntry?,
+    onSelect: (DeckEntry) -> Unit,
+    onBack: () -> Unit,
+) {
+    var index by remember(decks) { mutableIntStateOf(decks.indexOf(initial).coerceAtLeast(0)) }
+    var searching by remember { mutableStateOf(false) }
+    BackHandler(onBack = onBack)
+    val entry = decks.getOrNull(index) ?: return
+
+    val summary by produceState<DeckSummary?>(null, entry) {
+        value = withContext(Dispatchers.IO) { runCatching { DeckSummary.of(entry) }.getOrNull() }
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp)) {
+        val wide = maxWidth > maxHeight
+        val content: @Composable (Modifier, Modifier) -> Unit = { artModifier, sheetModifier ->
+            ArtPanel(summary, artModifier)
+            DeckSheet(
+                title = title,
+                summary = summary,
+                position = "${index + 1} / ${decks.size}",
+                onPrev = { index = (index - 1 + decks.size) % decks.size },
+                onNext = { index = (index + 1) % decks.size },
+                onSearch = { searching = true },
+                onBack = onBack,
+                onSelect = { onSelect(entry) },
+                modifier = sheetModifier,
+            )
+        }
+        if (wide) {
+            Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
+                content(Modifier.weight(0.52f).fillMaxHeight(), Modifier.weight(0.48f).fillMaxHeight().padding(start = 24.dp))
+            }
+        } else {
+            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
+                content(Modifier.fillMaxWidth().weight(0.4f), Modifier.fillMaxWidth().weight(0.6f).padding(top = 12.dp))
+            }
+        }
+    }
+
+    if (searching) {
+        DeckSearchDialog(decks, onPick = { index = decks.indexOf(it); searching = false }, onDismiss = { searching = false })
+    }
+}
+
+@Composable
+private fun ArtPanel(summary: DeckSummary?, modifier: Modifier) {
+    val accent = summary?.colors?.firstOrNull()?.let(::colorOf) ?: Palette.Sage
+    Box(modifier) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(end = 30.dp)
+                .border(2.dp, Palette.LineStrong)
+                .padding(6.dp)
+                .clip(androidx.compose.ui.graphics.RectangleShape),
+        ) {
+            AnimatedContent(summary?.artCard, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "art") { card ->
+                ArtImage(card, Modifier.fillMaxSize(), placeholder = Palette.PaperDeep)
+            }
+        }
+        // The sheet's geometric accents: a disc and a diamond breaking out of the frame.
+        Canvas(Modifier.align(Alignment.CenterEnd).size(120.dp).padding(start = 30.dp)) {
+            drawCircle(accent.copy(alpha = 0.85f), radius = size.minDimension / 2.4f, center = Offset(size.width * 0.35f, size.height * 0.2f))
+        }
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .padding(top = 140.dp)
+                .size(86.dp)
+                .rotate(45f)
+                .background(Palette.Terracotta)
+                .border(2.dp, Palette.PaperLight),
+        )
+    }
+}
+
+@Composable
+private fun DeckSheet(
+    title: String,
+    summary: DeckSummary?,
+    position: String,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onSearch: () -> Unit,
+    onBack: () -> Unit,
+    onSelect: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+            SectionLabel(title)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                summary?.title ?: "…",
+                style = if ((summary?.title?.length ?: 0) > 16) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
+                color = Palette.Terracotta,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+            )
+            summary?.commander?.let {
+                Text(it, style = MaterialTheme.typography.titleLarge, color = Palette.Slate, textAlign = TextAlign.Center)
+            }
+            Spacer(Modifier.height(8.dp))
+            summary?.let { s ->
+                if (s.colors.isNotEmpty()) Pill(s.colors.joinToString(" • ") { COLOR_NAMES[it].orEmpty() }, colorOf(s.colors.first()))
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OrnateDivider(width = 40.dp)
+                Text(
+                    "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards  ",
+                    style = MaterialTheme.typography.labelMedium, color = Palette.Terracotta,
+                )
+                OrnateDivider(width = 40.dp)
+            }
+            Spacer(Modifier.height(12.dp))
+
+            summary?.let { s ->
+                val total = s.cardCount.coerceAtLeast(1).toFloat()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatBar("Creatures", s.creatures / total * 1.8f, "${s.creatures}", Palette.Sage, "✦")
+                    StatBar("Spells", s.spells / total * 1.8f, "${s.spells}", Palette.Slate, "✧")
+                    StatBar("Lands", s.lands / total * 1.8f, "${s.lands}", Palette.Ochre, "◆")
+                    StatBar("Mana value", s.averageCmc / 6f, "%.1f".format(s.averageCmc), Palette.Plum, "⬥")
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    s.featured.forEach { FeaturedCard(it, Modifier.weight(1f)) }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("", onPrev, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft)
+            OrnateButton(position, onSearch, Modifier.weight(1f), icon = Icons.Default.Search, style = OrnateStyle.Quiet)
+            OrnateButton("", onNext, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowRight)
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            OrnateButton("Back", onBack, Modifier.weight(1f), accent = Palette.Slate, height = 54.dp)
+            OrnateButton("Select", onSelect, Modifier.weight(1.3f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
+        }
+    }
+}
+
+@Composable
+private fun FeaturedCard(name: String, modifier: Modifier) {
+    Column(
+        modifier
+            .background(Palette.PaperLight)
+            .ornateFrame(Palette.Line, inset = 3.dp)
+            .padding(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            name.substringBefore(" //"),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.height(30.dp),
+        )
+        Spacer(Modifier.height(6.dp))
+        ArtImage(
+            name,
+            Modifier.fillMaxWidth(0.8f).aspectRatio(1f).clip(CircleShape).border(1.dp, Palette.Line, CircleShape),
+            placeholder = Palette.PaperDeep,
+            alignment = Alignment.Center,
+        )
+        Spacer(Modifier.height(6.dp))
+        OrnateDivider(width = 50.dp, color = Palette.Line)
+    }
+}
+
+@Composable
+private fun DeckSearchDialog(decks: List<DeckEntry>, onPick: (DeckEntry) -> Unit, onDismiss: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query, decks) { decks.filter { it.name.contains(query, ignoreCase = true) } }
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 640.dp) {
+        SectionLabel("Decks")
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            query, { query = it },
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+            placeholder = { Text("Search ${decks.size} decks", style = MaterialTheme.typography.bodyMedium) },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Palette.Terracotta, unfocusedBorderColor = Palette.Line,
+                focusedContainerColor = Palette.PaperLight, unfocusedContainerColor = Palette.PaperLight,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        LazyColumn(Modifier.fillMaxWidth().height(420.dp).padding(top = 8.dp)) {
+            items(filtered, key = { it.name }) { deck ->
+                Column(Modifier.fillMaxWidth().clickable { onPick(deck) }) {
+                    Text(deck.name, Modifier.padding(vertical = 12.dp, horizontal = 4.dp), style = MaterialTheme.typography.bodyLarge)
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line.copy(alpha = 0.5f)))
+                }
+            }
+        }
+    }
+}

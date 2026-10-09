@@ -1,14 +1,13 @@
 package io.github.nmanuelides.mtgreforged.ui.prompts
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,15 +23,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -46,12 +41,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import io.github.nmanuelides.mtgreforged.engine.PendingPrompt
 import io.github.nmanuelides.mtgreforged.engine.Prompt
 import io.github.nmanuelides.mtgreforged.engine.PromptItem
 import io.github.nmanuelides.mtgreforged.ui.components.CardMark
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
+import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 
 /** Renders whatever question the engine is currently waiting on. */
@@ -67,73 +66,84 @@ fun PromptDialog(pending: PendingPrompt) {
     }
 }
 
-private val noDismiss = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+/** Engine questions block the game, so they can't be dismissed by tapping outside. */
+@Composable
+private fun PromptFrame(title: String, wide: Boolean = false, content: @Composable () -> Unit) {
+    OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = if (wide) 860.dp else 560.dp) {
+        if (title.isNotBlank()) {
+            SectionLabel(title.take(60))
+            Spacer(Modifier.height(14.dp))
+        }
+        content()
+    }
+}
 
 @Composable
-private fun MessageDialog(p: Prompt.Message, onDone: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { Text(p.title, color = if (p.isError) Palette.Life else MaterialTheme.colorScheme.onSurface) },
-        text = { Text(p.message, Modifier.verticalScroll(rememberScrollState())) },
-        confirmButton = { Button(onClick = onDone) { Text("OK") } },
+private fun Body(text: String) {
+    Text(
+        text,
+        Modifier.fillMaxWidth().heightIn(max = 280.dp).verticalScroll(rememberScrollState()),
+        style = MaterialTheme.typography.bodyLarge,
+        textAlign = TextAlign.Center,
     )
 }
 
 @Composable
+private fun MessageDialog(p: Prompt.Message, onDone: () -> Unit) {
+    PromptFrame(if (p.isError) "Error" else p.title) {
+        Body(p.message)
+        Spacer(Modifier.height(18.dp))
+        OrnateButton("OK", onDone, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
+    }
+}
+
+@Composable
 private fun OptionsDialog(p: Prompt.Options, onPick: (Int) -> Unit) {
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { if (p.title.isNotBlank()) Text(p.title) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-                p.card?.let { CardTile(it, 160.dp); Spacer(Modifier.size(12.dp)) }
-                Text(p.message)
+    PromptFrame(p.title) {
+        p.card?.let { CardTile(it, 180.dp, showTapped = false); Spacer(Modifier.height(12.dp)) }
+        Body(p.message)
+        Spacer(Modifier.height(18.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            p.options.forEachIndexed { i, label ->
+                OrnateButton(
+                    label, { onPick(i) }, Modifier.fillMaxWidth(),
+                    style = if (i == p.defaultOption) OrnateStyle.Primary else OrnateStyle.Secondary,
+                )
             }
-        },
-        confirmButton = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                p.options.forEachIndexed { i, label ->
-                    if (i == p.defaultOption) {
-                        Button(onClick = { onPick(i) }) { Text(label) }
-                    } else {
-                        FilledTonalButton(onClick = { onPick(i) }) { Text(label) }
-                    }
-                }
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable
 private fun InputDialog(p: Prompt.Input, onDone: (String?) -> Unit) {
     var value by remember(p) { mutableStateOf(p.initial.orEmpty()) }
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { Text(p.title.ifBlank { "Forge" }) },
-        text = {
-            Column {
-                Text(p.message)
-                Spacer(Modifier.size(8.dp))
-                if (p.suggestions.isNullOrEmpty()) {
-                    OutlinedTextField(
-                        value, { value = it }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = if (p.numeric) KeyboardType.Number else KeyboardType.Text),
-                    )
-                } else {
-                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                        itemsIndexed(p.suggestions) { _, s ->
-                            Text(s, Modifier.fillMaxWidth().clickable { onDone(s) }.padding(12.dp))
-                        }
-                    }
-                }
+    PromptFrame(p.title.ifBlank { "Forge" }) {
+        Body(p.message)
+        Spacer(Modifier.height(12.dp))
+        if (p.suggestions.isNullOrEmpty()) {
+            OutlinedTextField(
+                value, { value = it }, singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                keyboardOptions = KeyboardOptions(keyboardType = if (p.numeric) KeyboardType.Number else KeyboardType.Text),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Palette.Terracotta, unfocusedBorderColor = Palette.Line,
+                    focusedContainerColor = Palette.PaperLight, unfocusedContainerColor = Palette.PaperLight,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrnateButton("Cancel", { onDone(null) }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton("OK", { onDone(value) }, Modifier.weight(1f), style = OrnateStyle.Primary)
             }
-        },
-        confirmButton = { if (p.suggestions.isNullOrEmpty()) Button(onClick = { onDone(value) }) { Text("OK") } },
-        dismissButton = { TextButton(onClick = { onDone(null) }) { Text("Cancelar") } },
-    )
+        } else {
+            LazyColumn(Modifier.heightIn(max = 340.dp)) {
+                itemsIndexed(p.suggestions) { _, s -> TextChoice(s, false) { onDone(s) } }
+            }
+            Spacer(Modifier.height(12.dp))
+            OrnateButton("Cancel", { onDone(null) }, Modifier.fillMaxWidth(), accent = Palette.Slate)
+        }
+    }
 }
 
 @Composable
@@ -154,90 +164,82 @@ private fun ChooseDialog(p: Prompt.Choose, onDone: (List<Int>?) -> Unit) {
         if (i in selected) selected.remove(i) else if (selected.size < p.max) selected.add(i)
     }
 
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { Text(p.title.ifBlank { "Elegí" }) },
-        text = {
-            Column {
-                if (p.max > 1) {
-                    Text(
-                        if (p.min == p.max) "Elegí ${p.min}" else "Elegí entre ${p.min} y ${p.max}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.size(8.dp))
-                }
-                if (hasCards) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        itemsIndexed(p.items) { i, item -> CardChoice(item, i in selected) { toggle(i) } }
-                    }
-                } else {
-                    LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                        itemsIndexed(p.items) { i, item -> TextChoice(item.label, i in selected) { toggle(i) } }
-                    }
-                }
+    PromptFrame(p.title.ifBlank { "Choose" }, wide = hasCards) {
+        if (p.max > 1) {
+            Text(
+                if (p.min == p.max) "Choose ${p.min}" else "Choose ${p.min} to ${p.max}",
+                style = MaterialTheme.typography.labelMedium, color = Palette.InkSoft,
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+        if (hasCards) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(p.items) { i, item -> CardChoice(item, i in selected) { toggle(i) } }
             }
-        },
-        confirmButton = {
+        } else {
+            LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                itemsIndexed(p.items) { i, item -> TextChoice(item.label, i in selected) { toggle(i) } }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (p.min == 0 && !displayOnly) {
+                OrnateButton("None", { onDone(if (single) emptyList() else null) }, Modifier.weight(1f), accent = Palette.Slate)
+            }
             when {
-                displayOnly -> Button(onClick = { onDone(emptyList()) }) { Text("OK") }
-                !single -> Button(onClick = { onDone(selected.toList()) }, enabled = valid) { Text("Confirmar") }
+                displayOnly -> OrnateButton("OK", { onDone(emptyList()) }, Modifier.weight(1f), style = OrnateStyle.Primary)
+                !single -> OrnateButton("Confirm", { onDone(selected.toList()) }, Modifier.weight(1f), style = OrnateStyle.Primary, enabled = valid)
             }
-        },
-        dismissButton = {
-            if (p.min == 0 && !displayOnly) TextButton(onClick = { onDone(if (single) emptyList() else null) }) { Text("Ninguno") }
-        },
-    )
+        }
+    }
 }
 
 @Composable
 private fun CardChoice(item: PromptItem, selected: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(120.dp)) {
-        CardTile(item.card!!, 120.dp, mark = if (selected) CardMark.Highlighted else CardMark.None, showTapped = false, onClick = onClick)
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(150.dp)) {
+        CardTile(item.card!!, 150.dp, mark = if (selected) CardMark.Highlighted else CardMark.None, showTapped = false, onClick = onClick)
+        Spacer(Modifier.height(4.dp))
         Text(item.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 private fun TextChoice(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
+    Text(
+        label,
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .background(if (selected) Palette.EmberSoft else Palette.SurfaceHigh, RoundedCornerShape(10.dp))
-            .border(1.dp, if (selected) Palette.Ember else Palette.Outline, RoundedCornerShape(10.dp))
+            .padding(vertical = 4.dp)
+            .background(if (selected) Palette.EmberSoft else Palette.PaperLight)
+            .ornateFrame(if (selected) Palette.Terracotta else Palette.Line, inset = 3.dp, corners = false)
             .clickable(onClick = onClick)
-            .padding(12.dp),
-    ) { Text(label) }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        style = MaterialTheme.typography.bodyLarge,
+    )
 }
 
 @Composable
 private fun OrderDialog(p: Prompt.Order, onDone: (List<Int>) -> Unit) {
     val order = remember(p) { mutableStateListOf(*p.items.indices.toList().toTypedArray()) }
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { Text(p.title.ifBlank { "Ordená" }) },
-        text = {
-            LazyColumn(Modifier.heightIn(max = 420.dp)) {
-                itemsIndexed(order, key = { _, idx -> idx }) { pos, idx ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                        Text("${pos + 1}.", Modifier.width(28.dp), color = Palette.TextSecondary)
-                        p.items[idx].card?.let { CardTile(it, 44.dp, showTapped = false); Spacer(Modifier.width(8.dp)) }
-                        Text(p.items[idx].label, Modifier.weight(1f), maxLines = 2)
-                        IconButton(onClick = { if (pos > 0) order.add(pos - 1, order.removeAt(pos)) }, enabled = pos > 0) {
-                            Icon(Icons.Default.KeyboardArrowUp, "Subir")
-                        }
-                        IconButton(onClick = { if (pos < order.lastIndex) order.add(pos + 1, order.removeAt(pos)) }, enabled = pos < order.lastIndex) {
-                            Icon(Icons.Default.KeyboardArrowDown, "Bajar")
-                        }
+    PromptFrame(p.title.ifBlank { "Order" }) {
+        LazyColumn(Modifier.heightIn(max = 420.dp)) {
+            itemsIndexed(order, key = { _, idx -> idx }) { pos, idx ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text("${pos + 1}.", Modifier.width(28.dp), style = MaterialTheme.typography.titleMedium, color = Palette.Terracotta)
+                    p.items[idx].card?.let { CardTile(it, 48.dp, showTapped = false); Spacer(Modifier.width(10.dp)) }
+                    Text(p.items[idx].label, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyLarge)
+                    IconButton(onClick = { if (pos > 0) order.add(pos - 1, order.removeAt(pos)) }, enabled = pos > 0) {
+                        Icon(Icons.Default.KeyboardArrowUp, "Up", tint = Palette.Terracotta)
+                    }
+                    IconButton(onClick = { if (pos < order.lastIndex) order.add(pos + 1, order.removeAt(pos)) }, enabled = pos < order.lastIndex) {
+                        Icon(Icons.Default.KeyboardArrowDown, "Down", tint = Palette.Terracotta)
                     }
                 }
             }
-        },
-        confirmButton = { Button(onClick = { onDone(order.toList()) }) { Text("Confirmar") } },
-    )
+        }
+        Spacer(Modifier.height(14.dp))
+        OrnateButton("Confirm", { onDone(order.toList()) }, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
+    }
 }
 
 @Composable
@@ -245,28 +247,28 @@ private fun DistributeDialog(p: Prompt.Distribute, onDone: (List<Int>?) -> Unit)
     val amounts = remember(p) { p.initial.toMutableStateList() }
     val assigned = amounts.sum()
     val valid = assigned == p.total && (!p.atLeastOne || amounts.all { it > 0 })
-    AlertDialog(
-        onDismissRequest = {},
-        properties = noDismiss,
-        title = { Text(p.title) },
-        text = {
-            Column {
-                Text("Asignado: $assigned / ${p.total}", color = if (valid) Palette.Poison else Palette.TextSecondary)
-                Spacer(Modifier.size(8.dp))
-                LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                    itemsIndexed(p.targets) { i, target ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            target.card?.let { CardTile(it, 44.dp, showTapped = false); Spacer(Modifier.width(8.dp)) }
-                            Text(target.label, Modifier.weight(1f), maxLines = 2)
-                            IconButton(onClick = { if (amounts[i] > 0) amounts[i]-- }) { Icon(Icons.Default.Remove, "Menos") }
-                            Text("${amounts[i]}", Modifier.width(28.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium)
-                            IconButton(onClick = { if (assigned < p.total) amounts[i]++ }) { Icon(Icons.Default.Add, "Más") }
-                        }
-                    }
+    PromptFrame(p.title) {
+        Text(
+            "Assigned $assigned / ${p.total}",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (valid) Palette.Sage else Palette.InkSoft,
+        )
+        Spacer(Modifier.height(10.dp))
+        LazyColumn(Modifier.heightIn(max = 380.dp)) {
+            itemsIndexed(p.targets) { i, target ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    target.card?.let { CardTile(it, 48.dp, showTapped = false); Spacer(Modifier.width(10.dp)) }
+                    Text(target.label, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyLarge)
+                    IconButton(onClick = { if (amounts[i] > 0) amounts[i]-- }) { Icon(Icons.Default.Remove, "Less", tint = Palette.Terracotta) }
+                    Text("${amounts[i]}", Modifier.width(32.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
+                    IconButton(onClick = { if (assigned < p.total) amounts[i]++ }) { Icon(Icons.Default.Add, "More", tint = Palette.Terracotta) }
                 }
             }
-        },
-        confirmButton = { Button(onClick = { onDone(amounts.toList()) }, enabled = valid) { Text("Confirmar") } },
-        dismissButton = { if (p.maySkip) TextButton(onClick = { onDone(null) }) { Text("Automático") } },
-    )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (p.maySkip) OrnateButton("Auto", { onDone(null) }, Modifier.weight(1f), accent = Palette.Slate)
+            OrnateButton("Confirm", { onDone(amounts.toList()) }, Modifier.weight(1f), style = OrnateStyle.Primary, enabled = valid)
+        }
+    }
 }

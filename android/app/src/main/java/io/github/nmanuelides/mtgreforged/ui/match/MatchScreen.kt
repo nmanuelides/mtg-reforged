@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -44,6 +47,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,10 +55,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,10 +75,22 @@ import io.github.nmanuelides.mtgreforged.match.CardUi
 import io.github.nmanuelides.mtgreforged.match.ComposeGuiGame
 import io.github.nmanuelides.mtgreforged.match.MatchUiState
 import io.github.nmanuelides.mtgreforged.match.PlayerUi
-import io.github.nmanuelides.mtgreforged.ui.components.CARD_ASPECT
+import io.github.nmanuelides.mtgreforged.match.StackItemUi
 import io.github.nmanuelides.mtgreforged.ui.components.CardMark
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
+import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
+import io.github.nmanuelides.mtgreforged.ui.components.parchment
+import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
+
+/** Wide screens (tablets, landscape) get a side panel; phones keep a stacked layout. */
+private val TABLET_MIN_WIDTH = 840.dp
 
 @Composable
 fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
@@ -87,6 +106,13 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
     }
     BackHandler { confirmLeave = true }
 
+    // AI turns in multiplayer can take a while; don't let the screen sleep mid-match.
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+
     val actions = remember(game) {
         BoardActions(
             onCard = game::tapCard,
@@ -96,85 +122,272 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
         )
     }
 
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF141623), Palette.Background, Color(0xFF14121C)))),
+            .parchment(),
     ) {
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            TopBar(state, onLog = { showLog = true }, onConcede = { confirmLeave = true })
-            state.opponents.firstOrNull()?.let { opp ->
-                PlayerStrip(opp, state, actions)
-                Battlefield(opp, state, actions, mirrored = true, modifier = Modifier.weight(1f))
+        val tablet = maxWidth >= TABLET_MIN_WIDTH
+        Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+            if (tablet) {
+                TabletLayout(
+                    state, actions, game, detail,
+                    onCloseDetail = { detail = null },
+                    onLog = { showLog = true },
+                    onConcede = { confirmLeave = true },
+                )
+            } else {
+                PhoneLayout(state, actions, game, onLog = { showLog = true }, onConcede = { confirmLeave = true })
             }
-            CenterLine(state, actions)
-            state.me?.let { me ->
-                Battlefield(me, state, actions, mirrored = false, modifier = Modifier.weight(1f))
-                PlayerStrip(me, state, actions)
-                Hand(me.hand, state, actions)
-            }
-            PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel)
         }
 
         AnimatedVisibility(state.gameOver != null, enter = fadeIn(), exit = fadeOut()) {
             state.gameOver?.let { over ->
-                GameOverOverlay(
-                    title = over.title,
-                    won = over.youWon,
-                    matchOver = over.matchOver,
-                    onContinue = game::continueAfterGame,
-                    onLeave = onLeave,
-                )
+                GameOverOverlay(over.title, over.youWon, over.matchOver, game::continueAfterGame, onLeave)
             }
         }
+
+        // On tablets the inspected card lives in the side panel instead of a sheet.
+        if (!tablet) detail?.let { CardDetailSheet(it) { detail = null } }
     }
 
-    detail?.let { CardDetailSheet(it) { detail = null } }
     zoneSheet?.let { (title, cards) ->
         ZoneSheet(title, cards, onInspect = { detail = it }, onDismiss = { zoneSheet = null })
     }
     if (showLog) LogSheet(state.log) { showLog = false }
     if (confirmLeave) {
-        AlertDialog(
-            onDismissRequest = { confirmLeave = false },
-            title = { Text("¿Abandonar la partida?") },
-            text = { Text("La partida se va a dar por perdida.") },
-            confirmButton = {
-                Button(onClick = { confirmLeave = false; game.concedeGame(); onLeave() }) { Text("Abandonar") }
-            },
-            dismissButton = { TextButton(onClick = { confirmLeave = false }) { Text("Seguir jugando") } },
+        OrnateDialog(onDismiss = { confirmLeave = false }) {
+            SectionLabel("Concede")
+            Spacer(Modifier.height(12.dp))
+            Text("Leave the match? It will count as a loss.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(18.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrnateButton("Keep playing", { confirmLeave = false }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton("Concede", { confirmLeave = false; game.concedeGame(); onLeave() }, Modifier.weight(1f), style = OrnateStyle.Primary)
+            }
+        }
+    }
+}
+
+// ---- Layouts -----------------------------------------------------------------------
+
+@Composable
+private fun TabletLayout(
+    state: MatchUiState,
+    actions: BoardActions,
+    game: ComposeGuiGame,
+    detail: CardUi?,
+    onCloseDetail: () -> Unit,
+    onLog: () -> Unit,
+    onConcede: () -> Unit,
+) {
+    Row(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            val opponents = state.opponents
+            // More opponents share the top band; give it more height so each still breathes.
+            val topWeight = if (opponents.size > 1) 0.46f else 0.42f
+            Row(Modifier.fillMaxWidth().weight(topWeight), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                opponents.forEach { opp ->
+                    OpponentArea(opp, state, actions, compact = opponents.size > 1, modifier = Modifier.weight(1f).fillMaxHeight())
+                }
+            }
+            CenterDivider()
+            state.me?.let { me ->
+                Battlefield(
+                    me, state, actions, mirrored = false, maxCardWidth = 110.dp,
+                    modifier = Modifier.fillMaxWidth().weight(1f - topWeight).padding(horizontal = 8.dp),
+                )
+                PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                Hand(me.hand, state, actions, cardWidth = 118.dp, height = 176.dp)
+            }
+        }
+        SidePanel(state, game, actions, detail, onCloseDetail, onLog, onConcede, Modifier.width(320.dp).fillMaxHeight())
+    }
+}
+
+@Composable
+private fun PhoneLayout(
+    state: MatchUiState,
+    actions: BoardActions,
+    game: ComposeGuiGame,
+    onLog: () -> Unit,
+    onConcede: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        TopBar(state, onLog, onConcede)
+        val opponents = state.opponents
+        if (opponents.size == 1) {
+            PlayerStrip(opponents[0], state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            Battlefield(
+                opponents[0], state, actions, mirrored = true, maxCardWidth = 72.dp,
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp),
+            )
+        } else {
+            Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                opponents.forEach { OpponentArea(it, state, actions, compact = true, modifier = Modifier.weight(1f).fillMaxHeight()) }
+            }
+        }
+        StackStrip(state.stack, actions)
+        state.me?.let { me ->
+            Battlefield(
+                me, state, actions, mirrored = false, maxCardWidth = 72.dp,
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp),
+            )
+            PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            Hand(me.hand, state, actions, cardWidth = 80.dp, height = 118.dp)
+        }
+        PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel)
+    }
+}
+
+@Composable
+private fun OpponentArea(player: PlayerUi, state: MatchUiState, actions: BoardActions, compact: Boolean, modifier: Modifier) {
+    Column(modifier.alpha(if (player.hasLost) 0.4f else 1f).padding(horizontal = 6.dp, vertical = 4.dp)) {
+        PlayerStrip(player, state, actions, compact = compact)
+        Battlefield(
+            player, state, actions, mirrored = true, maxCardWidth = if (compact) 76.dp else 96.dp,
+            modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp),
         )
     }
 }
 
-private class BoardActions(
-    val onCard: (Int) -> Unit,
-    val onPlayer: (Int) -> Unit,
-    val onInspect: (CardUi) -> Unit,
-    val onZone: (String, List<CardUi>) -> Unit,
-)
-
-private fun MatchUiState.markFor(card: CardUi): CardMark = when {
-    card.id in selectableIds -> CardMark.Selectable
-    card.id in highlightedIds -> CardMark.Highlighted
-    combat?.attackers?.containsKey(card.id) == true -> CardMark.Attacking
-    combat?.blockers?.values?.any { card.id in it } == true -> CardMark.Blocking
-    else -> CardMark.None
+@Composable
+private fun CenterDivider() {
+    OrnateDivider(Modifier.padding(horizontal = 16.dp))
 }
 
-// ---- Top bar & phases --------------------------------------------------------------
+// ---- Side panel (tablet) -----------------------------------------------------------
+
+@Composable
+private fun SidePanel(
+    state: MatchUiState,
+    game: ComposeGuiGame,
+    actions: BoardActions,
+    detail: CardUi?,
+    onCloseDetail: () -> Unit,
+    onLog: () -> Unit,
+    onConcede: () -> Unit,
+    modifier: Modifier,
+) {
+    Column(
+        modifier
+            .parchment(Palette.PaperDeep)
+            .ornateFrame(inset = 5.dp)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Turn ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+                Text(
+                    state.players.firstOrNull { it.isActive }?.name.orEmpty(),
+                    style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
+            IconButton(onClick = onConcede) { Icon(Icons.Default.Flag, "Concede", tint = Palette.TextSecondary) }
+        }
+        PhaseTrack(state.phase, Modifier.fillMaxWidth())
+
+        // Whatever needs attention most: the card being inspected, otherwise the stack.
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            when {
+                detail != null -> CardDetailPanel(detail, onCloseDetail)
+                state.stack.isNotEmpty() -> StackList(state.stack, actions)
+                else -> Text(
+                    "Long-press any card to see it here.",
+                    Modifier.align(Alignment.Center).padding(16.dp),
+                    color = Palette.TextSecondary, textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        val p = state.prompt
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(Palette.PaperLight)
+                .ornateFrame(Palette.Line, inset = 3.dp)
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                p.message.ifBlank { "Waiting…" },
+                Modifier.fillMaxWidth().heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            OrnateButton(
+                p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
+                style = OrnateStyle.Primary, enabled = p.okEnabled, height = 54.dp,
+            )
+            if (p.cancelLabel.isNotBlank()) {
+                OrnateButton(
+                    p.cancelLabel, game::pressCancel, Modifier.fillMaxWidth(),
+                    accent = Palette.Slate, enabled = p.cancelEnabled, height = 46.dp,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardDetailPanel(card: CardUi, onClose: () -> Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth()) {
+            IconButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd)) {
+                Icon(Icons.Default.Close, "Close", tint = Palette.TextSecondary)
+            }
+        }
+        CardTile(card, 240.dp, showTapped = false, onClick = onClose)
+        Spacer(Modifier.height(8.dp))
+        Text(card.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text("${card.typeLine}  ${card.manaCost}", color = Palette.TextSecondary, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        Text(card.text, style = MaterialTheme.typography.bodySmall)
+        if (card.counters.isNotEmpty()) {
+            Text(card.counters.joinToString { (n, c) -> "$c × $n" }, color = Palette.Arcane, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun StackList(stack: List<StackItemUi>, actions: BoardActions) {
+    Column {
+        SectionLabel("The stack", color = Palette.Slate)
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(stack, key = { it.id }) { item ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Palette.PaperLight)
+                        .ornateFrame(Palette.Slate.copy(alpha = 0.6f), inset = 3.dp, corners = false)
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    item.source?.let { src -> CardTile(src, 48.dp, showTapped = false, onClick = { actions.onInspect(src) }) }
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(item.controllerName, style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+                        Text(item.text, style = MaterialTheme.typography.bodySmall, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---- Shared pieces -----------------------------------------------------------------
 
 @Composable
 private fun TopBar(state: MatchUiState, onLog: () -> Unit, onConcede: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("Turno ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Turn ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
         Spacer(Modifier.width(10.dp))
         PhaseTrack(state.phase, Modifier.weight(1f))
-        IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Registro", tint = Palette.TextSecondary) }
-        IconButton(onClick = onConcede) { Icon(Icons.Default.Flag, "Abandonar", tint = Palette.TextSecondary) }
+        IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
+        IconButton(onClick = onConcede) { Icon(Icons.Default.Flag, "Concede", tint = Palette.TextSecondary) }
     }
 }
 
@@ -197,63 +410,87 @@ private fun PhaseTrack(phase: PhaseType?, modifier: Modifier) {
             Text(
                 label,
                 Modifier
-                    .background(if (active) Palette.Ember else Palette.SurfaceHigh, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 7.dp, vertical = 3.dp),
-                fontSize = 10.sp,
+                    .background(if (active) Palette.Terracotta else Palette.PaperLight)
+                    .ornateFrame(if (active) Palette.PaperLight.copy(alpha = 0.7f) else Palette.Line, inset = 2.dp, corners = false)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                fontFamily = Cinzel,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (active) Color(0xFF1A0E04) else Palette.TextSecondary,
+                color = if (active) Palette.PaperLight else Palette.InkSoft,
             )
         }
     }
 }
 
-// ---- Players -----------------------------------------------------------------------
-
 @Composable
-private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardActions) {
+private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardActions, modifier: Modifier = Modifier, compact: Boolean = false) {
     val targetable = player.id in state.highlightedIds
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .background(Palette.Surface.copy(alpha = 0.85f), RoundedCornerShape(14.dp))
-            .border(
-                width = if (targetable || player.isActive) 1.5.dp else 1.dp,
-                color = when {
+            .background(if (player.isActive) Palette.PaperLight else Palette.PaperLight.copy(alpha = 0.8f))
+            .ornateFrame(
+                when {
                     targetable -> Palette.Selectable
-                    player.isActive -> Palette.Ember
-                    else -> Palette.Outline
+                    player.isActive -> Palette.Terracotta
+                    else -> Palette.Line
                 },
-                shape = RoundedCornerShape(14.dp),
+                inset = 3.dp,
             )
             .clickable { actions.onPlayer(player.id) }
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = if (compact) 4.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Portrait: the commander's art when there is one, otherwise an initial medallion.
+        val portrait = player.command.firstOrNull()?.name
+        val ring = if (player.isAi) Palette.Slate else Palette.Terracotta
         Box(
-            Modifier.size(34.dp).background(if (player.isAi) Palette.Arcane else Palette.Ember, CircleShape),
+            Modifier.size(if (compact) 34.dp else 42.dp).background(ring, CircleShape).padding(2.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Text(player.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = Color(0xFF101218))
+            if (portrait != null) {
+                ArtImage(portrait, Modifier.fillMaxSize().clip(CircleShape), placeholder = ring, alignment = Alignment.Center)
+            } else {
+                Text(player.name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.PaperLight)
+            }
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(player.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                player.name + if (player.hasLost) " (out)" else "",
+                style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZoneCount("Mano", player.handSize) {}
-                ZoneCount("Mazo", player.librarySize) {}
-                ZoneCount("Cem.", player.graveyard.size) { actions.onZone("Cementerio de ${player.name}", player.graveyard) }
-                if (player.exile.isNotEmpty()) ZoneCount("Exilio", player.exile.size) { actions.onZone("Exilio de ${player.name}", player.exile) }
+                ZoneCount("Hand", player.handSize) {}
+                ZoneCount("Library", player.librarySize) {}
+                ZoneCount("Grave", player.graveyard.size) { actions.onZone("${player.name}'s graveyard", player.graveyard) }
+                if (player.exile.isNotEmpty()) ZoneCount("Exile", player.exile.size) { actions.onZone("${player.name}'s exile", player.exile) }
             }
+            if (player.commanderDamage.isNotEmpty()) {
+                Text(
+                    player.commanderDamage.joinToString("  ") { (name, dmg) -> "⚔ ${name.substringBefore(',')} $dmg" },
+                    style = MaterialTheme.typography.labelSmall, color = Palette.Life, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        player.command.forEach { cmd ->
+            CardTile(
+                cmd, if (compact) 30.dp else 36.dp, Modifier.padding(horizontal = 2.dp),
+                mark = state.markFor(cmd), showTapped = false,
+                onClick = { actions.onCard(cmd.id) }, onLongClick = { actions.onInspect(cmd) },
+            )
         }
         ManaPool(player.mana)
         if (player.poison > 0) {
             Text("☠ ${player.poison}", color = Palette.Poison, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp))
         }
+        Text("♥", Modifier.padding(start = 8.dp), color = Palette.Terracotta, fontSize = if (compact) 16.sp else 20.sp)
         Text(
             "${player.life}",
-            style = MaterialTheme.typography.headlineSmall,
-            color = if (player.life <= 5) Palette.Life else Palette.TextPrimary,
+            Modifier.padding(start = 4.dp),
+            fontFamily = Cinzel,
+            fontSize = if (compact) 22.sp else 28.sp,
+            color = if (player.life <= 5) Palette.Terracotta else Palette.Ink,
             fontWeight = FontWeight.Bold,
         )
     }
@@ -274,10 +511,9 @@ private fun ManaPool(mana: Map<Byte, Int>) {
     if (mana.isEmpty()) return
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(horizontal = 6.dp)) {
         mana.forEach { (color, amount) ->
-            Box(
-                Modifier.size(20.dp).background(manaColor(color), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) { Text("$amount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF101218)) }
+            Box(Modifier.size(20.dp).background(manaColor(color), CircleShape), contentAlignment = Alignment.Center) {
+                Text("$amount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF101218))
+            }
         }
     }
 }
@@ -291,78 +527,20 @@ private fun manaColor(color: Byte): Color = when (color) {
     else -> Palette.Colorless
 }
 
-// ---- Battlefield -------------------------------------------------------------------
-
 @Composable
-private fun Battlefield(player: PlayerUi, state: MatchUiState, actions: BoardActions, mirrored: Boolean, modifier: Modifier) {
-    // Attachments (auras, equipment) are drawn tucked under their host.
-    val attachments = player.battlefield.filter { it.attachedToId != null }.groupBy { it.attachedToId }
-    val roots = player.battlefield.filter { it.attachedToId == null || player.battlefield.none { b -> b.id == it.attachedToId } }
-    val lands = roots.filter { it.isLand && !it.isCreature }
-    val others = roots - lands.toSet()
-    val rows = if (mirrored) listOf(lands, others) else listOf(others, lands)
-
-    BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 6.dp)) {
-        val rowHeight = (maxHeight - 8.dp) / 2
-        val cardWidth = (rowHeight * CARD_WIDTH_FACTOR).coerceIn(34.dp, 92.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            rows.forEach { row ->
-                LazyRow(
-                    Modifier.fillMaxWidth().height(rowHeight),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
-                    contentPadding = PaddingValues(horizontal = cardWidth * 0.2f),
-                ) {
-                    items(row, key = { it.id }) { card ->
-                        PermanentStack(card, attachments[card.id].orEmpty(), cardWidth, state, actions)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private const val CARD_WIDTH_FACTOR = 0.62f
-
-@Composable
-private fun PermanentStack(card: CardUi, attached: List<CardUi>, width: Dp, state: MatchUiState, actions: BoardActions) {
-    // Reserve room for a tapped (rotated) card so neighbours don't overlap it.
-    val slot = if (card.tapped) width / CARD_ASPECT else width
-    Box(Modifier.width(slot), contentAlignment = Alignment.Center) {
-        attached.forEachIndexed { i, a ->
-            CardTile(
-                a, width, Modifier.offset(y = -(10.dp * (attached.size - i))),
-                mark = state.markFor(a),
-                onClick = { actions.onCard(a.id) },
-                onLongClick = { actions.onInspect(a) },
-            )
-        }
-        CardTile(
-            card, width,
-            mark = state.markFor(card),
-            onClick = { actions.onCard(card.id) },
-            onLongClick = { actions.onInspect(card) },
-        )
-    }
-}
-
-
-// ---- Center line: stack ------------------------------------------------------------
-
-@Composable
-private fun CenterLine(state: MatchUiState, actions: BoardActions) {
+private fun StackStrip(stack: List<StackItemUi>, actions: BoardActions) {
     Box(Modifier.fillMaxWidth().heightIn(min = 6.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Outline))
-        if (state.stack.isNotEmpty()) {
+        if (stack.isNotEmpty()) {
             LazyRow(
-                Modifier.background(Palette.Surface, RoundedCornerShape(12.dp)).border(1.dp, Palette.Arcane, RoundedCornerShape(12.dp)).padding(6.dp),
+                Modifier.background(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                item { Text("Pila", style = MaterialTheme.typography.labelSmall, color = Palette.Arcane) }
-                items(state.stack, key = { it.id }) { item ->
+                item { Text("Stack", style = MaterialTheme.typography.labelSmall, color = Palette.Slate) }
+                items(stack, key = { it.id }) { item ->
                     item.source?.let { src ->
-                        CardTile(src, 40.dp, showTapped = false, onLongClick = { actions.onInspect(src) }, onClick = { actions.onInspect(src) })
+                        CardTile(src, 40.dp, showTapped = false, onClick = { actions.onInspect(src) })
                     } ?: Text(item.text, fontSize = 11.sp, maxLines = 2, modifier = Modifier.width(120.dp))
                 }
             }
@@ -370,15 +548,12 @@ private fun CenterLine(state: MatchUiState, actions: BoardActions) {
     }
 }
 
-// ---- Hand --------------------------------------------------------------------------
-
 @Composable
-private fun Hand(cards: List<CardUi>, state: MatchUiState, actions: BoardActions) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(118.dp).padding(horizontal = 6.dp)) {
-        val cardWidth = 80.dp
+private fun Hand(cards: List<CardUi>, state: MatchUiState, actions: BoardActions, cardWidth: Dp, height: Dp) {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(height).padding(horizontal = 6.dp)) {
         // Overlap cards when they don't fit, like a fanned hand.
         val spacing = if (cards.size <= 1) 0.dp else
-            ((maxWidth - cardWidth) / (cards.size - 1)).coerceAtMost(cardWidth + 6.dp) - cardWidth
+            ((maxWidth - cardWidth) / (cards.size - 1)).coerceAtMost(cardWidth + 8.dp) - cardWidth
         LazyRow(
             Modifier.fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
@@ -388,7 +563,7 @@ private fun Hand(cards: List<CardUi>, state: MatchUiState, actions: BoardActions
                 val mark = state.markFor(card)
                 CardTile(
                     card, cardWidth,
-                    Modifier.offset(y = if (mark == CardMark.Selectable) (-8).dp else 0.dp),
+                    Modifier.offset(y = if (mark == CardMark.Selectable) (-10).dp else 0.dp),
                     mark = mark,
                     showTapped = false,
                     onClick = { actions.onCard(card.id) },
@@ -399,29 +574,24 @@ private fun Hand(cards: List<CardUi>, state: MatchUiState, actions: BoardActions
     }
 }
 
-// ---- Prompt ------------------------------------------------------------------------
-
 @Composable
 private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Unit) {
     val p = state.prompt
     Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Palette.Surface)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().background(Palette.PaperDeep).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            p.message.ifBlank { "Esperando…" },
+            p.message.ifBlank { "Waiting…" },
             Modifier.weight(1f).heightIn(max = 64.dp).verticalScroll(rememberScrollState()),
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.width(8.dp))
         if (p.cancelLabel.isNotBlank()) {
-            FilledTonalButton(onClick = onCancel, enabled = p.cancelEnabled) { Text(p.cancelLabel, maxLines = 1) }
-            Spacer(Modifier.width(6.dp))
+            OrnateButton(p.cancelLabel, onCancel, enabled = p.cancelEnabled, accent = Palette.Slate, height = 42.dp)
+            Spacer(Modifier.width(8.dp))
         }
-        Button(onClick = onOk, enabled = p.okEnabled) { Text(p.okLabel.ifBlank { "OK" }, maxLines = 1) }
+        OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, enabled = p.okEnabled, style = OrnateStyle.Primary, height = 42.dp)
     }
 }
 
@@ -429,17 +599,23 @@ private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Uni
 
 @Composable
 private fun GameOverOverlay(title: String, won: Boolean, matchOver: Boolean, onContinue: () -> Unit, onLeave: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Box(Modifier.fillMaxSize().background(Color(0x993A2E26)), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.width(520.dp).parchment().ornateFrame(inset = 6.dp, topGem = true).padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            SectionLabel(if (matchOver) "Match over" else "Game over")
             Text(
-                if (won) "¡Victoria!" else "Derrota",
-                style = MaterialTheme.typography.headlineLarge,
-                color = if (won) Palette.Ember else Palette.TextSecondary,
+                if (won) "Victory" else "Defeat",
+                style = MaterialTheme.typography.displayLarge,
+                color = if (won) Palette.Terracotta else Palette.Slate,
             )
-            Text(title, color = Palette.TextSecondary)
+            OrnateDivider(width = 200.dp)
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (!matchOver) Button(onClick = onContinue) { Text("Siguiente partida") }
-                FilledTonalButton(onClick = onLeave) { Text("Salir") }
+                OrnateButton("Leave", onLeave, Modifier.weight(1f), accent = Palette.Slate)
+                if (!matchOver) OrnateButton("Next game", onContinue, Modifier.weight(1f), style = OrnateStyle.Primary)
             }
         }
     }
@@ -448,7 +624,7 @@ private fun GameOverOverlay(title: String, won: Boolean, matchOver: Boolean, onC
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -471,14 +647,14 @@ private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ZoneSheet(title: String, cards: List<CardUi>, onInspect: (CardUi) -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
         Spacer(Modifier.height(8.dp))
         if (cards.isEmpty()) {
-            Text("Vacío", color = Palette.TextSecondary, modifier = Modifier.padding(20.dp))
+            Text("Empty", color = Palette.TextSecondary, modifier = Modifier.padding(20.dp))
         } else {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(cards.reversed(), key = { it.id }) { CardTile(it, 120.dp, showTapped = false, onClick = { onInspect(it) }) }
+                items(cards.reversed(), key = { it.id }) { CardTile(it, 140.dp, showTapped = false, onClick = { onInspect(it) }) }
             }
         }
         Spacer(Modifier.height(32.dp))
@@ -488,9 +664,9 @@ private fun ZoneSheet(title: String, cards: List<CardUi>, onInspect: (CardUi) ->
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LogSheet(log: List<String>, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Surface) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
         Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
-            Text("Registro", style = MaterialTheme.typography.titleMedium)
+            Text("Log", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             log.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp)) }
             Spacer(Modifier.height(32.dp))

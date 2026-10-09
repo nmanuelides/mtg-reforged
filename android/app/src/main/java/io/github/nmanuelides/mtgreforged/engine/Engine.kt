@@ -43,7 +43,7 @@ object Engine {
     @Synchronized
     fun start(context: Context) {
         if (_status.value != Status.NotStarted && _status.value !is Status.Failed) return
-        _status.value = Status.Loading("Preparando…", null)
+        _status.value = Status.Loading("Preparing…", null)
         val app = context.applicationContext
         Thread({
             runCatching { boot(app) }.onFailure {
@@ -65,7 +65,7 @@ object Engine {
         gui = AndroidGui(context, forgeDir.path + File.separator)
         GuiBase.setInterface(gui)
 
-        _status.value = Status.Loading("Cargando cartas…", null)
+        _status.value = Status.Loading("Loading cards…", null)
         FModel.initialize(ProgressBridge) { prefs ->
             if (Locale.getDefault().language == "es") prefs.setPref(FPref.UI_LANGUAGE, "es-ES")
             prefs.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, true)
@@ -103,29 +103,59 @@ object Engine {
 
     data class DeckEntry(val name: String, val file: File)
 
+    enum class Format(val label: String, val maxPlayers: Int) {
+        Constructed("Constructed", 4),
+        Commander("Commander", 4);
+
+        // GameType's static init needs the engine loaded, so don't touch it eagerly.
+        val gameType: GameType
+            get() = if (this == Commander) GameType.Commander else GameType.Constructed
+    }
+
+    private val deckCache = HashMap<Format, List<DeckEntry>>()
+
     /** Preconstructed decks that ship with Forge's data. */
-    fun preconDecks(): List<DeckEntry> =
-        File(ForgeConstants.QUEST_PRECON_DIR).listFiles { f -> f.extension == "dck" }
-            .orEmpty()
+    @Synchronized
+    fun decks(format: Format): List<DeckEntry> = deckCache.getOrPut(format) {
+        val dir = when (format) {
+            Format.Constructed -> ForgeConstants.QUEST_PRECON_DIR
+            Format.Commander -> ForgeConstants.COMMANDER_PRECON_DIR
+        }
+        File(dir).listFiles { f -> f.extension == "dck" }.orEmpty()
+            // A few constructed precons are really commander decks; keep each list clean.
+            .filter { format == Format.Commander || !it.readText().contains("[Commander]") }
             .map { DeckEntry(it.nameWithoutExtension, it) }
             .sortedBy { it.name.lowercase() }
+    }
 
     fun loadDeck(entry: DeckEntry): Deck = DeckSerializer.fromFile(entry.file)
 
-    fun startMatch(player: DeckEntry, opponent: DeckEntry) {
+    /** Starts a free-for-all: the local player against one or more AI opponents. */
+    fun startMatch(format: Format, player: DeckEntry, opponents: List<DeckEntry>) {
+        require(opponents.isNotEmpty() && opponents.size < format.maxPlayers)
         ThreadUtil.invokeInGameThread {
-            val human = RegisteredPlayer(loadDeck(player)).apply { setPlayer(GamePlayerUtil.getGuiPlayer()) }
-            val ai = RegisteredPlayer(loadDeck(opponent)).apply { setPlayer(GamePlayerUtil.createAiPlayer()) }
+            val playerCount = opponents.size + 1
+            val variants = if (format == Format.Commander) setOf(GameType.Commander) else emptySet()
+            fun register(entry: DeckEntry) = if (variants.isEmpty()) {
+                RegisteredPlayer(loadDeck(entry))
+            } else {
+                RegisteredPlayer.forVariants(playerCount, variants, loadDeck(entry), null, false, null, null)
+            }
+
+            val human = register(player).apply { setPlayer(GamePlayerUtil.getGuiPlayer()) }
+            val ais = opponents.map { deck ->
+                register(deck).apply { setPlayer(GamePlayerUtil.createAiPlayer()) }
+            }
             val guiGame = gui.newGuiGame as ComposeGuiGame
             val hosted = gui.hostMatch()
             guiGame.hostedMatch = hosted
             _match.value = guiGame
-            hosted.startMatch(matchRules(), null, listOf(human, ai), human, guiGame)
+            hosted.startMatch(matchRules(format.gameType), variants, listOf(human) + ais, human, guiGame)
         }
     }
 
     /** Mirrors HostedMatch's defaults, minus the "AI can't play these cards" interruption. */
-    private fun matchRules() = GameRules(GameType.Constructed).apply {
+    private fun matchRules(type: GameType) = GameRules(type).apply {
         val prefs = FModel.getPreferences()
         setManaBurn(prefs.getPrefBoolean(FPref.LEGACY_MANABURN))
         setOrderCombatants(prefs.getPrefBoolean(FPref.LEGACY_ORDER_COMBATANTS))

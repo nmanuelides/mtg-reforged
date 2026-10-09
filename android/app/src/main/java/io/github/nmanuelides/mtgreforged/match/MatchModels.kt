@@ -76,8 +76,12 @@ data class PlayerUi(
     val battlefield: List<CardUi>,
     val graveyard: List<CardUi>,
     val exile: List<CardUi>,
+    val command: List<CardUi>,
+    /** Combat damage this player has taken from each commander, by commander name. */
+    val commanderDamage: List<Pair<String, Int>>,
     val mana: Map<Byte, Int>,
     val isActive: Boolean,
+    val hasLost: Boolean,
 )
 
 data class StackItemUi(val id: Int, val text: String, val source: CardUi?, val controllerName: String)

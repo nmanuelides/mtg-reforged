@@ -89,14 +89,14 @@ class ComposeGuiGame : AbstractGuiGame() {
         }
         fun zone(p: PlayerView, z: ZoneType) = p.getCards(z)?.map(::card).orEmpty()
 
+        val allCommanders = view.players.flatMap { it.commanders.orEmpty() }
         val playerUis = view.players.map { p ->
             players[p.id] = p
-            val local = isLocalPlayer(p)
             PlayerUi(
                 id = p.id,
                 name = p.name,
                 isAi = p.isAI,
-                isLocal = local,
+                isLocal = isLocalPlayer(p),
                 life = p.life,
                 poison = p.getCounters(forge.game.card.CounterEnumType.POISON),
                 handSize = p.getZoneSize(ZoneType.Hand),
@@ -105,10 +105,15 @@ class ComposeGuiGame : AbstractGuiGame() {
                 battlefield = zone(p, ZoneType.Battlefield),
                 graveyard = zone(p, ZoneType.Graveyard),
                 exile = zone(p, ZoneType.Exile),
+                command = zone(p, ZoneType.Command),
+                commanderDamage = allCommanders.mapNotNull { c ->
+                    p.getCommanderDamage(c).takeIf { it > 0 }?.let { c.name to it }
+                },
                 mana = MagicColor.WUBRGC.associateWith { p.getMana(it) }.filterValues { it > 0 },
                 isActive = view.playerTurn == p,
+                hasLost = p.hasLost,
             )
-        }.sortedByDescending { it.isLocal }
+        }.let(::seatOrder)
 
         val stack = view.stack?.map { item ->
             StackItemUi(
@@ -121,7 +126,7 @@ class ComposeGuiGame : AbstractGuiGame() {
 
         val combat = view.combat?.let { c ->
             CombatUi(
-                attackers = c.attackers.associate { a -> a.id to (c.getDefender(a) as? CardView)?.id },
+                attackers = c.attackers.associate { a -> a.id to c.getDefender(a)?.id },
                 blockers = c.attackers.associate { a -> a.id to c.getBlockers(a).orEmpty().map { it.id } },
             )
         }
@@ -146,6 +151,12 @@ class ComposeGuiGame : AbstractGuiGame() {
             log = log,
             gameOver = gameOver,
         )
+    }
+
+    /** Local player first, then opponents in turn order after them. */
+    private fun seatOrder(players: List<PlayerUi>): List<PlayerUi> {
+        val me = players.indexOfFirst { it.isLocal }
+        return if (me <= 0) players else players.drop(me) + players.take(me)
     }
 
     // ---- Player actions (called from the UI) -------------------------------------
@@ -202,7 +213,7 @@ class ComposeGuiGame : AbstractGuiGame() {
         val view = gameView ?: return
         val won = view.players.any { isLocalPlayer(it) && !it.hasLost }
         gameOver = GameOverUi(
-            title = view.winningPlayerName?.let { "$it gana" } ?: "Empate",
+            title = view.winningPlayerName?.let { "$it wins" } ?: "Draw",
             youWon = won,
             matchOver = view.isMatchOver,
         )
@@ -263,7 +274,7 @@ class ComposeGuiGame : AbstractGuiGame() {
     override fun getAbilityToPlay(hostCard: CardView?, abilities: List<SpellAbilityView>, triggerEvent: ITriggerEvent?): SpellAbilityView? {
         if (abilities.isEmpty()) return null
         if (abilities.size == 1) return abilities[0]
-        return choose("Elegí una habilidad", 0, 1, abilities, null, null)?.firstOrNull()
+        return choose("Choose an ability", 0, 1, abilities, null, null)?.firstOrNull()
     }
 
     override fun assignCombatDamage(
@@ -271,10 +282,10 @@ class ComposeGuiGame : AbstractGuiGame() {
         defender: GameEntityView?, overrideOrder: Boolean, maySkip: Boolean,
     ): Map<CardView?, Int>? {
         val targets = blockers.map { describe(it, null) } +
-            listOfNotNull(defender?.let { PromptItem(it.name ?: "Defensor") })
+            listOfNotNull(defender?.let { PromptItem(it.name ?: "Defender") })
         val amounts = PromptHost.ask<List<Int>?>(
             Prompt.Distribute(
-                title = "Asigná ${damage} de daño de ${attacker.name}",
+                title = "Assign ${damage} damage from ${attacker.name}",
                 source = ui(attacker), total = damage, targets = targets,
                 atLeastOne = false, initial = defaultLethal(blockers, damage, defender != null),
                 maySkip = maySkip,
@@ -312,7 +323,7 @@ class ComposeGuiGame : AbstractGuiGame() {
         }
         val amounts = PromptHost.ask<List<Int>?>(
             Prompt.Distribute(
-                title = "Distribuí $amount ${amountLabel.orEmpty()}".trim(),
+                title = "Distribute $amount ${amountLabel.orEmpty()}".trim(),
                 source = ui(effectSource), total = amount, targets = items,
                 atLeastOne = atLeastOne, initial = keys.map { target[it] ?: 0 }, maySkip = false,
             ),
@@ -330,7 +341,7 @@ class ComposeGuiGame : AbstractGuiGame() {
     }
 
     override fun showConfirmDialog(message: String?, title: String?, yesButtonText: String?, noButtonText: String?, defaultYes: Boolean): Boolean =
-        showOptionDialog(message, title, null, listOf(yesButtonText ?: "Sí", noButtonText ?: "No"), if (defaultYes) 0 else 1) == 0
+        showOptionDialog(message, title, null, listOf(yesButtonText ?: "Yes", noButtonText ?: "No"), if (defaultYes) 0 else 1) == 0
 
     override fun showOptionDialog(message: String?, title: String?, icon: FSkinProp?, options: List<String>, defaultOption: Int): Int =
         PromptHost.ask(Prompt.Options(title.orEmpty(), message.orEmpty(), options, defaultOption), defaultOption)
@@ -374,7 +385,7 @@ class ComposeGuiGame : AbstractGuiGame() {
     override fun chooseSingleEntityForEffect(
         title: String?, optionList: List<GameEntityView>, delayedReveal: DelayedReveal?, isOptional: Boolean,
     ): GameEntityView? {
-        delayedReveal?.let { reveal(it.messagePrefix ?: "Revelado", it.cards.toList()) }
+        delayedReveal?.let { reveal(it.messagePrefix ?: "Revealed", it.cards.toList()) }
         if (optionList.isEmpty()) return null
         return choose(title, if (isOptional) 0 else 1, 1, optionList, null) { it.name ?: it.toString() }?.firstOrNull()
     }
@@ -382,7 +393,7 @@ class ComposeGuiGame : AbstractGuiGame() {
     override fun chooseEntitiesForEffect(
         title: String?, optionList: List<GameEntityView>, min: Int, max: Int, delayedReveal: DelayedReveal?,
     ): List<GameEntityView> {
-        delayedReveal?.let { reveal(it.messagePrefix ?: "Revelado", it.cards.toList()) }
+        delayedReveal?.let { reveal(it.messagePrefix ?: "Revealed", it.cards.toList()) }
         return choose(title, min, max, optionList, null) { it.name ?: it.toString() } ?: emptyList()
     }
 
