@@ -17,6 +17,7 @@ import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
 import forge.gamemodes.match.AbstractGuiGame
 import forge.gamemodes.match.HostedMatch
+import forge.gamemodes.match.input.InputPassPriority
 import forge.gamemodes.match.input.InputSelectTargets
 import forge.game.player.Player
 import forge.game.spellability.SpellAbility
@@ -150,7 +151,7 @@ class ComposeGuiGame : AbstractGuiGame() {
             activePlayerId = view.playerTurn?.id,
             stack = stack,
             combat = combat,
-            prompt = prompt,
+            prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
             selectableIds = selectable,
             highlightedIds = highlighted,
             choosablePlayerIds = choosable,
@@ -164,8 +165,10 @@ class ComposeGuiGame : AbstractGuiGame() {
      * GUI, so read the waiting input: its list of valid choices, or the spell being
      * targeted. Lets the UI offer one button per player instead of "tap the portrait".
      */
+    private fun currentInput() = (gameController as? PlayerControllerHuman)?.inputProxy?.input
+
     private fun choosablePlayerIds(view: GameView): Set<Int> {
-        val input = (gameController as? PlayerControllerHuman)?.inputProxy?.input ?: return emptySet()
+        val input = currentInput() ?: return emptySet()
         val game = view.game ?: return emptySet()
         val ids = HashSet<Int>()
         var type: Class<*>? = input.javaClass

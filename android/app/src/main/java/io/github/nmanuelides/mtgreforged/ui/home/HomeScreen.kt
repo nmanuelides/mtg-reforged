@@ -39,7 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import android.content.Context
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -49,6 +55,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.nmanuelides.mtgreforged.BuildConfig
@@ -67,40 +74,39 @@ import io.github.nmanuelides.mtgreforged.ui.components.parchment
 import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 
+/**
+ * The soft shadow of a sheet of paper lying on the artwork. [offsetY] pushes it down
+ * (title plaque) or up (bottom bar). Apply before the sheet's own background.
+ */
+private fun Modifier.paperShadow(offsetY: Dp, blur: Dp = 18.dp): Modifier = drawBehind {
+    drawIntoCanvas { canvas ->
+        val paint = Paint().asFrameworkPaint().apply {
+            color = android.graphics.Color.rgb(241, 230, 206) // covered by the sheet itself
+            setShadowLayer(blur.toPx(), 0f, offsetY.toPx(), android.graphics.Color.argb(190, 20, 12, 6))
+        }
+        canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint)
+    }
+}
+
+/** Hands out the landing wallpapers in turn, remembering where it left off between launches. */
+private object LandingArt {
+    private const val PREFS = "landing"
+    private const val KEY = "next"
+
+    fun next(context: Context): LocalArt {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val index = prefs.getInt(KEY, 0) % LocalArt.entries.size
+        prefs.edit().putInt(KEY, index + 1).apply()
+        return LocalArt.entries[index]
+    }
+}
+
 sealed interface UpdateUi {
     data object None : UpdateUi
     data class Available(val name: String, val notes: String) : UpdateUi
     data class Downloading(val progress: Float) : UpdateUi
     data class Failed(val message: String) : UpdateUi
 }
-
-/** One of the poster's character panels: a piece of art in a coloured geometric frame. */
-private data class Hero(val art: LocalArt, val color: Color, val symbol: String, val shape: Shape, val height: Float)
-
-private val Arch = RoundedCornerShape(topStartPercent = 50, topEndPercent = 50)
-private val Spire = GenericShape { size, _ ->
-    moveTo(size.width / 2, 0f)
-    lineTo(size.width, size.height)
-    lineTo(0f, size.height)
-    close()
-}
-private val Gable = GenericShape { size, _ ->
-    moveTo(size.width / 2, 0f)
-    lineTo(size.width, size.width * 0.5f)
-    lineTo(size.width, size.height)
-    lineTo(0f, size.height)
-    lineTo(0f, size.width * 0.5f)
-    close()
-}
-
-/** A fresh cast every launch: one wallpaper per colour, in the poster's five frames. */
-private fun castHeroes() = listOf(
-    Hero(LocalArt.red.random(), Palette.Terracotta, "R", Arch, 0.80f),
-    Hero(LocalArt.blue.random(), Palette.Slate, "U", RoundedCornerShape(0.dp), 0.90f),
-    Hero(LocalArt.green.random(), Palette.Sage, "G", Spire, 1.00f),
-    Hero(LocalArt.white.random(), Palette.Ochre, "W", Gable, 0.90f),
-    Hero(LocalArt.black.random(), Palette.Plum, "B", Arch, 0.80f),
-)
 
 /** Which deck slot the deck browser is filling: -1 for the player, 0..2 for opponents. */
 typealias DeckSlot = Int
@@ -121,55 +127,80 @@ fun HomeScreen(
     val decks = decksFor(format)
     val mine = selections[-1]
 
+    // A different wallpaper every time the landing is shown, cycling through all of them.
+    val context = LocalContext.current
+    val art = remember { LandingArt.next(context) }
+
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
-        Column(
-            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            UpdateBanner(update, onInstallUpdate)
-            Title()
-            val heroes = remember { castHeroes() }
-            HeroBanner(if (wide) heroes else heroes.subList(1, 4), Modifier.fillMaxWidth().weight(1f))
-            Spacer(Modifier.height(10.dp))
-            PlayPlaque(
-                "Play",
-                onClick = {
-                    if (decks.isEmpty()) return@PlayPlaque
-                    onStart(
-                        format,
-                        mine ?: decks.random(),
-                        (0 until opponentCount).map { selections[it] ?: decks.random() },
-                    )
-                },
-                modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
-                enabled = decks.isNotEmpty(),
-            )
-            Spacer(Modifier.height(12.dp))
-
-            val buttons: List<@Composable (Modifier) -> Unit> = listOf(
-                { m -> OrnateButton(format.label, { onFormat(Format.entries[(format.ordinal + 1) % Format.entries.size]) }, m, icon = Icons.Default.Style) },
-                { m -> OrnateButton("${opponentCount} opponent${if (opponentCount > 1) "s" else ""}", { opponentCount = opponentCount % 3 + 1 }, m, icon = Icons.Default.Groups, accent = Palette.Slate) },
-                { m -> OrnateButton("Your deck", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
-                { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
-            )
-            if (wide) {
-                Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    buttons.forEach { it(Modifier.weight(1f)) }
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    buttons.chunked(2).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { row.forEach { it(Modifier.weight(1f)) } }
-                    }
+        Column(Modifier.fillMaxSize()) {
+            // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                LocalArtImage(art, Modifier.fillMaxSize())
+                Column(
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(top = 16.dp, start = 24.dp, end = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    UpdateBanner(update, onInstallUpdate)
+                    Box(
+                        Modifier
+                            .paperShadow(offsetY = 6.dp, blur = 16.dp)
+                            .background(Palette.Paper)
+                            .padding(horizontal = 36.dp, vertical = 10.dp),
+                    ) { Title() }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Playing " + (mine?.name ?: "a random deck"),
-                style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+
+            // Bottom bar: a hard rule along its top edge, casting a shadow onto the art.
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .paperShadow(offsetY = (-6).dp)
+                    .parchment()
+                    .drawBehind { drawRect(Palette.LineStrong, size = Size(size.width, 2.dp.toPx())) }
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                PlayPlaque(
+                    "Play",
+                    onClick = {
+                        if (decks.isEmpty()) return@PlayPlaque
+                        onStart(
+                            format,
+                            mine ?: decks.random(),
+                            (0 until opponentCount).map { selections[it] ?: decks.random() },
+                        )
+                    },
+                    modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
+                    enabled = decks.isNotEmpty(),
+                )
+                Spacer(Modifier.height(12.dp))
+
+                val buttons: List<@Composable (Modifier) -> Unit> = listOf(
+                    { m -> OrnateButton(format.label, { onFormat(Format.entries[(format.ordinal + 1) % Format.entries.size]) }, m, icon = Icons.Default.Style) },
+                    { m -> OrnateButton("${opponentCount} opponent${if (opponentCount > 1) "s" else ""}", { opponentCount = opponentCount % 3 + 1 }, m, icon = Icons.Default.Groups, accent = Palette.Slate) },
+                    { m -> OrnateButton("Your deck", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
+                    { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
+                )
+                if (wide) {
+                    Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        buttons.forEach { it(Modifier.weight(1f)) }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        buttons.chunked(2).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { row.forEach { it(Modifier.weight(1f)) } }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Playing " + (mine?.name ?: "a random deck"),
+                    style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 
@@ -200,55 +231,6 @@ private fun Title() {
                 style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft,
             )
             OrnateDivider(width = 80.dp)
-        }
-    }
-}
-
-@Composable
-private fun HeroBanner(heroes: List<Hero>, modifier: Modifier) {
-    Box(modifier.padding(vertical = 8.dp), contentAlignment = Alignment.BottomCenter) {
-        // Pale sky arches behind the cast, like the poster's background.
-        Canvas(Modifier.fillMaxSize()) {
-            val sky = Color(0xFFBBCCDC)
-            val w = size.width
-            val h = size.height
-            drawRoundRect(sky, Offset(w * 0.05f, h * 0.08f), Size(w * 0.32f, h), CornerRadius(w * 0.16f))
-            drawRoundRect(sky, Offset(w * 0.63f, h * 0.02f), Size(w * 0.32f, h), CornerRadius(w * 0.16f))
-        }
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            heroes.forEach { hero -> HeroPanel(hero, Modifier.weight(1f).fillMaxHeight(hero.height)) }
-        }
-    }
-}
-
-@Composable
-private fun HeroPanel(hero: Hero, modifier: Modifier) {
-    Box(modifier) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .clip(hero.shape)
-                .background(hero.color)
-                .border(2.dp, Palette.PaperLight, hero.shape)
-                .padding(5.dp)
-                .clip(hero.shape),
-        ) {
-            LocalArtImage(hero.art, Modifier.fillMaxSize())
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = if (hero.shape == Spire) 64.dp else 18.dp)
-                .size(34.dp)
-                .background(hero.color, CircleShape)
-                .border(1.5.dp, Palette.PaperLight, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(hero.symbol, fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Palette.PaperLight)
         }
     }
 }

@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Flag
@@ -88,6 +89,7 @@ import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
 import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.components.SwipeToConfirm
 import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
 import io.github.nmanuelides.mtgreforged.ui.components.parchment
 import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
@@ -290,8 +292,12 @@ private fun SidePanel(
                     style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
-            IconButton(onClick = onConcede) { Icon(Icons.Default.Flag, "Concede", tint = Palette.TextSecondary) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("Log", onLog, Modifier.weight(1f), style = OrnateStyle.Quiet, icon = Icons.AutoMirrored.Filled.List,
+                height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
+            OrnateButton("Leave", onConcede, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.ExitToApp,
+                height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
         }
         PhaseTrack(state.phase, Modifier.fillMaxWidth())
 
@@ -324,10 +330,15 @@ private fun SidePanel(
                 style = MaterialTheme.typography.bodyLarge,
             )
             PlayerChoices(state, game::tapPlayer)
-            OrnateButton(
-                p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
-                style = OrnateStyle.Primary, enabled = p.okEnabled, height = 54.dp,
-            )
+            if (p.passesPriority) {
+                // Passing priority can skip whole phases; make it deliberate.
+                SwipeToConfirm("Pass", game::pressOk, Modifier.fillMaxWidth(), enabled = p.okEnabled)
+            } else {
+                OrnateButton(
+                    p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
+                    style = OrnateStyle.Primary, enabled = p.okEnabled, height = 54.dp,
+                )
+            }
             if (p.cancelLabel.isNotBlank()) {
                 OrnateButton(
                     p.cancelLabel, game::pressCancel, Modifier.fillMaxWidth(),
@@ -394,7 +405,8 @@ private fun TopBar(state: MatchUiState, onLog: () -> Unit, onConcede: () -> Unit
         Spacer(Modifier.width(10.dp))
         PhaseTrack(state.phase, Modifier.weight(1f))
         IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
-        IconButton(onClick = onConcede) { Icon(Icons.Default.Flag, "Concede", tint = Palette.TextSecondary) }
+        OrnateButton("Leave", onConcede, icon = Icons.AutoMirrored.Filled.ExitToApp, height = 36.dp,
+            textStyle = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -588,7 +600,11 @@ private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Uni
             OrnateButton(p.cancelLabel, onCancel, enabled = p.cancelEnabled, accent = Palette.Slate, height = 42.dp)
             Spacer(Modifier.width(8.dp))
         }
-        OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, enabled = p.okEnabled, style = OrnateStyle.Primary, height = 42.dp)
+        if (p.passesPriority) {
+            SwipeToConfirm("Pass", onOk, Modifier.width(200.dp), enabled = p.okEnabled, height = 44.dp)
+        } else {
+            OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, enabled = p.okEnabled, style = OrnateStyle.Primary, height = 42.dp)
+        }
     }
 }
 

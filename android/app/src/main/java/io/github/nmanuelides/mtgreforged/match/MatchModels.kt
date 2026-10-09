@@ -97,6 +97,8 @@ data class PromptBarUi(
     val cancelLabel: String = "Cancel",
     val okEnabled: Boolean = false,
     val cancelEnabled: Boolean = false,
+    /** OK would pass priority (skip ahead through phases); the UI asks for a swipe instead of a tap. */
+    val passesPriority: Boolean = false,
 )
 
 data class MatchUiState(
