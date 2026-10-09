@@ -80,6 +80,8 @@ import io.github.nmanuelides.mtgreforged.ui.components.CardMark
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
@@ -605,6 +607,15 @@ private fun GameOverOverlay(title: String, won: Boolean, matchOver: Boolean, onC
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            val art = remember(won) { if (won) LocalArt.white.random() else (LocalArt.black + LocalArt.blue).random() }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .background(Palette.PaperLight)
+                    .ornateFrame(inset = 4.dp)
+                    .padding(8.dp),
+            ) { LocalArtImage(art, Modifier.fillMaxSize()) }
             SectionLabel(if (matchOver) "Match over" else "Game over")
             Text(
                 if (won) "Victory" else "Defeat",

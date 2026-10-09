@@ -60,6 +60,8 @@ import forge.card.MagicColor
 import io.github.nmanuelides.mtgreforged.engine.DeckSummary
 import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
 import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
@@ -85,6 +87,15 @@ private fun colorOf(c: Byte) = when (c) {
     MagicColor.RED -> Palette.Terracotta
     else -> Palette.Sage
 }
+
+private fun wallpaperFor(color: Byte?): LocalArt = when (color) {
+    MagicColor.WHITE -> LocalArt.white
+    MagicColor.BLUE -> LocalArt.blue
+    MagicColor.BLACK -> LocalArt.black
+    MagicColor.RED -> LocalArt.red
+    MagicColor.GREEN -> LocalArt.green
+    else -> listOf(LocalArt.SolRing)
+}.random()
 
 /** Character-sheet style deck chooser: one deck at a time, with arrows and a search list. */
 @Composable
@@ -148,8 +159,11 @@ private fun ArtPanel(summary: DeckSummary?, modifier: Modifier) {
                 .padding(6.dp)
                 .clip(androidx.compose.ui.graphics.RectangleShape),
         ) {
+            // One of the bundled wallpapers in the deck's colour shows until the card art arrives.
+            val backdrop = remember(summary?.colors?.firstOrNull()) { wallpaperFor(summary?.colors?.firstOrNull()) }
+            LocalArtImage(backdrop, Modifier.fillMaxSize())
             AnimatedContent(summary?.artCard, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "art") { card ->
-                ArtImage(card, Modifier.fillMaxSize(), placeholder = Palette.PaperDeep)
+                ArtImage(card, Modifier.fillMaxSize())
             }
         }
         // The sheet's geometric accents: a disc and a diamond breaking out of the frame.

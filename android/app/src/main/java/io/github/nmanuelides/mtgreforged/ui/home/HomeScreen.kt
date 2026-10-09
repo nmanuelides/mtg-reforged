@@ -54,7 +54,8 @@ import androidx.compose.ui.unit.sp
 import io.github.nmanuelides.mtgreforged.BuildConfig
 import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
 import io.github.nmanuelides.mtgreforged.engine.Engine.Format
-import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
@@ -73,8 +74,8 @@ sealed interface UpdateUi {
     data class Failed(val message: String) : UpdateUi
 }
 
-/** One of the poster's character panels: a planeswalker in a coloured geometric frame. */
-private data class Hero(val card: String, val color: Color, val symbol: String, val shape: Shape, val height: Float)
+/** One of the poster's character panels: a piece of art in a coloured geometric frame. */
+private data class Hero(val art: LocalArt, val color: Color, val symbol: String, val shape: Shape, val height: Float)
 
 private val Arch = RoundedCornerShape(topStartPercent = 50, topEndPercent = 50)
 private val Spire = GenericShape { size, _ ->
@@ -92,12 +93,13 @@ private val Gable = GenericShape { size, _ ->
     close()
 }
 
-private val HEROES = listOf(
-    Hero("Chandra, Torch of Defiance", Palette.Terracotta, "R", Arch, 0.80f),
-    Hero("Jace, the Mind Sculptor", Palette.Slate, "U", RoundedCornerShape(0.dp), 0.90f),
-    Hero("Nissa, Who Shakes the World", Palette.Sage, "G", Spire, 1.00f),
-    Hero("Elspeth, Sun's Champion", Palette.Ochre, "W", Gable, 0.90f),
-    Hero("Liliana of the Veil", Palette.Plum, "B", Arch, 0.80f),
+/** A fresh cast every launch: one wallpaper per colour, in the poster's five frames. */
+private fun castHeroes() = listOf(
+    Hero(LocalArt.red.random(), Palette.Terracotta, "R", Arch, 0.80f),
+    Hero(LocalArt.blue.random(), Palette.Slate, "U", RoundedCornerShape(0.dp), 0.90f),
+    Hero(LocalArt.green.random(), Palette.Sage, "G", Spire, 1.00f),
+    Hero(LocalArt.white.random(), Palette.Ochre, "W", Gable, 0.90f),
+    Hero(LocalArt.black.random(), Palette.Plum, "B", Arch, 0.80f),
 )
 
 /** Which deck slot the deck browser is filling: -1 for the player, 0..2 for opponents. */
@@ -127,7 +129,8 @@ fun HomeScreen(
         ) {
             UpdateBanner(update, onInstallUpdate)
             Title()
-            HeroBanner(if (wide) HEROES else HEROES.subList(1, 4), Modifier.fillMaxWidth().weight(1f))
+            val heroes = remember { castHeroes() }
+            HeroBanner(if (wide) heroes else heroes.subList(1, 4), Modifier.fillMaxWidth().weight(1f))
             Spacer(Modifier.height(10.dp))
             PlayPlaque(
                 "Play",
@@ -234,7 +237,7 @@ private fun HeroPanel(hero: Hero, modifier: Modifier) {
                 .padding(5.dp)
                 .clip(hero.shape),
         ) {
-            ArtImage(hero.card, Modifier.fillMaxSize(), placeholder = hero.color, alignment = Alignment.Center)
+            LocalArtImage(hero.art, Modifier.fillMaxSize())
         }
         Box(
             Modifier

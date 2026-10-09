@@ -49,6 +49,8 @@ object ArtImages {
         if (ScryfallRateLimiter.shouldSkip(url)) return
         ScryfallRateLimiter.acquire(url)
         val connection = URL(url).openConnection() as HttpURLConnection
+        // Scryfall's API rejects requests without an Accept header (HTTP 400).
+        connection.setRequestProperty("Accept", "*/*")
         connection.setRequestProperty("User-Agent", "MTGReforged/${BuildConfig.VERSION_NAME}")
         connection.connectTimeout = 10_000
         connection.readTimeout = 20_000

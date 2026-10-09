@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -24,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.nmanuelides.mtgreforged.engine.Engine
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
+import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
@@ -39,6 +42,15 @@ fun BootScreen(status: Engine.Status, onRetry: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.padding(32.dp),
         ) {
+            val art = remember { LocalArt.entries.random() }
+            Box(
+                Modifier
+                    .width(560.dp)
+                    .height(240.dp)
+                    .background(Palette.PaperLight)
+                    .ornateFrame(inset = 5.dp, topGem = true)
+                    .padding(10.dp),
+            ) { LocalArtImage(art, Modifier.fillMaxSize()) }
             OrnateDivider(width = 260.dp)
             Text("MTG Reforged", style = MaterialTheme.typography.displayLarge, color = Palette.Terracotta, textAlign = TextAlign.Center)
             OrnateDivider(width = 260.dp)
