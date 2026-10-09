@@ -3,37 +3,39 @@ package io.github.nmanuelides.mtgreforged.ui.components
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * A plaque that only fires when its handle is dragged to the right end. Used where a
- * stray tap would be costly, such as passing priority and skipping phases.
+ * Looks like the normal primary plaque, but only fires on a rightward swipe across it;
+ * a plain tap just flashes a hint. Used where a stray tap would be costly, such as
+ * passing priority and skipping phases.
  */
 @Composable
 fun SwipeToConfirm(
@@ -43,52 +45,54 @@ fun SwipeToConfirm(
     enabled: Boolean = true,
     height: Dp = 54.dp,
 ) {
+    val confirm by rememberUpdatedState(onConfirm)
     val scope = rememberCoroutineScope()
-    val offset = remember { Animatable(0f) }
-    val density = LocalDensity.current
-    val knobWidth = 64.dp
+    val nudge = remember { Animatable(0f) } // the label follows the finger a little
+    var hint by remember { mutableStateOf(false) }
+    LaunchedEffect(hint) {
+        if (hint) {
+            delay(1200)
+            hint = false
+        }
+    }
 
-    BoxWithConstraints(
+    Box(
         modifier
             .height(height)
             .alpha(if (enabled) 1f else 0.45f)
             .background(Palette.Terracotta)
-            .ornateFrame(Palette.PaperLight.copy(alpha = 0.75f), inset = 3.dp, corners = false),
+            .ornateFrame(Palette.PaperLight.copy(alpha = 0.75f), inset = 3.dp, corners = false)
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                val threshold = maxOf(size.width * 0.3f, 80.dp.toPx())
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    var dx = 0f
+                    var dy = 0f
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        val delta = change.positionChange()
+                        dx += delta.x
+                        dy += delta.y
+                        if (abs(dx) > abs(dy)) change.consume()
+                        scope.launch { nudge.snapTo((dx / threshold).coerceIn(0f, 1f)) }
+                    }
+                    when {
+                        dx >= threshold && abs(dx) > abs(dy) -> confirm()
+                        abs(dx) < 12.dp.toPx() && abs(dy) < 12.dp.toPx() -> hint = true
+                    }
+                    scope.launch { nudge.animateTo(0f, spring()) }
+                }
+            },
+        contentAlignment = Alignment.Center,
     ) {
-        val max = with(density) { (maxWidth - knobWidth - 8.dp).toPx() }.coerceAtLeast(1f)
-        val progress = offset.value / max
-
         Text(
-            "${text.uppercase()}  ›››",
-            Modifier.align(Alignment.Center).alpha(1f - progress).padding(start = knobWidth / 2),
+            if (hint) "Swipe  →" else "${text.uppercase()}  ›››",
+            Modifier.offset { IntOffset((nudge.value * 24.dp.toPx()).roundToInt(), 0) },
             style = MaterialTheme.typography.labelLarge,
-            color = Palette.PaperLight,
+            color = Palette.PaperLight.copy(alpha = 0.75f + 0.25f * nudge.value),
         )
-        Box(
-            Modifier
-                .padding(4.dp)
-                .offset { IntOffset(offset.value.roundToInt(), 0) }
-                .width(knobWidth)
-                .fillMaxHeight()
-                .background(Palette.PaperLight)
-                .ornateFrame(Palette.LineStrong, inset = 2.dp, corners = false)
-                .draggable(
-                    enabled = enabled,
-                    orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { delta ->
-                        scope.launch { offset.snapTo((offset.value + delta).coerceIn(0f, max)) }
-                    },
-                    onDragStopped = {
-                        if (offset.value >= max * 0.85f) {
-                            offset.animateTo(max)
-                            onConfirm()
-                        }
-                        offset.animateTo(0f, spring())
-                    },
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("›", color = Palette.Terracotta, fontSize = 26.sp)
-        }
     }
 }
