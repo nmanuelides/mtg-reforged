@@ -14,6 +14,7 @@ import androidx.core.graphics.ColorUtils
 import androidx.palette.graphics.Palette as AndroidPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -79,8 +80,8 @@ object LandingArt {
 }
 
 /**
- * The artwork's most common colour, deepened until it reads clearly on the cream paper,
- * for text and ornaments that sit next to the art.
+ * The most vivid of the artwork's common colours, deepened just enough to read on the
+ * cream paper, for text and ornaments that sit next to the art.
  */
 @Composable
 fun rememberArtAccent(art: LocalArt): Color {
@@ -88,8 +89,8 @@ fun rememberArtAccent(art: LocalArt): Color {
     val accent by produceState(accentCache[art] ?: Palette.Terracotta, art) {
         value = accentCache[art] ?: withContext(Dispatchers.Default) {
             val bitmap = BitmapFactory.decodeResource(resources, art.res, BitmapFactory.Options().apply { inSampleSize = 8 })
-            val swatch = AndroidPalette.from(bitmap).maximumColorCount(16).generate().dominantSwatch
-            readableOnPaper(swatch?.rgb ?: Palette.Terracotta.toArgb())
+            val swatches = AndroidPalette.from(bitmap).maximumColorCount(24).generate().swatches
+            readableOnPaper(mostVividCommon(swatches) ?: Palette.Terracotta.toArgb())
         }.also { accentCache[art] = it }
     }
     return animateColorAsState(accent, tween(600), label = "accent").value
@@ -97,13 +98,31 @@ fun rememberArtAccent(art: LocalArt): Color {
 
 private val accentCache = HashMap<LocalArt, Color>()
 
+/**
+ * Among colours covering a fair share of the image, the most saturated one at a usable
+ * lightness. The single most common colour is usually a dark or grey background.
+ */
+private fun mostVividCommon(swatches: List<AndroidPalette.Swatch>): Int? {
+    val maxPopulation = swatches.maxOfOrNull { it.population } ?: return null
+    return swatches
+        .filter { it.population >= maxPopulation * 0.03f }
+        .maxByOrNull { swatch ->
+            val (_, saturation, lightness) = swatch.hsl
+            // Favour saturation; penalise colours that are nearly black or nearly white.
+            saturation * (1f - abs(lightness - 0.5f) * 1.6f).coerceAtLeast(0f) +
+                0.05f * swatch.population / maxPopulation
+        }
+        ?.rgb
+}
+
 private fun readableOnPaper(rgb: Int): Color {
     val paper = Palette.Paper.toArgb()
     val hsl = FloatArray(3).also { ColorUtils.colorToHSL(rgb, it) }
     // Keep the hue, give it some body, and darken until it has text contrast on paper.
-    hsl[1] = hsl[1].coerceAtLeast(0.35f)
+    hsl[1] = hsl[1].coerceAtLeast(0.45f)
     var color = ColorUtils.HSLToColor(hsl)
-    while (ColorUtils.calculateContrast(color, paper) < 4.5 && hsl[2] > 0.05f) {
+    // Title and Play are large type, so 3:1 contrast is enough and keeps the colour lively.
+    while (ColorUtils.calculateContrast(color, paper) < 3.0 && hsl[2] > 0.05f) {
         hsl[2] -= 0.03f
         color = ColorUtils.HSLToColor(hsl)
     }

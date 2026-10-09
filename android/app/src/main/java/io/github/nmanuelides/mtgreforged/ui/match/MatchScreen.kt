@@ -244,6 +244,7 @@ private fun PhoneLayout(
             PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             HandDock(me.hand, state, actions, cardWidth = 80.dp, height = 118.dp, maxScale = 2.0f)
         }
+        PhaseTrack(state.phase, Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp))
         PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel, onPlayer = game::tapPlayer)
     }
 }
@@ -299,7 +300,6 @@ private fun SidePanel(
             OrnateButton("Leave", onConcede, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.ExitToApp,
                 height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
         }
-        PhaseTrack(state.phase, Modifier.fillMaxWidth())
 
         // Whatever needs attention most: the card being inspected, otherwise the stack.
         Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -314,6 +314,9 @@ private fun SidePanel(
                 )
             }
         }
+
+        // Phases sit right above the pass controls: where we are and what passing skips to.
+        PhaseTrack(state.phase, Modifier.fillMaxWidth())
 
         val p = state.prompt
         Column(
@@ -403,7 +406,7 @@ private fun TopBar(state: MatchUiState, onLog: () -> Unit, onConcede: () -> Unit
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Turn ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
         Spacer(Modifier.width(10.dp))
-        PhaseTrack(state.phase, Modifier.weight(1f))
+        Spacer(Modifier.weight(1f))
         IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
         OrnateButton("Leave", onConcede, icon = Icons.AutoMirrored.Filled.ExitToApp, height = 36.dp,
             textStyle = MaterialTheme.typography.labelSmall)
@@ -429,9 +432,11 @@ private fun PhaseTrack(phase: PhaseType?, modifier: Modifier) {
             Text(
                 label,
                 Modifier
+                    .weight(1f)
                     .background(if (active) Palette.Terracotta else Palette.PaperLight)
                     .ornateFrame(if (active) Palette.PaperLight.copy(alpha = 0.7f) else Palette.Line, inset = 2.dp, corners = false)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
+                textAlign = TextAlign.Center,
                 fontFamily = Cinzel,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
