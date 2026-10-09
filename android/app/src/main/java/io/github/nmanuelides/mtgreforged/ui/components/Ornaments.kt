@@ -188,6 +188,8 @@ fun OrnateButton(
     enabled: Boolean = true,
     icon: ImageVector? = null,
     accent: Color = Palette.Terracotta,
+    /** Frame colour for the Secondary style; defaults to the standard rule colour. */
+    frameColor: Color = Palette.LineStrong,
     textStyle: TextStyle = MaterialTheme.typography.labelLarge,
     height: Dp = 48.dp,
 ) {
@@ -195,7 +197,7 @@ fun OrnateButton(
     val pressed by interaction.collectIsPressedAsState()
     val (fill, frame, ink) = when (style) {
         OrnateStyle.Primary -> Triple(accent, Palette.PaperLight.copy(alpha = 0.75f), Palette.PaperLight)
-        OrnateStyle.Secondary -> Triple(Palette.PaperLight, Palette.LineStrong, accent)
+        OrnateStyle.Secondary -> Triple(Palette.PaperLight, frameColor, accent)
         OrnateStyle.Quiet -> Triple(Palette.Paper, Palette.Line, Palette.Ink)
     }
     Box(
@@ -230,11 +232,17 @@ fun OrnateButton(
 
 /** The big title-screen button with arrow flourishes reaching out on both sides. */
 @Composable
-fun PlayPlaque(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun PlayPlaque(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    color: Color = Palette.Terracotta,
+) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxWidth().height(76.dp)) {
             val y = size.height / 2
-            val c = Palette.LineStrong
+            val c = color
             val stroke = 1.dp.toPx()
             drawLine(c, Offset(0f, y), Offset(28.dp.toPx(), y), stroke)
             drawLine(c, Offset(size.width - 28.dp.toPx(), y), Offset(size.width, y), stroke)
@@ -246,6 +254,8 @@ fun PlayPlaque(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
             Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
             style = OrnateStyle.Secondary,
             enabled = enabled,
+            accent = color,
+            frameColor = color,
             textStyle = MaterialTheme.typography.headlineLarge.copy(letterSpacing = 6.sp),
             height = 76.dp,
         )

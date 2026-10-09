@@ -7,7 +7,17 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalContext
+import io.github.nmanuelides.mtgreforged.ui.components.LandingArt
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,30 +68,61 @@ class MainActivity : ComponentActivity() {
                 var selections by remember { mutableStateOf<Map<Int, Engine.DeckEntry>>(emptyMap()) }
                 var browsing by remember { mutableStateOf<Pair<Engine.Format, Int>?>(null) }
 
+                // The boot window shows the same art the landing will open on, then grows
+                // into it ("stepping through the window"). Later landings rotate the art.
+                val context = LocalContext.current
+                var landingArt by remember { mutableStateOf(LandingArt.next(context)) }
+                fun nextLanding() { landingArt = LandingArt.next(context) }
+                var booted by remember { mutableStateOf(Engine.status.value == Engine.Status.Ready) }
+                var bootWindow by remember { mutableStateOf<Rect?>(null) }
+                var landingArea by remember { mutableStateOf<Rect?>(null) }
+                val reveal = remember { Animatable(0f) }
+                LaunchedEffect(status, landingArea) {
+                    if (booted || status != Engine.Status.Ready || landingArea == null || bootWindow == null) return@LaunchedEffect
+                    delay(250)
+                    reveal.animateTo(1f, tween(1100, easing = FastOutSlowInEasing))
+                    booted = true
+                }
+
                 val game = match
                 when {
-                    status != Engine.Status.Ready -> BootScreen(status) { Engine.start(this) }
-                    game != null -> MatchScreen(game, onLeave = Engine::leaveMatch)
+                    game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
                     browsing != null -> {
                         val (fmt, slot) = browsing!!
                         DeckBrowserScreen(
                             title = if (slot < 0) "Your deck" else "Opponent ${slot + 1}",
                             decks = decks[fmt].orEmpty(),
                             initial = selections[slot],
-                            onSelect = { selections = selections + (slot to it); browsing = null },
-                            onBack = { browsing = null },
+                            onSelect = { selections = selections + (slot to it); browsing = null; nextLanding() },
+                            onBack = { browsing = null; nextLanding() },
                         )
                     }
-                    else -> HomeScreen(
-                        decksFor = { decks[it].orEmpty() },
-                        update = update,
-                        onInstallUpdate = model::installUpdate,
-                        onBrowseDecks = { fmt, slot, _ -> browsing = fmt to slot },
-                        selections = selections,
-                        onStart = Engine::startMatch,
-                        format = format,
-                        onFormat = { format = it; selections = emptyMap() },
-                    )
+                    else -> Box(Modifier.fillMaxSize()) {
+                        // The landing sits underneath the boot screen while the window opens,
+                        // in the same spot it keeps afterwards, so its chrome can animate in.
+                        if (status == Engine.Status.Ready) {
+                            HomeScreen(
+                                decksFor = { decks[it].orEmpty() },
+                                update = update,
+                                onInstallUpdate = model::installUpdate,
+                                onBrowseDecks = { fmt, slot, _ -> browsing = fmt to slot },
+                                selections = selections,
+                                onStart = Engine::startMatch,
+                                format = format,
+                                onFormat = { format = it; selections = emptyMap() },
+                                art = landingArt,
+                                chromeVisible = booted,
+                                onArtBounds = { landingArea = it },
+                            )
+                        }
+                        if (!booted) {
+                            BootScreen(
+                                status, onRetry = { Engine.start(this@MainActivity) }, art = landingArt,
+                                reveal = reveal.value, window = bootWindow, target = landingArea,
+                                onWindowBounds = { if (reveal.value == 0f) bootWindow = it },
+                            )
+                        }
+                    }
                 }
                 prompt?.let { PromptDialog(it) }
             }

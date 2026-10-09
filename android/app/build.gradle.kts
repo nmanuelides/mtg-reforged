@@ -147,6 +147,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.palette)
     debugImplementation(libs.compose.ui.tooling)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)

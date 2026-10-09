@@ -1,7 +1,19 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import android.content.Context
 import androidx.annotation.DrawableRes
+import android.graphics.BitmapFactory
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.graphics.ColorUtils
+import androidx.palette.graphics.Palette as AndroidPalette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -51,4 +63,49 @@ fun LocalArtImage(art: LocalArt, modifier: Modifier = Modifier) {
         contentScale = ContentScale.Crop,
         alignment = art.alignment,
     )
+}
+
+/** Hands out wallpapers in turn for the landing, remembering where it left off between launches. */
+object LandingArt {
+    private const val PREFS = "landing"
+    private const val KEY = "next"
+
+    fun next(context: Context): LocalArt {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val index = prefs.getInt(KEY, 0) % LocalArt.entries.size
+        prefs.edit().putInt(KEY, index + 1).apply()
+        return LocalArt.entries[index]
+    }
+}
+
+/**
+ * The artwork's most common colour, deepened until it reads clearly on the cream paper,
+ * for text and ornaments that sit next to the art.
+ */
+@Composable
+fun rememberArtAccent(art: LocalArt): Color {
+    val resources = LocalContext.current.resources
+    val accent by produceState(accentCache[art] ?: Palette.Terracotta, art) {
+        value = accentCache[art] ?: withContext(Dispatchers.Default) {
+            val bitmap = BitmapFactory.decodeResource(resources, art.res, BitmapFactory.Options().apply { inSampleSize = 8 })
+            val swatch = AndroidPalette.from(bitmap).maximumColorCount(16).generate().dominantSwatch
+            readableOnPaper(swatch?.rgb ?: Palette.Terracotta.toArgb())
+        }.also { accentCache[art] = it }
+    }
+    return animateColorAsState(accent, tween(600), label = "accent").value
+}
+
+private val accentCache = HashMap<LocalArt, Color>()
+
+private fun readableOnPaper(rgb: Int): Color {
+    val paper = Palette.Paper.toArgb()
+    val hsl = FloatArray(3).also { ColorUtils.colorToHSL(rgb, it) }
+    // Keep the hue, give it some body, and darken until it has text contrast on paper.
+    hsl[1] = hsl[1].coerceAtLeast(0.35f)
+    var color = ColorUtils.HSLToColor(hsl)
+    while (ColorUtils.calculateContrast(color, paper) < 4.5 && hsl[2] > 0.05f) {
+        hsl[2] -= 0.03f
+        color = ColorUtils.HSLToColor(hsl)
+    }
+    return Color(color)
 }

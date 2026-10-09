@@ -39,13 +39,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import android.content.Context
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -63,6 +68,7 @@ import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
 import io.github.nmanuelides.mtgreforged.engine.Engine.Format
 import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
 import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
+import io.github.nmanuelides.mtgreforged.ui.components.rememberArtAccent
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDivider
@@ -88,19 +94,6 @@ private fun Modifier.paperShadow(offsetY: Dp, blur: Dp = 18.dp): Modifier = draw
     }
 }
 
-/** Hands out the landing wallpapers in turn, remembering where it left off between launches. */
-private object LandingArt {
-    private const val PREFS = "landing"
-    private const val KEY = "next"
-
-    fun next(context: Context): LocalArt {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val index = prefs.getInt(KEY, 0) % LocalArt.entries.size
-        prefs.edit().putInt(KEY, index + 1).apply()
-        return LocalArt.entries[index]
-    }
-}
-
 sealed interface UpdateUi {
     data object None : UpdateUi
     data class Available(val name: String, val notes: String) : UpdateUi
@@ -121,24 +114,33 @@ fun HomeScreen(
     onStart: (Format, DeckEntry, List<DeckEntry>) -> Unit,
     format: Format,
     onFormat: (Format) -> Unit,
+    art: LocalArt,
+    /** False while the boot window is still opening onto this screen. */
+    chromeVisible: Boolean = true,
+    onArtBounds: (Rect) -> Unit = {},
 ) {
     var opponentCount by rememberSaveable { mutableStateOf(3) }
     var showRivals by remember { mutableStateOf(false) }
     val decks = decksFor(format)
     val mine = selections[-1]
 
-    // A different wallpaper every time the landing is shown, cycling through all of them.
-    val context = LocalContext.current
-    val art = remember { LandingArt.next(context) }
+    // Title and Play take their colour from the artwork on show.
+    val accent = rememberArtAccent(art)
+    // Title and bottom bar settle in once the boot window has finished opening.
+    val chrome by animateFloatAsState(if (chromeVisible) 1f else 0f, tween(550, easing = FastOutSlowInEasing), label = "chrome")
 
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
         Column(Modifier.fillMaxSize()) {
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
             Box(Modifier.fillMaxWidth().weight(1f)) {
-                LocalArtImage(art, Modifier.fillMaxSize())
+                LocalArtImage(art, Modifier.fillMaxSize().onGloballyPositioned { onArtBounds(it.boundsInRoot()) })
                 Column(
-                    Modifier.fillMaxWidth().statusBarsPadding().padding(top = 16.dp, start = 24.dp, end = 24.dp),
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 16.dp, start = 24.dp, end = 24.dp)
+                        .graphicsLayer { alpha = chrome; translationY = (1f - chrome) * -40.dp.toPx() },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     UpdateBanner(update, onInstallUpdate)
@@ -147,7 +149,7 @@ fun HomeScreen(
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
                             .background(Palette.Paper)
                             .padding(horizontal = 36.dp, vertical = 10.dp),
-                    ) { Title() }
+                    ) { Title(accent) }
                 }
             }
 
@@ -155,6 +157,7 @@ fun HomeScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { translationY = (1f - chrome) * size.height }
                     .paperShadow(offsetY = (-6).dp)
                     .parchment()
                     .drawBehind { drawRect(Palette.LineStrong, size = Size(size.width, 2.dp.toPx())) }
@@ -174,6 +177,7 @@ fun HomeScreen(
                     },
                     modifier = Modifier.widthIn(max = 520.dp).fillMaxWidth(),
                     enabled = decks.isNotEmpty(),
+                    color = accent,
                 )
                 Spacer(Modifier.height(12.dp))
 
@@ -215,22 +219,22 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Title() {
+private fun Title(color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-        OrnateDivider(width = 260.dp)
+        OrnateDivider(width = 260.dp, color = color)
         Text(
             "MTG Reforged",
             style = MaterialTheme.typography.displayLarge,
-            color = Palette.Terracotta,
+            color = color,
             textAlign = TextAlign.Center,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OrnateDivider(width = 80.dp)
+            OrnateDivider(width = 80.dp, color = color)
             Text(
                 "  Forge engine ${BuildConfig.VERSION_NAME.substringBefore('-')}  ",
                 style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft,
             )
-            OrnateDivider(width = 80.dp)
+            OrnateDivider(width = 80.dp, color = color)
         }
     }
 }
