@@ -22,7 +22,9 @@ class EngineDataInstaller(private val context: Context, val forgeDir: File) {
         if (!resDir.isDirectory || !installedManifest.isFile) return false
         val installed = Properties().apply { installedManifest.inputStream().use(::load) }
         return installed.getProperty(KEY_VERSION_CODE) == BuildConfig.VERSION_CODE.toString() &&
-            installed.getProperty(KEY_COMMIT) == BuildConfig.ENGINE_COMMIT
+            installed.getProperty(KEY_COMMIT) == BuildConfig.ENGINE_COMMIT &&
+            // Dev builds can change the data without a new commit; the size catches that.
+            installed.getProperty(KEY_SIZE) == bundledSize().toString()
     }
 
     /** Extracts the bundled data next to the current copy, then swaps it in. */
@@ -59,10 +61,13 @@ class EngineDataInstaller(private val context: Context, val forgeDir: File) {
         Properties().apply {
             setProperty(KEY_VERSION_CODE, BuildConfig.VERSION_CODE.toString())
             setProperty(KEY_COMMIT, BuildConfig.ENGINE_COMMIT)
+            setProperty(KEY_SIZE, bundledSize().toString())
             installedManifest.outputStream().use { store(it, null) }
         }
         onProgress(1f)
     }
+
+    private fun bundledSize(): Long = runCatching { context.assets.openFd(ASSET).use { it.length } }.getOrDefault(-1L)
 
     private class CountingStream(private val inner: java.io.InputStream) : java.io.FilterInputStream(inner) {
         var count = 0L
@@ -77,5 +82,6 @@ class EngineDataInstaller(private val context: Context, val forgeDir: File) {
         const val ASSET = "engine-data.zip"
         private const val KEY_VERSION_CODE = "versionCode"
         private const val KEY_COMMIT = "engineCommit"
+        private const val KEY_SIZE = "dataSize"
     }
 }
