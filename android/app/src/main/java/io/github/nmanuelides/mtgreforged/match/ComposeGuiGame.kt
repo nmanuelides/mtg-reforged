@@ -18,6 +18,8 @@ import forge.game.zone.ZoneType
 import forge.gamemodes.match.AbstractGuiGame
 import forge.gamemodes.match.HostedMatch
 import forge.gamemodes.match.input.InputAttack
+import forge.gamemodes.match.input.InputConfirm
+import forge.gamemodes.match.input.InputSelectEntitiesFromList
 import forge.gamemodes.match.input.InputPassPriority
 import forge.game.GameEntity
 import forge.game.card.Card
@@ -60,6 +62,12 @@ class ComposeGuiGame : AbstractGuiGame() {
     enum class Feedback { IncorrectAction, Alert }
 
     var hostedMatch: HostedMatch? = null
+
+    /**
+     * When resuming a saved game the pre-game questions (who starts, mulligans) are
+     * answered automatically; the saved state replaces their outcome right after.
+     */
+    @Volatile var autoStart = false
 
     @Volatile private var prompt = PromptBarUi()
     @Volatile private var gameOver: GameOverUi? = null
@@ -277,7 +285,23 @@ class ComposeGuiGame : AbstractGuiGame() {
         requestRefresh()
     }
 
+    private fun autoAnswerPregame() {
+        if ((gameView?.turn ?: 0) >= 1) {
+            autoStart = false
+            return
+        }
+        onGameThread {
+            val controller = gameController as? PlayerControllerHuman ?: return@onGameThread
+            when (val input = currentInput()) {
+                is InputSelectEntitiesFromList<*> -> controller.player?.let { controller.selectPlayer(it.view, Tap) }
+                is InputConfirm -> controller.selectButtonOk()
+                else -> if (input != null) controller.selectButtonOk()
+            }
+        }
+    }
+
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
+        if (autoStart) autoAnswerPregame()
         prompt = prompt.copy(
             okLabel = label1.orEmpty(), cancelLabel = label2.orEmpty(),
             okEnabled = enable1, cancelEnabled = enable2,

@@ -5,6 +5,7 @@ import android.util.Log
 import forge.deck.Deck
 import forge.deck.io.DeckSerializer
 import forge.game.GameRules
+import forge.game.GameState
 import forge.game.GameType
 import forge.game.player.RegisteredPlayer
 import forge.gui.GuiBase
@@ -135,24 +136,64 @@ object Engine {
     fun loadDeck(entry: DeckEntry): Deck = DeckSerializer.fromFile(entry.file)
 
     /** Starts a free-for-all: the local player against one or more AI opponents. */
+    /** How the running match was set up, so it can be saved and rebuilt later. */
+    private var currentFormat: Format? = null
+    private var currentDecks: List<DeckEntry> = emptyList()
+
     fun startMatch(format: Format, player: DeckEntry, opponents: List<DeckEntry>) {
         require(opponents.isNotEmpty() && opponents.size < format.maxPlayers)
+        launch(format, listOf(player) + opponents, aiNames = null, resume = null)
+    }
+
+    /** Rebuilds the saved table (same seats, decks and names) and restores its state. */
+    fun resume(saved: SavedGame) {
+        val decks = saved.seats.map { DeckEntry(it.deckName, File(it.deckPath)) }
+        launch(saved.format, decks, aiNames = saved.seats.drop(1).map { it.name }, resume = saved)
+    }
+
+    /** True if the match can be saved right now (Forge can't capture a non-empty stack). */
+    fun canSave(): Boolean {
+        val game = _match.value?.gameView?.game ?: return false
+        return game.stack.isEmpty && currentFormat != null
+    }
+
+    fun saveMatch(): Boolean {
+        val game = _match.value?.gameView?.game ?: return false
+        val format = currentFormat ?: return false
+        return runCatching { SavedGames.save(game, format, currentDecks) }
+            .onFailure { Log.e("Engine", "Save failed", it) }
+            .isSuccess
+    }
+
+    /** Seat 0 is the local player; the rest are AI opponents. */
+    private fun launch(format: Format, decks: List<DeckEntry>, aiNames: List<String>?, resume: SavedGame?) {
+        currentFormat = format
+        currentDecks = decks
         ThreadUtil.invokeInGameThread {
-            val playerCount = opponents.size + 1
             val variants = if (format == Format.Commander) setOf(GameType.Commander) else emptySet()
             fun register(entry: DeckEntry) = if (variants.isEmpty()) {
                 RegisteredPlayer(loadDeck(entry))
             } else {
-                RegisteredPlayer.forVariants(playerCount, variants, loadDeck(entry), null, false, null, null)
+                RegisteredPlayer.forVariants(decks.size, variants, loadDeck(entry), null, false, null, null)
             }
 
-            val human = register(player).apply { setPlayer(GamePlayerUtil.getGuiPlayer()) }
-            val ais = opponents.map { deck ->
-                register(deck).apply { setPlayer(GamePlayerUtil.createAiPlayer()) }
+            val human = register(decks[0]).apply { setPlayer(GamePlayerUtil.getGuiPlayer()) }
+            val ais = decks.drop(1).mapIndexed { i, deck ->
+                val name = aiNames?.getOrNull(i)
+                register(deck).apply {
+                    setPlayer(if (name != null) GamePlayerUtil.createAiPlayer(name) else GamePlayerUtil.createAiPlayer())
+                }
             }
             val guiGame = gui.newGuiGame as ComposeGuiGame
             val hosted = gui.hostMatch()
             guiGame.hostedMatch = hosted
+            if (resume != null) {
+                // Breeze through "who starts" and mulligans, then lay the saved state over the new game.
+                guiGame.autoStart = true
+                hosted.setStartGameHook {
+                    GameState().apply { parse(resume.state.lines()) }.applyToGame(hosted.game)
+                }
+            }
             _match.value = guiGame
             // Fetch every card image in the match up front: ours first, then the opponents'.
             CardImages.prefetch(

@@ -29,6 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.PromptHost
+import io.github.nmanuelides.mtgreforged.engine.SavedGame
+import io.github.nmanuelides.mtgreforged.engine.SavedGames
 import io.github.nmanuelides.mtgreforged.ui.home.BootScreen
 import io.github.nmanuelides.mtgreforged.ui.home.DeckBrowserScreen
 import io.github.nmanuelides.mtgreforged.ui.home.HomeScreen
@@ -82,7 +84,12 @@ class MainActivity : ComponentActivity() {
                 // into it ("stepping through the window"). Later landings rotate the art.
                 val context = LocalContext.current
                 var landingArt by remember { mutableStateOf(LandingArt.next(context)) }
-                fun nextLanding() { landingArt = LandingArt.next(context) }
+                var saved by remember { mutableStateOf<SavedGame?>(null) }
+                fun nextLanding() {
+                    landingArt = LandingArt.next(context)
+                    saved = SavedGames.load()
+                }
+                LaunchedEffect(status) { if (status == Engine.Status.Ready) saved = SavedGames.load() }
                 var booted by remember { mutableStateOf(Engine.status.value == Engine.Status.Ready) }
                 var bootWindow by remember { mutableStateOf<Rect?>(null) }
                 var landingArea by remember { mutableStateOf<Rect?>(null) }
@@ -121,6 +128,14 @@ class MainActivity : ComponentActivity() {
                                 format = format,
                                 onFormat = { format = it; selections = emptyMap() },
                                 art = landingArt,
+                                saved = saved,
+                                onContinue = {
+                                    saved?.let { game ->
+                                        SavedGames.delete()
+                                        saved = null
+                                        Engine.resume(game)
+                                    }
+                                },
                                 chromeVisible = booted,
                                 onArtBounds = { landingArea = it },
                             )

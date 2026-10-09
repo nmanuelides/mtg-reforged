@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.nmanuelides.mtgreforged.BuildConfig
 import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
+import io.github.nmanuelides.mtgreforged.engine.SavedGame
 import io.github.nmanuelides.mtgreforged.engine.Engine.Format
 import io.github.nmanuelides.mtgreforged.ui.components.LocalArt
 import io.github.nmanuelides.mtgreforged.ui.components.LocalArtImage
@@ -121,6 +122,8 @@ fun HomeScreen(
     format: Format,
     onFormat: (Format) -> Unit,
     art: LocalArt,
+    saved: SavedGame? = null,
+    onContinue: () -> Unit = {},
     /** False while the boot window is still opening onto this screen. */
     chromeVisible: Boolean = true,
     onArtBounds: (Rect) -> Unit = {},
@@ -187,6 +190,15 @@ fun HomeScreen(
                     .padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                if (saved != null) {
+                    // A paused match waits here until it is continued or overwritten.
+                    OrnateButton(
+                        "Continue · ${saved.summary}", onContinue,
+                        Modifier.widthIn(max = 520.dp).fillMaxWidth().padding(bottom = 10.dp),
+                        accent = accent, frameColor = accent, height = 46.dp,
+                        textStyle = MaterialTheme.typography.labelLarge,
+                    )
+                }
                 PlayPlaque(
                     "Play",
                     onClick = {

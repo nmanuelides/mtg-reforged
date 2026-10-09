@@ -79,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import forge.card.MagicColor
 import forge.game.phase.PhaseType
 import io.github.nmanuelides.mtgreforged.match.CardUi
+import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.match.ComposeGuiGame
 import io.github.nmanuelides.mtgreforged.match.MatchUiState
 import io.github.nmanuelides.mtgreforged.match.PlayerUi
@@ -172,11 +173,22 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
         OrnateDialog(onDismiss = { confirmLeave = false }) {
             SectionLabel("Concede")
             Spacer(Modifier.height(12.dp))
-            Text("Leave the match? It will count as a loss.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+            val canSave = remember { Engine.canSave() }
+            Text(
+                if (canSave) "Save the match to continue it later, or concede it."
+                else "Leave the match? It will count as a loss. (Saving needs an empty stack.)",
+                style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
+            )
             Spacer(Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OrnateButton("Keep playing", { confirmLeave = false }, Modifier.weight(1f), accent = Palette.Slate)
-                OrnateButton("Concede", { confirmLeave = false; game.concedeGame(); onLeave() }, Modifier.weight(1f), style = OrnateStyle.Primary)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OrnateButton(
+                    "Save & leave", { confirmLeave = false; if (Engine.saveMatch()) onLeave() },
+                    Modifier.fillMaxWidth(), style = OrnateStyle.Primary, enabled = canSave,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OrnateButton("Keep playing", { confirmLeave = false }, Modifier.weight(1f), accent = Palette.Slate)
+                    OrnateButton("Concede", { confirmLeave = false; game.concedeGame(); onLeave() }, Modifier.weight(1f))
+                }
             }
         }
     }
