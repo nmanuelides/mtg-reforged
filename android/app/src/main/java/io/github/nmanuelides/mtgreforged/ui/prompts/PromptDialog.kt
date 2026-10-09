@@ -139,11 +139,14 @@ private fun InputDialog(p: Prompt.Input, onDone: (String?) -> Unit) {
 @Composable
 private fun ChooseDialog(p: Prompt.Choose, onDone: (List<Int>?) -> Unit) {
     val selected = remember(p) { p.preselected.toMutableStateList() }
+    // Forge passes min = max = -1 to just show a list (reveal).
+    val displayOnly = p.max <= 0
     val single = p.max == 1
     val hasCards = p.items.any { it.card != null }
     val valid = selected.size in p.min..p.max
 
     fun toggle(i: Int) {
+        if (displayOnly) return
         if (single) {
             onDone(listOf(i))
             return
@@ -177,10 +180,13 @@ private fun ChooseDialog(p: Prompt.Choose, onDone: (List<Int>?) -> Unit) {
             }
         },
         confirmButton = {
-            if (!single) Button(onClick = { onDone(selected.toList()) }, enabled = valid) { Text("Confirmar") }
+            when {
+                displayOnly -> Button(onClick = { onDone(emptyList()) }) { Text("OK") }
+                !single -> Button(onClick = { onDone(selected.toList()) }, enabled = valid) { Text("Confirmar") }
+            }
         },
         dismissButton = {
-            if (p.min == 0) TextButton(onClick = { onDone(if (single) emptyList() else null) }) { Text("Ninguno") }
+            if (p.min == 0 && !displayOnly) TextButton(onClick = { onDone(if (single) emptyList() else null) }) { Text("Ninguno") }
         },
     )
 }

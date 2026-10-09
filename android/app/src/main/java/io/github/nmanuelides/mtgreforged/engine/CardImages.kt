@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import forge.ImageKeys
 import forge.gui.GuiBase
+import forge.util.ImageUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -31,7 +32,7 @@ object CardImages {
     suspend fun load(key: String): Bitmap? {
         memory.get(key)?.let { return it }
         if (key in missing) return null
-        val file = withContext(Dispatchers.IO) { ImageKeys.getImageFile(key) } ?: fetch(key)
+        val file = withContext(Dispatchers.IO) { findFile(key) } ?: fetch(key)
         val bitmap = file?.let { withContext(Dispatchers.IO) { decode(it) } }
         if (bitmap == null) missing += key else memory.put(key, bitmap)
         return bitmap
@@ -46,8 +47,39 @@ object CardImages {
                 }
             }
         }
-        withContext(Dispatchers.IO) { ImageKeys.getImageFile(key) }
+        // The lookup before the download marked this card as missing; forget that.
+        ImageKeys.clearMissingCards()
+        withContext(Dispatchers.IO) { findFile(key) }
     }
+
+    /**
+     * Game keys ("c:Name|SET|n", optionally with a face suffix) must be turned into the
+     * card's file key before ImageKeys can find the file; same as the libGDX ImageCache.
+     */
+    private fun findFile(gameKey: String): File? {
+        var key = gameKey
+        val altState = key.endsWith(ImageKeys.BACKFACE_POSTFIX)
+        val specColor = SPEC_FACES.entries.firstOrNull { key.endsWith(it.key) }?.value
+        if (altState) key = key.removeSuffix(ImageKeys.BACKFACE_POSTFIX)
+        if (specColor != null) key = key.dropLast(ImageKeys.SPECFACE_W.length)
+        key = when {
+            key.startsWith(ImageKeys.CARD_PREFIX) -> ImageUtil.getPaperCardFromImageKey(key)?.let { card ->
+                when {
+                    altState -> card.cardAltImageKey
+                    specColor != null -> ImageUtil.getImageKey(card, specColor, true)
+                    else -> card.cardImageKey
+                }
+            } ?: key
+            key.startsWith(ImageKeys.TOKEN_PREFIX) -> ImageUtil.getPaperTokenFromImageKey(key)?.cardImageKey ?: key
+            else -> key
+        }
+        return if (key.isBlank()) null else ImageKeys.getImageFile(key)
+    }
+
+    private val SPEC_FACES = mapOf(
+        ImageKeys.SPECFACE_W to "white", ImageKeys.SPECFACE_U to "blue", ImageKeys.SPECFACE_B to "black",
+        ImageKeys.SPECFACE_R to "red", ImageKeys.SPECFACE_G to "green",
+    )
 
     private fun decode(file: File): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

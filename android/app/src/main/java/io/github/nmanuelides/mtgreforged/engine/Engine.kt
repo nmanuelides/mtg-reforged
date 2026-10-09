@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import forge.deck.Deck
 import forge.deck.io.DeckSerializer
+import forge.game.GameRules
 import forge.game.GameType
 import forge.game.player.RegisteredPlayer
 import forge.gui.GuiBase
@@ -68,6 +69,8 @@ object Engine {
         FModel.initialize(ProgressBridge) { prefs ->
             if (Locale.getDefault().language == "es") prefs.setPref(FPref.UI_LANGUAGE, "es-ES")
             prefs.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, true)
+            // Forge otherwise interrupts the first match to ask for a name.
+            if (prefs.getPref(FPref.PLAYER_NAME).isNullOrBlank()) prefs.setPref(FPref.PLAYER_NAME, "Jugador")
             // We draw our own UI; Forge's own deck-generation matrix only slows boot down.
             prefs.setPref(FPref.DECKGEN_CARDBASED, false)
             // No audio backend yet (AndroidGui returns no clips).
@@ -117,8 +120,17 @@ object Engine {
             val hosted = gui.hostMatch()
             guiGame.hostedMatch = hosted
             _match.value = guiGame
-            hosted.startMatch(GameType.Constructed, null, listOf(human, ai), human, guiGame)
+            hosted.startMatch(matchRules(), null, listOf(human, ai), human, guiGame)
         }
+    }
+
+    /** Mirrors HostedMatch's defaults, minus the "AI can't play these cards" interruption. */
+    private fun matchRules() = GameRules(GameType.Constructed).apply {
+        val prefs = FModel.getPreferences()
+        setManaBurn(prefs.getPrefBoolean(FPref.LEGACY_MANABURN))
+        setOrderCombatants(prefs.getPrefBoolean(FPref.LEGACY_ORDER_COMBATANTS))
+        setGamesPerMatch(prefs.getPrefInt(FPref.UI_MATCHES_PER_GAME))
+        setWarnAboutAICards(false)
     }
 
     fun leaveMatch() {

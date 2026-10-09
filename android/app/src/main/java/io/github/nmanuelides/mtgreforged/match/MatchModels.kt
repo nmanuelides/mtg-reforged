@@ -40,7 +40,7 @@ data class CardUi(
                 },
                 manaCost = if (hidden) "" else state?.manaCost?.toString().orEmpty(),
                 typeLine = if (hidden) "" else type?.toString().orEmpty(),
-                text = if (hidden) "" else runCatching { cv.getText(state, null) }.getOrNull().orEmpty(),
+                text = if (hidden) "" else runCatching { cv.getText(state, null) }.getOrNull().orEmpty().stripHtml(),
                 power = if (type?.isCreature == true) state.power else null,
                 toughness = if (type?.isCreature == true) state.toughness else null,
                 loyalty = state?.loyalty?.takeIf { type?.isPlaneswalker == true },
@@ -58,6 +58,10 @@ data class CardUi(
         }
     }
 }
+
+// Forge marks up reminder text with <span> tags meant for its desktop renderer.
+private val htmlTag = Regex("<[^>]+>")
+private fun String.stripHtml() = replace("<br>", "\n").replace(htmlTag, "").replace("&nbsp;", " ").trim()
 
 data class PlayerUi(
     val id: Int,

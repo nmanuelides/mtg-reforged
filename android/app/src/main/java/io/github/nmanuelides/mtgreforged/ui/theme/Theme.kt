@@ -1,9 +1,11 @@
 package io.github.nmanuelides.mtgreforged.ui.theme
 
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -63,5 +65,8 @@ private val typography = Typography(
 
 @Composable
 fun MtgTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, typography = typography, content = content)
+    MaterialTheme(colorScheme = scheme, typography = typography) {
+        // Text drawn straight on our gradients (outside a Surface) must still be light.
+        CompositionLocalProvider(LocalContentColor provides Palette.TextPrimary, content = content)
+    }
 }
