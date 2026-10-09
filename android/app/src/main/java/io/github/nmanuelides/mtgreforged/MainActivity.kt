@@ -31,6 +31,20 @@ import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.PromptHost
 import io.github.nmanuelides.mtgreforged.engine.SavedGame
 import io.github.nmanuelides.mtgreforged.engine.SavedGames
+import io.github.nmanuelides.mtgreforged.engine.UserDecks
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
+import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.decks.DeckBuilderScreen
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.unit.dp
 import io.github.nmanuelides.mtgreforged.ui.home.BootScreen
 import io.github.nmanuelides.mtgreforged.ui.home.DeckBrowserScreen
 import io.github.nmanuelides.mtgreforged.ui.home.HomeScreen
@@ -79,6 +93,9 @@ class MainActivity : ComponentActivity() {
                 var format by rememberSaveable { mutableStateOf(Engine.Format.Commander) }
                 var selections by remember { mutableStateOf<Map<Int, Engine.DeckEntry>>(emptyMap()) }
                 var browsing by remember { mutableStateOf<Pair<Engine.Format, Int>?>(null) }
+                // Deck editor: which deck (null = new) and whether to open on the importer.
+                var editing by remember { mutableStateOf<Triple<Engine.Format, Engine.DeckEntry?, Boolean>?>(null) }
+                var deleting by remember { mutableStateOf<Pair<Engine.Format, Engine.DeckEntry>?>(null) }
 
                 // The boot window shows the same art the landing will open on, then grows
                 // into it ("stepping through the window"). Later landings rotate the art.
@@ -104,6 +121,15 @@ class MainActivity : ComponentActivity() {
                 val game = match
                 when {
                     game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
+                    editing != null -> {
+                        val (fmt, entry, importFirst) = editing!!
+                        DeckBuilderScreen(fmt, entry, importFirst) { saved ->
+                            editing = null
+                            // Freshly saved decks become the player's pick for that slot.
+                            val slot = browsing?.second
+                            if (saved != null && slot != null) selections = selections + (slot to saved)
+                        }
+                    }
                     browsing != null -> {
                         val (fmt, slot) = browsing!!
                         DeckBrowserScreen(
@@ -112,6 +138,10 @@ class MainActivity : ComponentActivity() {
                             initial = selections[slot],
                             onSelect = { selections = selections + (slot to it); browsing = null; nextLanding() },
                             onBack = { browsing = null; nextLanding() },
+                            onNew = { editing = Triple(fmt, null, false) },
+                            onImport = { editing = Triple(fmt, null, true) },
+                            onEdit = { editing = Triple(fmt, it, false) },
+                            onDelete = { deleting = fmt to it },
                         )
                     }
                     else -> Box(Modifier.fillMaxSize()) {
@@ -150,6 +180,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 prompt?.let { PromptDialog(it) }
+                deleting?.let { (fmt, entry) ->
+                    OrnateDialog(onDismiss = { deleting = null }) {
+                        SectionLabel("Delete deck")
+                        Spacer(Modifier.height(12.dp))
+                        Text("Delete \"${entry.name}\"? This can't be undone.", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OrnateButton("Keep", { deleting = null }, Modifier.weight(1f), accent = Palette.Slate)
+                            OrnateButton("Delete", {
+                                UserDecks.delete(entry, fmt)
+                                selections = selections.filterValues { it != entry }
+                                deleting = null
+                            }, Modifier.weight(1f), style = OrnateStyle.Primary)
+                        }
+                    }
+                }
             }
         }
     }
@@ -172,8 +218,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadDecks() {
         if (_decks.value.isNotEmpty()) return
+        // Reload whenever the player's own decks change (save / import / delete).
         viewModelScope.launch(Dispatchers.IO) {
-            _decks.value = Engine.Format.entries.associateWith(Engine::decks)
+            Engine.decksVersion.collect { _decks.value = Engine.Format.entries.associateWith(Engine::decks) }
         }
     }
 

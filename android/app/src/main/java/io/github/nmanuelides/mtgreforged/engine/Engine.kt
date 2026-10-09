@@ -106,7 +106,8 @@ object Engine {
 
     // ---- Decks & matches ---------------------------------------------------------
 
-    data class DeckEntry(val name: String, val file: File)
+    /** A deck on disk; [custom] marks the player's own (editable) decks. */
+    data class DeckEntry(val name: String, val file: File, val custom: Boolean = false)
 
     enum class Format(val label: String, val maxPlayers: Int) {
         Constructed("Constructed", 4),
@@ -119,9 +120,21 @@ object Engine {
 
     private val deckCache = HashMap<Format, List<DeckEntry>>()
 
-    /** Preconstructed decks that ship with Forge's data. */
+    /** The player's own decks first, then the preconstructed ones that ship with Forge. */
     @Synchronized
-    fun decks(format: Format): List<DeckEntry> = deckCache.getOrPut(format) {
+    fun decks(format: Format): List<DeckEntry> = deckCache.getOrPut(format) { UserDecks.list(format) + precons(format) }
+
+    @Synchronized
+    fun invalidateDecks(format: Format) {
+        deckCache.remove(format)
+        _decksVersion.value++
+    }
+
+    private val _decksVersion = MutableStateFlow(0)
+    /** Bumps whenever the player's decks change, so lists can reload. */
+    val decksVersion: StateFlow<Int> = _decksVersion.asStateFlow()
+
+    private fun precons(format: Format): List<DeckEntry> = run {
         val dir = when (format) {
             Format.Constructed -> ForgeConstants.QUEST_PRECON_DIR
             Format.Commander -> ForgeConstants.COMMANDER_PRECON_DIR

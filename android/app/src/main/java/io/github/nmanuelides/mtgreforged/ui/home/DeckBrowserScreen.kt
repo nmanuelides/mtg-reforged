@@ -105,6 +105,10 @@ fun DeckBrowserScreen(
     initial: DeckEntry?,
     onSelect: (DeckEntry) -> Unit,
     onBack: () -> Unit,
+    onNew: () -> Unit = {},
+    onImport: () -> Unit = {},
+    onEdit: (DeckEntry) -> Unit = {},
+    onDelete: (DeckEntry) -> Unit = {},
 ) {
     var index by remember(decks) { mutableIntStateOf(decks.indexOf(initial).coerceAtLeast(0)) }
     var searching by remember { mutableStateOf(false) }
@@ -129,6 +133,17 @@ fun DeckBrowserScreen(
                 onBack = onBack,
                 onSelect = { onSelect(entry) },
                 modifier = sheetModifier,
+                manage = {
+                    // Deck management: new / import always, edit / delete for the player's own decks.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OrnateButton("New", onNew, Modifier.weight(1f), style = OrnateStyle.Quiet, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
+                        OrnateButton("Import", onImport, Modifier.weight(1f), style = OrnateStyle.Quiet, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
+                        if (entry.custom) {
+                            OrnateButton("Edit", { onEdit(entry) }, Modifier.weight(1f), accent = Palette.Sage, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
+                            OrnateButton("Delete", { onDelete(entry) }, Modifier.weight(1f), height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                },
             )
         }
         if (wide) {
@@ -193,6 +208,7 @@ private fun DeckSheet(
     onBack: () -> Unit,
     onSelect: () -> Unit,
     modifier: Modifier,
+    manage: @Composable () -> Unit = {},
 ) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -239,6 +255,8 @@ private fun DeckSheet(
         }
 
         Spacer(Modifier.height(12.dp))
+        manage()
+        Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OrnateButton("", onPrev, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft)
             OrnateButton(position, onSearch, Modifier.weight(1f), icon = Icons.Default.Search, style = OrnateStyle.Quiet)
