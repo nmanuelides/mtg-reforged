@@ -1,0 +1,9 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Stylised card with a forge flame -->
+    <path android:fillColor="#FFE8DCC0"
+        android:pathData="M38,30h32a4,4 0 0 1 4,4v40a4,4 0 0 1 -4,4h-32a4,4 0 0 1 -4,-4v-40a4,4 0 0 1 4,-4z" />
+    <path android:fillColor="#FFF0812A"
+        android:pathData="M54,38c4,7 10,11 10,20a10,10 0 0 1 -20,0c0,-5 3,-8 5,-11c0,4 2,6 4,6c0,-6 -2,-10 1,-15z" />
+</vector>

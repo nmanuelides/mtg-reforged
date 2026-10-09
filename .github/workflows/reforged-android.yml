@@ -1,0 +1,107 @@
+# MTG Reforged: merges the latest upstream Forge engine into the fork, builds the
+# native Android app and publishes it as a GitHub Release. The app checks the latest
+# release on startup and offers to install it, so the rules engine stays current.
+name: Reforged Android
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # daily, after upstream's own daily snapshot activity
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Publish even if the engine has not changed
+        type: boolean
+        default: false
+  push:
+    branches: [master]
+    paths: ["android/**", ".github/workflows/reforged-android.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reforged-android
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream Forge
+        id: merge
+        run: |
+          git config user.name "reforged-bot"
+          git config user.email "reforged-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/Card-Forge/forge.git
+          git fetch --quiet upstream master
+          # Our changes live in android/ and this workflow, so upstream merges cleanly.
+          git merge --no-edit upstream/master
+          echo "upstream_sha=$(git rev-parse --short=10 upstream/master)" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(git rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if nothing changed
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh release view --json body --jq .body 2>/dev/null || true)
+          marker="engine: ${{ steps.merge.outputs.upstream_sha }} / app: ${{ github.sha }}"
+          if [ "${{ github.event_name }}" = "schedule" ] && echo "$latest" | grep -qF "$marker"; then
+            echo "Engine and app unchanged since the last release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "marker=$marker" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        if: steps.check.outputs.skip != 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.check.outputs.skip != 'true'
+
+      - name: Decode signing key
+        if: steps.check.outputs.skip != 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 secret is missing; updates must be signed with a stable key."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "RELEASE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        if: steps.check.outputs.skip != 'true'
+        working-directory: android
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/mtg-reforged-${{ steps.merge.outputs.version_code }}.apk"
+
+      - name: Publish release
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          code=${{ steps.merge.outputs.version_code }}
+          gh release create "build-$code" "$RUNNER_TEMP/mtg-reforged-$code.apk" \
+            --target "${{ github.sha }}" \
+            --title "MTG Reforged build $code" \
+            --notes "Forge upstream ${{ steps.merge.outputs.upstream_sha }} merged into the fork.
+
+          ${{ steps.check.outputs.marker }}" \
+            --latest
