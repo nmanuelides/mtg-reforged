@@ -5,6 +5,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -54,6 +57,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import kotlinx.coroutines.launch
@@ -759,10 +763,35 @@ private fun CastSpotlight(state: MatchUiState) {
         kotlinx.coroutines.delay(3500)
         spotlight = null
     }
+    // Purely informative: it never blocks the game. Only the card itself takes touches,
+    // so a swipe up on it dismisses early; everything around it stays playable.
+    val drag = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(spotlight) { drag.snapTo(0f) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AnimatedVisibility(spotlight != null, enter = fadeIn() + scaleIn(initialScale = 0.7f), exit = fadeOut()) {
+        AnimatedVisibility(
+            spotlight != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.7f),
+            exit = fadeOut() + slideOutVertically { -it / 2 },
+        ) {
             val item = spotlight ?: return@AnimatedVisibility
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                Modifier
+                    .graphicsLayer { translationY = drag.value; alpha = 1f + drag.value / 600f }
+                    .pointerInput(item.id) {
+                        detectVerticalDragGestures(
+                            onVerticalDrag = { change, dy ->
+                                change.consume()
+                                scope.launch { drag.snapTo((drag.value + dy).coerceAtMost(0f)) }
+                            },
+                            onDragEnd = {
+                                if (drag.value < -80.dp.toPx()) spotlight = null
+                                else scope.launch { drag.animateTo(0f) }
+                            },
+                        )
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
                     "${item.controllerName} plays",
                     Modifier.background(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(horizontal = 16.dp, vertical = 6.dp),
