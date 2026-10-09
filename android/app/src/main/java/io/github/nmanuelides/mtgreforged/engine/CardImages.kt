@@ -6,7 +6,13 @@ import android.util.LruCache
 import forge.ImageKeys
 import forge.gui.GuiBase
 import forge.util.ImageUtil
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -23,7 +29,9 @@ object CardImages {
     private val memory = object : LruCache<String, Bitmap>(cacheSizeKb()) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount / 1024
     }
-    private val missing = HashSet<String>()
+    private val missing: MutableSet<String> = java.util.Collections.synchronizedSet(HashSet())
+    private val prefetchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var prefetchJob: Job? = null
 
     private fun cacheSizeKb() = (Runtime.getRuntime().maxMemory() / 1024 / 6).toInt()
 
@@ -38,6 +46,21 @@ object CardImages {
         return bitmap
     }
 
+    /**
+     * Downloads (without decoding) every image in [keys], a few at a time, so cards are
+     * already on disk when they show up in a match. Replaces any earlier prefetch.
+     */
+    fun prefetch(keys: List<String>) {
+        prefetchJob?.cancel()
+        prefetchJob = prefetchScope.launch {
+            keys.distinct().chunked(4).forEach { batch ->
+                batch.map { key ->
+                    async { runCatching { if (findFile(key) == null) fetch(key) } }
+                }.awaitAll()
+            }
+        }
+    }
+
     private suspend fun fetch(key: String): File? = withContext(Dispatchers.Main) {
         // fetchImage silently returns without a callback in several cases, hence the timeout.
         withTimeoutOrNull(30_000) {
@@ -48,7 +71,7 @@ object CardImages {
             }
         }
         // The lookup before the download marked this card as missing; forget that.
-        ImageKeys.clearMissingCards()
+        synchronized(ImageKeys::class.java) { ImageKeys.clearMissingCards() }
         withContext(Dispatchers.IO) { findFile(key) }
     }
 
@@ -73,7 +96,8 @@ object CardImages {
             key.startsWith(ImageKeys.TOKEN_PREFIX) -> ImageUtil.getPaperTokenFromImageKey(key)?.cardImageKey ?: key
             else -> key
         }
-        return if (key.isBlank()) null else ImageKeys.getImageFile(key)
+        // ImageKeys keeps unsynchronised caches; prefetch and on-screen loads run in parallel.
+        return if (key.isBlank()) null else synchronized(ImageKeys::class.java) { ImageKeys.getImageFile(key) }
     }
 
     private val SPEC_FACES = mapOf(

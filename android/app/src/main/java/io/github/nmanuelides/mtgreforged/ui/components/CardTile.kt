@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.nmanuelides.mtgreforged.engine.CardImages
 import io.github.nmanuelides.mtgreforged.match.CardUi
+import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 
 const val CARD_ASPECT = 63f / 88f
@@ -40,7 +41,10 @@ enum class CardMark { None, Selectable, Highlighted, Attacking, Blocking }
 
 @Composable
 fun rememberCardImage(key: String?): ImageBitmap? {
+    // produceState keeps its value across key changes, so reset it for every new card;
+    // otherwise a reused tile keeps showing the previous card's image.
     val image by produceState(initialValue = key?.let(CardImages::cached)?.asImageBitmap(), key) {
+        value = key?.let(CardImages::cached)?.asImageBitmap()
         if (key != null && value == null) value = CardImages.load(key)?.asImageBitmap()
     }
     return image
@@ -91,26 +95,31 @@ fun CardTile(
 /** Text frame shown until (or instead of) the card image. */
 @Composable
 private fun CardFallback(card: CardUi, width: Dp) {
+    // A dark, framed stand-in so the card reads clearly on the parchment table.
     val compact = width < 80.dp
     Column(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Palette.SurfaceHigh, Palette.Surface)))
-            .padding(4.dp),
+            .background(Brush.verticalGradient(listOf(Color(0xFF4A3B31), Color(0xFF2B221C))))
+            .ornateFrame(Palette.Ochre.copy(alpha = 0.8f), inset = 2.dp, corners = false)
+            .padding(horizontal = 5.dp, vertical = 4.dp),
     ) {
         Text(
             card.name,
+            fontFamily = Cinzel,
             fontSize = if (compact) 8.sp else 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
+            fontWeight = FontWeight.Bold,
+            maxLines = if (compact) 3 else 2,
             overflow = TextOverflow.Ellipsis,
-            color = Palette.TextPrimary,
+            color = Palette.PaperLight,
             lineHeight = if (compact) 9.sp else 14.sp,
         )
         if (!compact) {
-            Text(card.manaCost, fontSize = 10.sp, color = Palette.TextSecondary)
-            Text(card.typeLine, fontSize = 10.sp, color = Palette.TextSecondary, maxLines = 2)
-            Text(card.text, fontSize = 9.sp, color = Palette.TextPrimary, maxLines = 8, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
+            Text(card.manaCost, fontSize = 10.sp, color = Palette.Ochre)
+            Text(card.typeLine, fontSize = 10.sp, color = Palette.PaperDeep, maxLines = 2)
+            Text(card.text, fontSize = 9.sp, color = Palette.PaperLight, maxLines = 8, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
+        } else {
+            Text(card.typeLine.substringBefore(" -").substringBefore(" —"), fontSize = 7.sp, color = Palette.PaperDeep, maxLines = 1)
         }
     }
 }

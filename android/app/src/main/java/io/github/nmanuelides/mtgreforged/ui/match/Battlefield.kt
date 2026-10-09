@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,6 +26,8 @@ import io.github.nmanuelides.mtgreforged.match.PlayerUi
 import io.github.nmanuelides.mtgreforged.ui.components.CARD_ASPECT
 import io.github.nmanuelides.mtgreforged.ui.components.CardMark
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.ui.components.HoldZoom
+import io.github.nmanuelides.mtgreforged.ui.components.tapOrHold
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 
 /**
@@ -147,21 +152,26 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
 
     Box(contentAlignment = Alignment.BottomCenter) {
         item.attachments.forEachIndexed { i, a ->
-            CardTile(
-                a, cardWidth,
-                Modifier.offset(y = -(cardHeight * ATTACH_PEEK * (item.attachments.size - i))),
-                mark = state.markFor(a),
-                onClick = { actions.onCard(a.id) },
-                onLongClick = { actions.onInspect(a) },
-            )
+            var held by remember { mutableStateOf(false) }
+            Box(
+                Modifier
+                    .offset(y = -(cardHeight * ATTACH_PEEK * (item.attachments.size - i)))
+                    .tapOrHold(a.id, onTap = { actions.onCard(a.id) }, onHold = { h, _ -> held = h }),
+            ) {
+                CardTile(a, cardWidth, mark = state.markFor(a))
+                HoldZoom(a, held)
+            }
         }
-        Box(Modifier.size(if (item.tapped) cardHeight else cardWidth, cardHeight), contentAlignment = Alignment.Center) {
-            CardTile(
-                item.top, cardWidth,
-                mark = mark,
-                onClick = { actions.onCard(target.id) },
-                onLongClick = { actions.onInspect(item.top) },
-            )
+        // Holding a permanent zooms it in place until the finger lifts.
+        var held by remember { mutableStateOf(false) }
+        Box(
+            Modifier
+                .size(if (item.tapped) cardHeight else cardWidth, cardHeight)
+                .tapOrHold(target.id, onTap = { actions.onCard(target.id) }, onHold = { h, _ -> held = h }),
+            contentAlignment = Alignment.Center,
+        ) {
+            CardTile(item.top, cardWidth, mark = mark)
+            HoldZoom(item.top, held)
             if (item.cards.size > 1) {
                 Text(
                     "×${item.cards.size}",

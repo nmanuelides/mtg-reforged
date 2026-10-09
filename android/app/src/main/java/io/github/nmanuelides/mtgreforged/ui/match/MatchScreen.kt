@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -143,6 +144,9 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             }
         }
 
+        TurnBanner(state)
+        CastSpotlight(state)
+
         AnimatedVisibility(state.gameOver != null, enter = fadeIn(), exit = fadeOut()) {
             state.gameOver?.let { over ->
                 GameOverOverlay(over.title, over.youWon, over.matchOver, game::continueAfterGame, onLeave)
@@ -200,7 +204,7 @@ private fun TabletLayout(
                     modifier = Modifier.fillMaxWidth().weight(1f - topWeight).padding(horizontal = 8.dp),
                 )
                 PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                Hand(me.hand, state, actions, cardWidth = 118.dp, height = 176.dp)
+                HandDock(me.hand, state, actions, cardWidth = 118.dp, height = 176.dp)
             }
         }
         SidePanel(state, game, actions, detail, onCloseDetail, onLog, onConcede, Modifier.width(320.dp).fillMaxHeight())
@@ -236,9 +240,9 @@ private fun PhoneLayout(
                 modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp),
             )
             PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-            Hand(me.hand, state, actions, cardWidth = 80.dp, height = 118.dp)
+            HandDock(me.hand, state, actions, cardWidth = 80.dp, height = 118.dp, maxScale = 2.0f)
         }
-        PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel)
+        PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel, onPlayer = game::tapPlayer)
     }
 }
 
@@ -282,7 +286,7 @@ private fun SidePanel(
             Column(Modifier.weight(1f)) {
                 Text("Turn ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
                 Text(
-                    state.players.firstOrNull { it.isActive }?.name.orEmpty(),
+                    state.players.firstOrNull { it.isActive }?.let { if (it.isLocal) "Your turn" else "${it.name}'s turn" }.orEmpty(),
                     style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -319,6 +323,7 @@ private fun SidePanel(
                 Modifier.fillMaxWidth().heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.bodyLarge,
             )
+            PlayerChoices(state, game::tapPlayer)
             OrnateButton(
                 p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
                 style = OrnateStyle.Primary, enabled = p.okEnabled, height = 54.dp,
@@ -426,11 +431,11 @@ private fun PhaseTrack(phase: PhaseType?, modifier: Modifier) {
 
 @Composable
 private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardActions, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val targetable = player.id in state.highlightedIds
+    val targetable = player.id in state.highlightedIds || player.id in state.choosablePlayerIds
     Row(
         modifier
             .fillMaxWidth()
-            .background(if (player.isActive) Palette.PaperLight else Palette.PaperLight.copy(alpha = 0.8f))
+            .background(if (player.isActive) Palette.Terracotta.copy(alpha = 0.16f) else Palette.PaperLight.copy(alpha = 0.8f))
             .ornateFrame(
                 when {
                     targetable -> Palette.Selectable
@@ -458,10 +463,21 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                player.name + if (player.hasLost) " (out)" else "",
-                style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (player.isActive) {
+                    Text(
+                        "TURN",
+                        Modifier.background(Palette.Terracotta).padding(horizontal = 6.dp, vertical = 1.dp),
+                        style = MaterialTheme.typography.labelSmall, color = Palette.PaperLight,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    player.name + if (player.hasLost) " (out)" else "",
+                    style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (player.isActive) Palette.Terracotta else Palette.Ink,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZoneCount("Hand", player.handSize) {}
                 ZoneCount("Library", player.librarySize) {}
@@ -551,34 +567,13 @@ private fun StackStrip(stack: List<StackItemUi>, actions: BoardActions) {
 }
 
 @Composable
-private fun Hand(cards: List<CardUi>, state: MatchUiState, actions: BoardActions, cardWidth: Dp, height: Dp) {
-    BoxWithConstraints(Modifier.fillMaxWidth().height(height).padding(horizontal = 6.dp)) {
-        // Overlap cards when they don't fit, like a fanned hand.
-        val spacing = if (cards.size <= 1) 0.dp else
-            ((maxWidth - cardWidth) / (cards.size - 1)).coerceAtMost(cardWidth + 8.dp) - cardWidth
-        LazyRow(
-            Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            items(cards, key = { it.id }) { card ->
-                val mark = state.markFor(card)
-                CardTile(
-                    card, cardWidth,
-                    Modifier.offset(y = if (mark == CardMark.Selectable) (-10).dp else 0.dp),
-                    mark = mark,
-                    showTapped = false,
-                    onClick = { actions.onCard(card.id) },
-                    onLongClick = { actions.onInspect(card) },
-                )
-            }
+private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Unit, onPlayer: (Int) -> Unit) {
+    val p = state.prompt
+    if (state.choosablePlayerIds.isNotEmpty()) {
+        Box(Modifier.fillMaxWidth().background(Palette.PaperDeep).padding(horizontal = 14.dp, vertical = 6.dp)) {
+            PlayerChoices(state, onPlayer)
         }
     }
-}
-
-@Composable
-private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Unit) {
-    val p = state.prompt
     Row(
         Modifier.fillMaxWidth().background(Palette.PaperDeep).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -681,6 +676,93 @@ private fun LogSheet(log: List<String>, onDismiss: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             log.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp)) }
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+// ---- Turn & cast announcements ------------------------------------------------------
+
+/** A plaque that announces each new turn for a moment, without blocking the board. */
+@Composable
+private fun TurnBanner(state: MatchUiState) {
+    val active = state.players.firstOrNull { it.isActive }
+    var shown by remember { mutableStateOf<PlayerUi?>(null) }
+    LaunchedEffect(state.turn, active?.id) {
+        if (active == null || state.turn == 0) return@LaunchedEffect
+        shown = active
+        kotlinx.coroutines.delay(1700)
+        shown = null
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AnimatedVisibility(shown != null, enter = fadeIn() + scaleIn(initialScale = 0.85f), exit = fadeOut()) {
+            val p = shown ?: return@AnimatedVisibility
+            Column(
+                Modifier
+                    .background(Palette.PaperLight)
+                    .ornateFrame(if (p.isLocal) Palette.Terracotta else Palette.Slate, inset = 5.dp, topGem = true)
+                    .padding(horizontal = 48.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                SectionLabel("Turn ${state.turn}", color = if (p.isLocal) Palette.Terracotta else Palette.Slate)
+                Text(
+                    if (p.isLocal) "Your turn" else "${p.name}'s turn",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = if (p.isLocal) Palette.Terracotta else Palette.Slate,
+                )
+            }
+        }
+    }
+}
+
+/** Shows each new spell or ability on the stack front and centre, with who played it. */
+@Composable
+private fun CastSpotlight(state: MatchUiState) {
+    var spotlight by remember { mutableStateOf<StackItemUi?>(null) }
+    val seen = remember { HashSet<Int>() }
+    val top = state.stack.firstOrNull()
+    // The source card can arrive a snapshot after the stack item itself, so key on both.
+    LaunchedEffect(top?.id, top?.source != null) {
+        if (top == null || top.source == null || !seen.add(top.id)) return@LaunchedEffect
+        spotlight = top
+        kotlinx.coroutines.delay(1800)
+        spotlight = null
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AnimatedVisibility(spotlight != null, enter = fadeIn() + scaleIn(initialScale = 0.7f), exit = fadeOut()) {
+            val item = spotlight ?: return@AnimatedVisibility
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "${item.controllerName} plays",
+                    Modifier.background(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.titleMedium, color = Palette.Slate,
+                )
+                Spacer(Modifier.height(8.dp))
+                item.source?.let { CardTile(it, 230.dp, showTapped = false) }
+            }
+        }
+    }
+}
+
+/** One plaque per player the engine is asking us to choose; friendlier than tapping portraits. */
+@Composable
+private fun PlayerChoices(state: MatchUiState, onPlayer: (Int) -> Unit) {
+    val choices = state.players.filter { it.id in state.choosablePlayerIds }
+    if (choices.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        choices.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { player ->
+                    OrnateButton(
+                        if (player.isLocal) "You" else player.name,
+                        { onPlayer(player.id) },
+                        Modifier.weight(1f),
+                        accent = if (player.isLocal) Palette.Terracotta else Palette.Slate,
+                        height = 44.dp,
+                        textStyle = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
         }
     }
 }

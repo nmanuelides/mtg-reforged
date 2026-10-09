@@ -25,6 +25,7 @@ fun ArtImage(
     alignment: Alignment = Alignment.TopCenter,
 ) {
     val image by produceState<ImageBitmap?>(cardName?.let(ArtImages::cached)?.asImageBitmap(), cardName) {
+        value = cardName?.let(ArtImages::cached)?.asImageBitmap()
         if (cardName != null && value == null) value = ArtImages.load(cardName)?.asImageBitmap()
     }
     Box(modifier.background(placeholder)) {

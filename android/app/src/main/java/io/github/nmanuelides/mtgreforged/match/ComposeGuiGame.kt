@@ -17,6 +17,10 @@ import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
 import forge.gamemodes.match.AbstractGuiGame
 import forge.gamemodes.match.HostedMatch
+import forge.gamemodes.match.input.InputSelectTargets
+import forge.game.player.Player
+import forge.game.spellability.SpellAbility
+import forge.player.PlayerControllerHuman
 import forge.item.PaperCard
 import forge.localinstance.skin.FSkinProp
 import forge.player.PlayerZoneUpdate
@@ -138,6 +142,7 @@ class ComposeGuiGame : AbstractGuiGame() {
 
         cardsById = cards
         playersById = players
+        val choosable = runCatching { choosablePlayerIds(view) }.getOrDefault(emptySet())
         return MatchUiState(
             players = playerUis,
             turn = view.turn,
@@ -148,9 +153,37 @@ class ComposeGuiGame : AbstractGuiGame() {
             prompt = prompt,
             selectableIds = selectable,
             highlightedIds = highlighted,
+            choosablePlayerIds = choosable,
             log = log,
             gameOver = gameOver,
         )
+    }
+
+    /**
+     * Players the current input would accept. Forge only flags selectable *cards* to the
+     * GUI, so read the waiting input: its list of valid choices, or the spell being
+     * targeted. Lets the UI offer one button per player instead of "tap the portrait".
+     */
+    private fun choosablePlayerIds(view: GameView): Set<Int> {
+        val input = (gameController as? PlayerControllerHuman)?.inputProxy?.input ?: return emptySet()
+        val game = view.game ?: return emptySet()
+        val ids = HashSet<Int>()
+        var type: Class<*>? = input.javaClass
+        while (type != null && type != Any::class.java) {
+            for (field in type.declaredFields) {
+                runCatching {
+                    field.isAccessible = true
+                    when (val value = field.get(input)) {
+                        is Iterable<*> -> value.forEach { if (it is Player) ids += it.id }
+                        is SpellAbility -> if (input is InputSelectTargets) {
+                            game.players.filter { value.canTarget(it) }.forEach { ids += it.id }
+                        }
+                    }
+                }
+            }
+            type = type.superclass
+        }
+        return ids
     }
 
     /** Local player first, then opponents in turn order after them. */

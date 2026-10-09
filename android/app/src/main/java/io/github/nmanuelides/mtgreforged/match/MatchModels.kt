@@ -109,6 +109,8 @@ data class MatchUiState(
     val prompt: PromptBarUi = PromptBarUi(),
     val selectableIds: Set<Int> = emptySet(),
     val highlightedIds: Set<Int> = emptySet(),
+    /** Players the engine is currently asking us to pick from (start player, targets...). */
+    val choosablePlayerIds: Set<Int> = emptySet(),
     val log: List<String> = emptyList(),
     val gameOver: GameOverUi? = null,
 ) {

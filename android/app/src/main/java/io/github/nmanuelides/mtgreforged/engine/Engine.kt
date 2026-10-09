@@ -150,6 +150,13 @@ object Engine {
             val hosted = gui.hostMatch()
             guiGame.hostedMatch = hosted
             _match.value = guiGame
+            // Fetch every card image in the match up front: ours first, then the opponents'.
+            CardImages.prefetch(
+                (listOf(human) + ais).flatMap { rp ->
+                    val deck = rp.deck
+                    (deck.commanders.orEmpty() + deck.main.toFlatList()).map { it.getImageKey(false) }
+                },
+            )
             hosted.startMatch(matchRules(format.gameType), variants, listOf(human) + ais, human, guiGame)
         }
     }
