@@ -1,6 +1,7 @@
 package io.github.nmanuelides.mtgreforged.engine
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import forge.deck.Deck
 import forge.deck.io.DeckSerializer
@@ -30,7 +31,7 @@ object Engine {
     sealed interface Status {
         data object NotStarted : Status
         data class InstallingData(val progress: Float) : Status
-        data class Loading(val step: String, val progress: Float?) : Status
+        data class Loading(val step: String, val progress: Float) : Status
         data object Ready : Status
         data class Failed(val message: String) : Status
     }
@@ -46,7 +47,7 @@ object Engine {
     @Synchronized
     fun start(context: Context) {
         if (_status.value != Status.NotStarted && _status.value !is Status.Failed) return
-        _status.value = Status.Loading("Preparing…", null)
+        _status.value = Status.Loading("Preparing…", 0f)
         val app = context.applicationContext
         Thread({
             runCatching { boot(app) }.onFailure {
@@ -56,11 +57,42 @@ object Engine {
         }, "Game Boot").start()
     }
 
+    /**
+     * Boot progress, always moving forward. Installing the card data has real byte counts;
+     * Forge's own start-up only reports detail for part of its work, so in between the bar
+     * follows how long the previous boot took (capped below 100% until it really is ready).
+     */
+    private object BootProgress {
+        private const val PREFS = "boot"
+        private const val KEY_ENGINE_MS = "engineMs"
+        @Volatile var overall = 0f
+            private set
+        @Volatile var engineStart = 0f
+        @Volatile var forgeFraction = 0f
+        @Volatile var step = "Preparing…"
+
+        fun advance(value: Float) {
+            overall = maxOf(overall, value.coerceIn(0f, 1f))
+        }
+
+        fun expectedEngineMs(context: Context) =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_ENGINE_MS, 15_000L).coerceAtLeast(3_000L)
+
+        fun remember(context: Context, engineMs: Long) {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_ENGINE_MS, engineMs).apply()
+        }
+    }
+
     private fun boot(context: Context) {
         val forgeDir = File(context.filesDir, "forge").apply { mkdirs() }
         val installer = EngineDataInstaller(context, forgeDir)
         if (!installer.isUpToDate()) {
-            installer.install { _status.value = Status.InstallingData(it) }
+            // Unpacking the data is the first ~40% of a fresh boot.
+            installer.install {
+                BootProgress.advance(it * 0.4f)
+                _status.value = Status.InstallingData(BootProgress.overall)
+            }
+            BootProgress.engineStart = 0.4f
         }
 
         GuiBase.setIsAndroid(true)
@@ -68,7 +100,19 @@ object Engine {
         gui = AndroidGui(context, forgeDir.path + File.separator)
         GuiBase.setInterface(gui)
 
-        _status.value = Status.Loading("Loading cards…", null)
+        BootProgress.step = "Loading cards…"
+        val engineStartedAt = SystemClock.uptimeMillis()
+        val expected = BootProgress.expectedEngineMs(context)
+        val ticker = Thread({
+            while (!Thread.currentThread().isInterrupted) {
+                val byTime = (SystemClock.uptimeMillis() - engineStartedAt).toFloat() / expected
+                val engine = minOf(0.95f, maxOf(byTime, BootProgress.forgeFraction * 0.6f))
+                BootProgress.advance(BootProgress.engineStart + (1f - BootProgress.engineStart) * engine)
+                _status.value = Status.Loading(BootProgress.step, BootProgress.overall)
+                try { Thread.sleep(100) } catch (e: InterruptedException) { break }
+            }
+        }, "Boot progress").apply { isDaemon = true; start() }
+
         FModel.initialize(ProgressBridge) { prefs ->
             if (Locale.getDefault().language == "es") prefs.setPref(FPref.UI_LANGUAGE, "es-ES")
             prefs.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, true)
@@ -81,6 +125,9 @@ object Engine {
             prefs.setPref(FPref.UI_ENABLE_MUSIC, false)
             null
         }
+        ticker.interrupt()
+        BootProgress.remember(context, SystemClock.uptimeMillis() - engineStartedAt)
+        BootProgress.advance(1f)
         // Warm up every sound effect so the first play of each isn't lost to async loading.
         Thread({ SoundEffectType.entries.forEach { runCatching { SoundSystem.instance.hasResource(it) } } }, "Sounds").start()
         _status.value = Status.Ready
@@ -91,10 +138,10 @@ object Engine {
         private var max = 0
         override fun setDescription(s0: String?) {
             description = s0.orEmpty()
-            _status.value = Status.Loading(description, null)
+            if (description.isNotBlank()) BootProgress.step = description
         }
         override fun setValue(progress: Int) {
-            if (max > 0) _status.value = Status.Loading(description, progress.toFloat() / max)
+            if (max > 0) BootProgress.forgeFraction = maxOf(BootProgress.forgeFraction, progress.toFloat() / max)
         }
         override fun reset() {}
         override fun setShowETA(b0: Boolean) {}

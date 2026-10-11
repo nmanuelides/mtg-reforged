@@ -1,6 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -141,9 +142,10 @@ private fun Caption(text: String) {
     Text(text, style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft, textAlign = TextAlign.Center)
 }
 
-/** Framed bar like the reference's health bar; slides back and forth when indeterminate. */
+/** Framed bar like the reference's health bar; eases between progress values, never jumps. */
 @Composable
-private fun ProgressRule(progress: Float?, color: Color) {
+private fun ProgressRule(target: Float?, color: Color) {
+    val progress = target?.let { animateFloatAsState(it, tween(250), label = "progress").value }
     val sweep by rememberInfiniteTransition(label = "sweep").animateFloat(
         0f, 1f, infiniteRepeatable(tween(1200), RepeatMode.Reverse), label = "sweep",
     )
