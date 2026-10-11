@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -202,7 +203,7 @@ fun DeckBuilderScreen(
             Spacer(Modifier.height(10.dp))
             if (wide) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
+                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
                     // On tablets the filters take the deck's place, so results update beside them.
                     if (filtering) {
                         FilterPanel(
@@ -214,7 +215,7 @@ fun DeckBuilderScreen(
                     }
                 }
             } else {
-                CardSearch(Modifier.fillMaxWidth().weight(0.55f), filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
+                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
                 Spacer(Modifier.height(8.dp))
                 DeckList(draft, format, problem, Modifier.fillMaxWidth().weight(0.45f))
             }
@@ -275,6 +276,7 @@ internal fun fieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 private fun CardSearch(
     modifier: Modifier,
+    draft: DeckDraft,
     filter: CardFilter,
     onFilter: (CardFilter) -> Unit,
     onOpenFilters: () -> Unit,
@@ -340,6 +342,12 @@ private fun CardSearch(
             )
             Spacer(Modifier.height(4.dp))
         }
+        val idle = query.isBlank() && filter.activeCount == 0
+        // With nothing searched, this side shows the deck itself as cards.
+        if (idle && draft.total > 0) {
+            DeckGallery(draft, Modifier.fillMaxSize())
+            return@Column
+        }
         Box(Modifier.fillMaxSize()) {
             LazyVerticalGrid(
                 GridCells.Adaptive(118.dp),
@@ -362,7 +370,7 @@ private fun CardSearch(
             if (searching) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Terracotta)
             if (!searching && results.isEmpty()) {
                 Text(
-                    if (query.isBlank() && filter.activeCount == 0) "Type a name or pick filters." else "No cards match.",
+                    if (idle) "Type a name or pick filters." else "No cards match.",
                     Modifier.align(Alignment.Center), color = Palette.InkSoft,
                 )
             }
@@ -382,6 +390,73 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
         fontFamily = Cinzel, fontSize = fontSize.sp, fontWeight = FontWeight.Bold,
         color = if (selected) Palette.OnAccent else Palette.InkSoft,
     )
+}
+
+// ---- Deck gallery ------------------------------------------------------------------
+
+/** The deck as card images, grouped like the list, with copies and −/+ under each card. */
+@Composable
+private fun DeckGallery(draft: DeckDraft, modifier: Modifier) {
+    val main = draft.main.entries.map { it.key to it.value }
+    val groups = listOf(
+        "Commander" to draft.commander.entries.map { it.key to it.value },
+        "Creatures" to main.filter { it.first.rules.type.isCreature },
+        "Spells" to main.filter { !it.first.rules.type.isCreature && !it.first.rules.type.isLand },
+        "Lands" to main.filter { it.first.rules.type.isLand },
+    ).filter { it.second.isNotEmpty() }
+
+    LazyVerticalGrid(
+        GridCells.Adaptive(118.dp),
+        modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Text(
+                "Your deck · ${draft.total} cards — search above to add more",
+                style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+            )
+        }
+        groups.forEach { (label, cards) ->
+            item(span = { GridItemSpan(maxLineSpan) }) { SectionLabel("$label · ${cards.sumOf { it.second }}") }
+            items(cards.sortedBy { it.first.rules.manaCost.cmc * 1000 + it.first.name.first().code }, key = { label + it.first.name + it.first.edition }) { (card, n) ->
+                val commander = label == "Commander"
+                val ui = remember(card) { CardUi.fromPaper(card) }
+                var held by remember { mutableStateOf(false) }
+                val prices by CardPrices.version.collectAsState()
+                val price = remember(card, prices) { CardPrices.of(card) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.tapOrHold(card.name, onTap = {}, onHold = { h, _ -> held = h })) {
+                        CardTile(ui, 118.dp, showTapped = false)
+                        if (n > 1) {
+                            Text(
+                                "×$n",
+                                Modifier.align(Alignment.TopEnd).padding(4.dp)
+                                    .background(Palette.Terracotta, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
+                                fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Palette.OnAccent,
+                            )
+                        }
+                        HoldZoom(ui, held, caption = price?.let(::zoomCaption))
+                    }
+                    Row(Modifier.width(118.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Remove, "Remove one",
+                            Modifier.size(30.dp).clickable { draft.remove(card, fromCommander = commander) }.padding(4.dp),
+                            tint = Palette.Terracotta,
+                        )
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
+                        if (!commander) {
+                            Icon(
+                                Icons.Default.Add, "Add one",
+                                Modifier.size(30.dp).clickable { draft.add(card) }.padding(4.dp),
+                                tint = Palette.Sage,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ---- Prices ------------------------------------------------------------------------
