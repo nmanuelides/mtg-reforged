@@ -136,6 +136,7 @@ fun DeckBrowserScreen(
                 onSearch = { searching = true },
                 onBack = onBack,
                 onSelect = { onSelect(entry) },
+                wide = wide,
                 modifier = sheetModifier,
                 manage = {
                     // Deck management: new / import always, edit / delete for the player's own decks.
@@ -169,7 +170,8 @@ fun DeckBrowserScreen(
         }
         if (wide) {
             Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
-                content(Modifier.weight(0.52f).fillMaxHeight(), Modifier.weight(0.48f).fillMaxHeight().padding(start = 24.dp))
+                // A narrow portrait of the deck's art; the sheet gets the rest of the width.
+                content(Modifier.weight(0.3f).fillMaxHeight(), Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp))
             }
         } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
@@ -228,46 +230,54 @@ private fun DeckSheet(
     onSearch: () -> Unit,
     onBack: () -> Unit,
     onSelect: () -> Unit,
+    wide: Boolean,
     modifier: Modifier,
     manage: @Composable () -> Unit = {},
 ) {
+    val navigation: @Composable (Modifier) -> Unit = { m ->
+        Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("", onPrev, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft)
+            OrnateButton(position, onSearch, Modifier.weight(1f), icon = Icons.Default.Search, style = OrnateStyle.Quiet)
+            OrnateButton("", onNext, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowRight)
+        }
+    }
+    if (wide) {
+        // Tablet: header across the top, stats beside the key cards, and every action on one bottom row.
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+            SheetHeader(title, summary)
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    summary?.let { SheetStats(it) }
+                    Spacer(Modifier.weight(1f).height(18.dp))
+                    manage()
+                }
+                Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    SectionLabel("Key cards", color = Palette.InkSoft)
+                    Spacer(Modifier.height(8.dp))
+                    summary?.let { s ->
+                        // The key cards stretch to the bottom of the sheet with tall art.
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            s.featured.forEach { FeaturedCard(it, Modifier.weight(1f).fillMaxHeight(), tall = true) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                navigation(Modifier.weight(1.4f))
+                OrnateButton("Back", onBack, Modifier.weight(0.8f), accent = Palette.Slate, height = 54.dp)
+                OrnateButton("Select", onSelect, Modifier.weight(1f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
+            }
+        }
+        return
+    }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            SectionLabel(title)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                summary?.title ?: "…",
-                style = if ((summary?.title?.length ?: 0) > 16) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
-                color = Palette.Terracotta,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-            )
-            summary?.commander?.let {
-                Text(it, style = MaterialTheme.typography.titleLarge, color = Palette.Slate, textAlign = TextAlign.Center)
-            }
-            Spacer(Modifier.height(8.dp))
-            summary?.let { s ->
-                if (s.colors.isNotEmpty()) Pill(s.colors.joinToString(" • ") { COLOR_NAMES[it].orEmpty() }, colorOf(s.colors.first()))
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OrnateDivider(width = 40.dp)
-                Text(
-                    "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards  ",
-                    style = MaterialTheme.typography.labelMedium, color = Palette.Terracotta,
-                )
-                OrnateDivider(width = 40.dp)
-            }
+            SheetHeader(title, summary)
             Spacer(Modifier.height(12.dp))
-
             summary?.let { s ->
-                val total = s.cardCount.coerceAtLeast(1).toFloat()
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    StatBar("Creatures", s.creatures / total * 1.8f, "${s.creatures}", Palette.Sage, "✦")
-                    StatBar("Spells", s.spells / total * 1.8f, "${s.spells}", Palette.Slate, "✧")
-                    StatBar("Lands", s.lands / total * 1.8f, "${s.lands}", Palette.Ochre, "◆")
-                    StatBar("Mana value", s.averageCmc / 6f, "%.1f".format(s.averageCmc), Palette.Plum, "⬥")
-                }
+                SheetStats(s)
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     s.featured.forEach { FeaturedCard(it, Modifier.weight(1f)) }
@@ -278,11 +288,7 @@ private fun DeckSheet(
         Spacer(Modifier.height(12.dp))
         manage()
         Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OrnateButton("", onPrev, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft)
-            OrnateButton(position, onSearch, Modifier.weight(1f), icon = Icons.Default.Search, style = OrnateStyle.Quiet)
-            OrnateButton("", onNext, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowRight)
-        }
+        navigation(Modifier)
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             OrnateButton("Back", onBack, Modifier.weight(1f), accent = Palette.Slate, height = 54.dp)
@@ -292,7 +298,49 @@ private fun DeckSheet(
 }
 
 @Composable
-private fun FeaturedCard(name: String, modifier: Modifier) {
+private fun SheetHeader(title: String, summary: DeckSummary?) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        SectionLabel(title)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            summary?.title ?: "…",
+            style = if ((summary?.title?.length ?: 0) > 16) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
+            color = Palette.Terracotta,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+        )
+        summary?.commander?.let {
+            Text(it, style = MaterialTheme.typography.titleLarge, color = Palette.Slate, textAlign = TextAlign.Center)
+        }
+        Spacer(Modifier.height(8.dp))
+        summary?.let { s ->
+            if (s.colors.isNotEmpty()) Pill(s.colors.joinToString(" • ") { COLOR_NAMES[it].orEmpty() }, colorOf(s.colors.first()))
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OrnateDivider(width = 40.dp)
+            Text(
+                "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards  ",
+                style = MaterialTheme.typography.labelMedium, color = Palette.Terracotta,
+            )
+            OrnateDivider(width = 40.dp)
+        }
+    }
+}
+
+@Composable
+private fun SheetStats(s: DeckSummary) {
+    val total = s.cardCount.coerceAtLeast(1).toFloat()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        StatBar("Creatures", s.creatures / total * 1.8f, "${s.creatures}", Palette.Sage, "✦")
+        StatBar("Spells", s.spells / total * 1.8f, "${s.spells}", Palette.Slate, "✧")
+        StatBar("Lands", s.lands / total * 1.8f, "${s.lands}", Palette.Ochre, "◆")
+        StatBar("Mana value", s.averageCmc / 6f, "%.1f".format(s.averageCmc), Palette.Plum, "⬥")
+    }
+}
+
+@Composable
+private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false) {
     Column(
         modifier
             .background(Palette.PaperLight)
@@ -309,7 +357,8 @@ private fun FeaturedCard(name: String, modifier: Modifier) {
         Spacer(Modifier.height(6.dp))
         ArtImage(
             name,
-            Modifier.fillMaxWidth(0.8f).aspectRatio(1f).clip(CircleShape).border(1.dp, Palette.Line, CircleShape),
+            if (tall) Modifier.fillMaxWidth().weight(1f).border(1.dp, Palette.Line)
+            else Modifier.fillMaxWidth(0.8f).aspectRatio(1f).clip(CircleShape).border(1.dp, Palette.Line, CircleShape),
             placeholder = Palette.PaperDeep,
             alignment = Alignment.Center,
         )
