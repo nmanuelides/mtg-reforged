@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
 import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
 import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
 import io.github.nmanuelides.mtgreforged.ui.components.ManaChip
@@ -214,12 +216,20 @@ fun DeckBuilderScreen(
     var viewing by remember { mutableStateOf<Pair<List<PaperCard>, Int>?>(null) }
     val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = cards to index }
     val scope = rememberCoroutineScope()
-    BackHandler { onDone(null) }
+    // Saving keeps the editor open; leaving hands back the last saved deck (if any).
+    var saved by remember { mutableStateOf(initial) }
+    var savedSignature by remember { mutableStateOf<Any?>(null) }
+    fun signature(): Any = Triple(name, draft.commander.toMap(), draft.main.toMap())
+    val dirty = signature() != savedSignature
+    var justSaved by remember { mutableStateOf(false) }
+    LaunchedEffect(justSaved) { if (justSaved) { delay(1800); justSaved = false } }
+    BackHandler { onDone(saved) }
 
     LaunchedEffect(initial) {
         initial?.let { entry ->
             val deck = withContext(Dispatchers.IO) { Engine.loadDeck(entry) }
             draft.load(deck)
+            savedSignature = signature()
         }
     }
     // Forge's own legality check for the format, re-run as the deck changes.
@@ -236,15 +246,23 @@ fun DeckBuilderScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
             Header(
                 name = name, onName = { name = it }, format = format,
-                onBack = { onDone(null) },
+                onBack = { onDone(saved) },
                 onImport = { importing = true },
                 onSave = {
+                    val snapshot = signature()
+                    val deck = draft.toDeck(name)
                     scope.launch {
-                        val saved = withContext(Dispatchers.IO) { UserDecks.save(draft.toDeck(name), format, initial) }
-                        onDone(saved)
+                        saved = withContext(Dispatchers.IO) { UserDecks.save(deck, format, saved) }
+                        savedSignature = snapshot
+                        justSaved = true
                     }
                 },
-                canSave = draft.total > 0,
+                canSave = draft.total > 0 && dirty,
+                saveLabel = when {
+                    justSaved -> "Saved ✓"
+                    !dirty && saved != null -> "Saved"
+                    else -> "Save"
+                },
             )
             Spacer(Modifier.height(10.dp))
             if (wide) {
@@ -300,6 +318,7 @@ private fun Header(
     onImport: () -> Unit,
     onSave: () -> Unit,
     canSave: Boolean,
+    saveLabel: String,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OrnateButton("", onBack, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
@@ -311,7 +330,7 @@ private fun Header(
             modifier = Modifier.weight(1f),
         )
         OrnateButton("Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
-        OrnateButton("Save", onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
+        OrnateButton(saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
     }
 }
 
@@ -390,10 +409,14 @@ private fun CardSearch(
         }
         Spacer(Modifier.height(6.dp))
         if (total > 0) {
-            Text(
-                if (total > results.size) "Showing ${results.size} of $total cards" else "$total cards",
-                style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (total > results.size) "Showing ${results.size} of $total cards" else "$total cards",
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+                )
+                SortControl(filter.sort, filter.descending) { sort, descending -> onFilter(filter.copy(sort = sort, descending = descending)) }
+            }
             Spacer(Modifier.height(4.dp))
         }
         val idle = query.isBlank() && filter.activeCount == 0
@@ -439,6 +462,32 @@ private fun CardSearch(
                 )
             }
         }
+    }
+}
+
+/** "Sort: Mana value ↑": pick the order from a menu, tap the arrow to flip it. */
+@Composable
+private fun SortControl(sort: SortBy, descending: Boolean, onChange: (SortBy, Boolean) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Sort", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+        Box {
+            Chip(sort.label + "  ▾", false, fontSize = 12) { open = true }
+            DropdownMenu(open, { open = false }, containerColor = Palette.PaperLight) {
+                SortBy.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                option.label, style = MaterialTheme.typography.bodyLarge,
+                                color = if (option == sort) Palette.Terracotta else Palette.Ink,
+                            )
+                        },
+                        onClick = { open = false; onChange(option, descending) },
+                    )
+                }
+            }
+        }
+        Chip(if (descending) "↓" else "↑", false, fontSize = 14) { onChange(sort, !descending) }
     }
 }
 

@@ -31,9 +31,12 @@ enum class GroupMode(val label: String) { Any("Any of"), All("All of"), Not("Non
 enum class ColorMode(val label: String) { Including("Including"), Exactly("Exactly"), AtMost("At most") }
 
 enum class SortBy(val label: String) {
-    Name("Name"), ManaValue("Mana value"), Color("Color"), Rarity("Rarity"),
-    Power("Power"), Toughness("Toughness"), Price("Price"), Newest("Newest"),
+    Name("Name"), ManaValue("Mana value"), Price("Price"), Color("Color"), Type("Type"), Rarity("Rarity"),
+    Power("Power"), Toughness("Toughness"), Newest("Newest"), Set("Set"),
 }
+
+/** Card types in deck-list order, for sorting by type. */
+private val TYPE_ORDER = listOf("Creature", "Planeswalker", "Battle", "Instant", "Sorcery", "Artifact", "Enchantment", "Land")
 
 /** A set of picked values plus how they combine. */
 data class Group(val values: Set<String> = emptySet(), val mode: GroupMode = GroupMode.Any) {
@@ -162,6 +165,10 @@ data class CardFilter(
             SortBy.Toughness -> compareBy(nullsFirst()) { it.rules.toughness?.toIntOrNull() }
             SortBy.Price -> compareBy(nullsLast()) { priceOf(it) }
             SortBy.Newest -> compareBy { -(StaticData.instance().getCardEdition(it.edition)?.date?.time ?: 0L) }
+            SortBy.Type -> compareBy { card ->
+                TYPE_ORDER.indexOfFirst { t -> card.rules.type.coreTypes.any { it.name == t } }.let { if (it < 0) TYPE_ORDER.size else it }
+            }
+            SortBy.Set -> compareBy { StaticData.instance().getCardEdition(it.edition)?.name ?: it.edition }
         }
         return (if (descending) primary.reversed() else primary).then(byName)
     }
