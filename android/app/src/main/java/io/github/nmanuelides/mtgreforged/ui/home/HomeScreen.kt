@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
+import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,20 +89,6 @@ import io.github.nmanuelides.mtgreforged.ui.components.parchment
 import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 
-/**
- * The soft shadow of a sheet of paper lying on the artwork. [offsetY] pushes it down
- * (title plaque) or up (bottom bar). Apply before the sheet's own background.
- */
-private fun Modifier.paperShadow(offsetY: Dp, blur: Dp = 18.dp): Modifier = drawBehind {
-    drawIntoCanvas { canvas ->
-        val paint = Paint().asFrameworkPaint().apply {
-            color = android.graphics.Color.rgb(241, 230, 206) // covered by the sheet itself
-            setShadowLayer(blur.toPx(), 0f, offsetY.toPx(), android.graphics.Color.argb(190, 20, 12, 6))
-        }
-        canvas.nativeCanvas.drawRect(0f, 0f, size.width, size.height, paint)
-    }
-}
-
 sealed interface UpdateUi {
     data object None : UpdateUi
     data class Available(val name: String, val notes: String) : UpdateUi
@@ -159,7 +147,7 @@ fun HomeScreen(
                         Modifier
                             .align(Alignment.End)
                             .paperShadow(offsetY = 3.dp, blur = 10.dp)
-                            .background(Palette.Paper)
+                            .paper(Palette.Paper)
                             .clickable { ThemeMode.toggle(context) }
                             .padding(10.dp),
                     ) {
@@ -172,7 +160,7 @@ fun HomeScreen(
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
-                            .background(Palette.Paper)
+                            .paper(Palette.Paper)
                             .padding(horizontal = 36.dp, vertical = 10.dp),
                     ) { Title(accent) }
                 }
@@ -281,7 +269,7 @@ private fun UpdateBanner(update: UpdateUi, onInstall: () -> Unit) {
             Modifier
                 .widthIn(max = 640.dp)
                 .fillMaxWidth()
-                .background(Palette.PaperLight)
+                .paper(Palette.PaperLight)
                 .ornateFrame(Palette.Terracotta)
                 .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,

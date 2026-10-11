@@ -60,7 +60,8 @@ fun SwipeToConfirm(
         modifier
             .height(height)
             .alpha(if (enabled) 1f else 0.45f)
-            .background(Palette.Terracotta)
+            .paperShadow(offsetY = 3.dp, blur = 7.dp, cover = Palette.Terracotta, darkness = 120)
+            .paper(Palette.Terracotta)
             .ornateFrame(Palette.OnAccent.copy(alpha = 0.75f), inset = 3.dp, corners = false)
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput

@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.ui.components.PaperTexture
 import android.app.Application
 import android.content.res.Configuration
 import android.os.Bundle
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        PaperTexture.load(this)
         val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         ThemeMode.init(this, systemDark)
         Engine.start(this)

@@ -58,14 +58,7 @@ fun Modifier.parchment(base: Color = Palette.Paper): Modifier = drawBehind {
             radius = size.maxDimension * 0.75f,
         ),
     )
-    val rnd = Random(7)
-    repeat((size.width * size.height / 9000f).toInt().coerceAtMost(900)) {
-        drawCircle(
-            Color(0x0F5A3E28),
-            radius = rnd.nextFloat() * 1.6f + 0.4f,
-            center = Offset(rnd.nextFloat() * size.width, rnd.nextFloat() * size.height),
-        )
-    }
+    with(PaperTexture) { drawPaper() }
 }
 
 // ---- Frames --------------------------------------------------------------------------
@@ -205,7 +198,12 @@ fun OrnateButton(
             .height(height)
             .scale(if (pressed) 0.97f else 1f)
             .alpha(if (enabled) 1f else 0.45f)
-            .background(fill)
+            .paperShadow(
+                offsetY = if (pressed || !enabled) 1.dp else 3.dp,
+                blur = if (pressed || !enabled) 2.dp else 7.dp,
+                cover = fill, darkness = 120,
+            )
+            .paper(fill)
             .ornateFrame(frame, inset = 3.dp, corners = style != OrnateStyle.Primary)
             .clickable(interaction, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp),
@@ -305,7 +303,7 @@ fun StatBar(label: String, value: Float, display: String, color: Color, glyph: S
             Modifier
                 .weight(1f)
                 .height(40.dp)
-                .background(Palette.PaperLight)
+                .paper(Palette.PaperLight)
                 .ornateFrame(Palette.Line, inset = 3.dp, corners = false)
                 .padding(horizontal = 12.dp, vertical = 6.dp),
         ) {

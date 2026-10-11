@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -343,7 +344,7 @@ private fun SidePanel(
         Column(
             Modifier
                 .fillMaxWidth()
-                .background(Palette.PaperLight)
+                .paper(Palette.PaperLight)
                 .ornateFrame(Palette.Line, inset = 3.dp)
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -403,7 +404,7 @@ private fun StackList(stack: List<StackItemUi>, actions: BoardActions) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(Palette.PaperLight)
+                        .paper(Palette.PaperLight)
                         .ornateFrame(Palette.Slate.copy(alpha = 0.6f), inset = 3.dp, corners = false)
                         .padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -583,7 +584,7 @@ private fun StackStrip(stack: List<StackItemUi>, actions: BoardActions) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Outline))
         if (stack.isNotEmpty()) {
             LazyRow(
-                Modifier.background(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(8.dp),
+                Modifier.paper(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -602,12 +603,12 @@ private fun StackStrip(stack: List<StackItemUi>, actions: BoardActions) {
 private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Unit, onPlayer: (Int) -> Unit) {
     val p = state.prompt
     if (state.choosablePlayerIds.isNotEmpty()) {
-        Box(Modifier.fillMaxWidth().background(Palette.PaperDeep).padding(horizontal = 14.dp, vertical = 6.dp)) {
+        Box(Modifier.fillMaxWidth().paper(Palette.PaperDeep).padding(horizontal = 14.dp, vertical = 6.dp)) {
             PlayerChoices(state, onPlayer)
         }
     }
     Row(
-        Modifier.fillMaxWidth().background(Palette.PaperDeep).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(horizontal = 14.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().paper(Palette.PaperDeep).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -643,7 +644,7 @@ private fun GameOverOverlay(title: String, won: Boolean, matchOver: Boolean, onC
                 Modifier
                     .fillMaxWidth()
                     .height(200.dp)
-                    .background(Palette.PaperLight)
+                    .paper(Palette.PaperLight)
                     .ornateFrame(inset = 4.dp)
                     .padding(8.dp),
             ) { LocalArtImage(art, Modifier.fillMaxSize()) }
@@ -734,7 +735,7 @@ private fun TurnBanner(state: MatchUiState) {
             val p = shown ?: return@AnimatedVisibility
             Column(
                 Modifier
-                    .background(Palette.PaperLight)
+                    .paper(Palette.PaperLight)
                     .ornateFrame(if (p.isLocal) Palette.Terracotta else Palette.Slate, inset = 5.dp, topGem = true)
                     .padding(horizontal = 48.dp, vertical = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -794,7 +795,7 @@ private fun CastSpotlight(state: MatchUiState) {
             ) {
                 Text(
                     "${item.controllerName} plays",
-                    Modifier.background(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(horizontal = 16.dp, vertical = 6.dp),
+                    Modifier.paper(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).padding(horizontal = 16.dp, vertical = 6.dp),
                     style = MaterialTheme.typography.titleMedium, color = Palette.Slate,
                 )
                 Spacer(Modifier.height(8.dp))

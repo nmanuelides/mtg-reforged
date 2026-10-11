@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
+import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -224,7 +226,7 @@ fun DeckBuilderScreen(
                     if (filtering) {
                         FilterPanel(
                             filter, { filter = it }, matches, onDone = { filtering = false },
-                            Modifier.weight(0.42f).fillMaxHeight().background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
+                            Modifier.weight(0.42f).fillMaxHeight().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
                         )
                     } else {
                         DeckList(draft, format, problem, Modifier.weight(0.42f).fillMaxHeight())
@@ -319,7 +321,7 @@ private fun CardSearch(
         searching = false
     }
 
-    Column(modifier.background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
+    Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 query, { query = it }, singleLine = true,
@@ -404,7 +406,8 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
     Text(
         label,
         Modifier
-            .background(if (selected) Palette.Terracotta else Palette.Paper)
+            .paperShadow(offsetY = 1.dp, blur = 3.dp, cover = if (selected) Palette.Terracotta else Palette.Paper, darkness = 90)
+            .paper(if (selected) Palette.Terracotta else Palette.Paper)
             .ornateFrame(if (selected) Palette.OnAccent.copy(alpha = 0.6f) else Palette.Line, inset = 2.dp, corners = false)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 5.dp),
@@ -507,7 +510,7 @@ private fun CommanderPicker(draft: DeckDraft) {
     val candidates = draft.main.keys.filter(::canLead).sortedBy { it.name }
     Column(
         Modifier.fillMaxWidth().padding(vertical = 6.dp)
-            .background(Palette.Paper).ornateFrame(Palette.Ochre, inset = 3.dp, corners = false).padding(12.dp),
+            .paper(Palette.Paper).ornateFrame(Palette.Ochre, inset = 3.dp, corners = false).padding(12.dp),
     ) {
         Text("Choose your commander", style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
         Spacer(Modifier.height(6.dp))
@@ -563,7 +566,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
     val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
         (draft.commander.entries + draft.main.entries).sumOf { (c, n) -> (CardPrices.of(c)?.retail ?: 0f).toDouble() * n }
     }
-    Column(modifier.background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
+    Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                 color = if (draft.total == target || (!commander && draft.total >= target)) Palette.Sage else Palette.Ink)

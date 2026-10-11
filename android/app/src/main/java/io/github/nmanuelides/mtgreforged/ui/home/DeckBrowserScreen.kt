@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -352,7 +353,7 @@ private fun SheetStats(s: DeckSummary) {
 private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false) {
     Column(
         modifier
-            .background(Palette.PaperLight)
+            .paper(Palette.PaperLight)
             .ornateFrame(Palette.Line, inset = 3.dp)
             .padding(10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

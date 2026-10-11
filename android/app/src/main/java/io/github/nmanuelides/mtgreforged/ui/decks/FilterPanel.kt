@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -151,11 +154,11 @@ fun FilterPanel(
             NumberRow("Mana value", "Total cost to cast a spell", filter.manaValue, section("mv"), { toggle("mv") }) {
                 onChange(filter.copy(manaValue = it))
             }
-            FilterRow(
-                "Text", "'Draw a card'…", filter.text.ifBlank { null },
-                section("text"), { toggle("text") }, onClear = { onChange(filter.copy(text = "")) },
-            ) {
-                TextFilter(filter.text, "Rules text contains…") { onChange(filter.copy(text = it)) }
+            GroupRow("Text", "'destroy', 'flying'… add several", filter.text, section("text"), { toggle("text") },
+                { onChange(filter.copy(text = it)) }) { group, set ->
+                TermInput(group.values, "Rules text contains…", onAdd = { set(group.copy(values = group.values + it)) }) {
+                    set(group.toggle(it))
+                }
             }
             GroupRow("Type", null, filter.types, section("type"), { toggle("type") }, { onChange(filter.copy(types = it)) }) { group, set ->
                 ChipFlow { FilterOptions.types.forEach { t -> Chip(t, t in group.values) { set(group.toggle(t)) } } }
@@ -323,6 +326,33 @@ private fun TextFilter(value: String, placeholder: String, onChange: (String) ->
         textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+/** Free-text terms: type one, add it with Enter or +, remove it by tapping its chip. */
+@Composable
+private fun TermInput(terms: Set<String>, placeholder: String, onAdd: (String) -> Unit, onRemove: (String) -> Unit) {
+    var draft by remember { mutableStateOf("") }
+    fun commit() {
+        val term = draft.trim()
+        if (term.isNotEmpty()) onAdd(term)
+        draft = ""
+    }
+    if (terms.isNotEmpty()) {
+        ChipFlow { terms.forEach { t -> Chip("\"$t\" ×", true) { onRemove(t) } } }
+        Spacer(Modifier.height(6.dp))
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            draft, { draft = it }, singleLine = true,
+            placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
+            textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { commit() }),
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        OrnateButton("", { commit() }, Modifier.width(56.dp), icon = Icons.Default.Add, enabled = draft.isNotBlank(), height = 56.dp)
+    }
 }
 
 /** Searchable multi-select: picked values as chips, matches listed as you type. */

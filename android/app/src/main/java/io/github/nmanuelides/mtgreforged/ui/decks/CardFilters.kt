@@ -64,7 +64,8 @@ data class CardFilter(
     val legality: String? = null,
     val manaCost: String = "",
     val manaValue: NumberFilter? = null,
-    val text: String = "",
+    /** Rules-text terms; by default a card must contain all of them. */
+    val text: Group = Group(mode = GroupMode.All),
     val types: Group = Group(),
     val supertypes: Group = Group(),
     val subtypes: Group = Group(),
@@ -79,7 +80,7 @@ data class CardFilter(
     val activeCount: Int
         get() = listOf(
             colors.isNotEmpty() || colorless, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
-            legality != null, manaCost.isNotBlank(), manaValue != null, text.isNotBlank(), types.active,
+            legality != null, manaCost.isNotBlank(), manaValue != null, text.active, types.active,
             supertypes.active, subtypes.active, power != null, toughness != null, rarities.isNotEmpty(), artist.isNotBlank(),
             price != null,
         ).count { it }
@@ -94,7 +95,7 @@ data class CardFilter(
         val pool = if (perPrinting || !hideDuplicates) db.allCards else db.uniqueCards
         val format = legality?.let(::formatNamed)
         val cost = normalizeCost(manaCost)
-        val textQ = text.trim().lowercase()
+        val terms = text.values.map { it.lowercase() }
         val artistQ = artist.trim().lowercase()
         val colorMask = colors.fold(0) { m, c -> m or c.toInt() }
         val identityMask = identity.fold(0) { m, c -> m or c.toInt() }
@@ -108,7 +109,7 @@ data class CardFilter(
                 (sets.isEmpty() || card.edition in sets) &&
                 (rarities.isEmpty() || card.rarity in rarities) &&
                 (artistQ.isEmpty() || artistQ in card.artist.orEmpty().lowercase()) &&
-                (textQ.isEmpty() || textQ in rules.oracleText.orEmpty().lowercase()) &&
+                (terms.isEmpty() || matchesText(rules.oracleText.orEmpty().lowercase(), terms)) &&
                 (cost.isEmpty() || normalizeCost(rules.manaCost.simpleString) == cost) &&
                 (manaValue == null || manaValue.matches(rules.manaCost.cmc)) &&
                 (power == null || power.matches(rules.power?.toIntOrNull())) &&
@@ -125,6 +126,12 @@ data class CardFilter(
 
         val all = matches.sortedWith(comparator()).toList()
         return all.take(limit) to all.size
+    }
+
+    private fun matchesText(oracle: String, terms: List<String>) = when (text.mode) {
+        GroupMode.Any -> terms.any { it in oracle }
+        GroupMode.All -> terms.all { it in oracle }
+        GroupMode.Not -> terms.none { it in oracle }
     }
 
     private fun matchesColors(rules: CardRules, mask: Int): Boolean {

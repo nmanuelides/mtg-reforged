@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
@@ -77,7 +78,7 @@ fun BootScreen(
                     .width(560.dp)
                     .height(240.dp)
                     .alpha(if (reveal > 0f) fade else 1f)
-                    .background(Palette.PaperLight)
+                    .paper(Palette.PaperLight)
                     .ornateFrame(inset = 5.dp, topGem = true)
                     .padding(10.dp),
             ) {
@@ -153,7 +154,7 @@ private fun ProgressRule(target: Float?, color: Color) {
         Modifier
             .width(320.dp)
             .height(18.dp)
-            .background(Palette.PaperLight)
+            .paper(Palette.PaperLight)
             .ornateFrame(color, inset = 3.dp, corners = false)
             .padding(5.dp),
     ) {
