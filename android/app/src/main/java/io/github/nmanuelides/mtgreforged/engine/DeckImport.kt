@@ -12,17 +12,25 @@ import java.net.URL
 /** Builds Forge decks from a pasted card list or a Moxfield / ManaBox share link. */
 object DeckImport {
 
-    data class Line(val quantity: Int, val name: String, val set: String?, val collectorNumber: String?, val section: DeckSection)
+    data class Line(
+        val quantity: Int,
+        val name: String,
+        val set: String?,
+        val collectorNumber: String?,
+        val section: DeckSection,
+        /** Probably the commander (a short last block with no header); used only if it can lead. */
+        val maybeCommander: Boolean = false,
+    )
 
     data class Result(val deck: Deck, val unknown: List<String>)
 
     /** Anything that looks like a link is fetched; everything else is read as a list. */
-    fun import(input: String, fallbackName: String): Result {
+    fun import(input: String, fallbackName: String, commanderFormat: Boolean = false): Result {
         val text = input.trim()
         return when {
             "moxfield.com/decks/" in text -> fromMoxfield(text)
             "manabox.app/decks/" in text -> fromManaBox(text)
-            else -> build(fallbackName, parseList(text))
+            else -> build(fallbackName, parseList(text, commanderFormat))
         }
     }
 
@@ -37,12 +45,16 @@ object DeckImport {
     // "1 Sol Ring", "1x Sol Ring (C21) 263", "4 Lightning Bolt *F*"
     private val cardLine = Regex("""^(\d+)\s*x?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+([A-Za-z0-9★-]+))?)?(?:\s+\*[A-Z]+\*)?\s*$""")
 
-    fun parseList(text: String): List<Line> {
+    fun parseList(text: String, commanderFormat: Boolean = false): List<Line> {
         var section = DeckSection.Main
         val lines = ArrayList<Line>()
+        var headers = false
+        var lastBlock = 0
         for (raw in text.lines()) {
             val line = raw.trim().removeSuffix(":")
-            if (line.isEmpty() || line.startsWith("//") || line.startsWith("#")) continue
+            if (line.isEmpty()) { lastBlock = lines.size; continue }
+            if (line.startsWith("//") || line.startsWith("#")) continue
+            if (line.lowercase() in sectionHeaders) headers = true
             sectionHeaders[line.lowercase()]?.let { section = it; continue }
             val match = cardLine.matchEntire(line)
             if (match == null) {
@@ -52,6 +64,11 @@ object DeckImport {
             }
             val (qty, name, set, number) = match.destructured
             lines += Line(qty.toInt(), name.trim(), set.ifBlank { null }, number.ifBlank { null }, section)
+        }
+        // Moxfield / Archidekt / Arena exports put the commander(s) alone after a blank line.
+        val tail = lines.size - lastBlock
+        if (commanderFormat && !headers && lastBlock > 0 && tail in 1..2 && lines.drop(lastBlock).all { it.quantity == 1 }) {
+            for (i in lastBlock until lines.size) lines[i] = lines[i].copy(maybeCommander = true)
         }
         return lines
     }
@@ -113,7 +130,8 @@ object DeckImport {
                 unknown += line.name
                 continue
             }
-            deck.getOrCreate(line.section).add(card, line.quantity)
+            val section = if (line.maybeCommander && card.rules.canBeCommander()) DeckSection.Commander else line.section
+            deck.getOrCreate(section).add(card, line.quantity)
         }
         return Result(deck, unknown)
     }

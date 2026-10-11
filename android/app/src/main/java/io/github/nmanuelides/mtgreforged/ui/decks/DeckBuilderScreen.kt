@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -92,6 +94,9 @@ import kotlinx.coroutines.withContext
 
 private val QUICK_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land")
 
+private fun canLead(card: PaperCard) =
+    card.rules.canBeCommander() || (card.rules.type.isLegendary && (card.rules.type.isCreature || card.rules.type.isPlaneswalker))
+
 /** Editable deck: copies per card, split into the command zone and the main deck. */
 private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
     val total get() = commander.values.sum() + main.values.sum()
@@ -116,6 +121,13 @@ private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val mai
         val pool = if (fromCommander) commander else main
         val n = (pool[card] ?: 0) - 1
         if (n <= 0) pool.remove(card) else pool[card] = n
+    }
+
+    /** Puts [card] in the command zone, taking a copy out of the main deck if it's there. */
+    fun makeCommander(card: PaperCard) {
+        if (commander.containsKey(card)) return
+        if (main.containsKey(card)) remove(card, fromCommander = false)
+        commander[card] = 1
     }
 
     fun toggleCommander(card: PaperCard) {
@@ -203,7 +215,7 @@ fun DeckBuilderScreen(
             Spacer(Modifier.height(10.dp))
             if (wide) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
+                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
                     // On tablets the filters take the deck's place, so results update beside them.
                     if (filtering) {
                         FilterPanel(
@@ -215,7 +227,7 @@ fun DeckBuilderScreen(
                     }
                 }
             } else {
-                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
+                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
                 Spacer(Modifier.height(8.dp))
                 DeckList(draft, format, problem, Modifier.fillMaxWidth().weight(0.45f))
             }
@@ -230,6 +242,7 @@ fun DeckBuilderScreen(
 
     if (importing) {
         ImportDialog(
+            commanderFormat = format == Engine.Format.Commander,
             onDismiss = { importing = false },
             onImported = { result ->
                 draft.load(result.deck)
@@ -277,6 +290,7 @@ internal fun fieldColors() = OutlinedTextFieldDefaults.colors(
 private fun CardSearch(
     modifier: Modifier,
     draft: DeckDraft,
+    commanderFormat: Boolean,
     filter: CardFilter,
     onFilter: (CardFilter) -> Unit,
     onOpenFilters: () -> Unit,
@@ -345,7 +359,7 @@ private fun CardSearch(
         val idle = query.isBlank() && filter.activeCount == 0
         // With nothing searched, this side shows the deck itself as cards.
         if (idle && draft.total > 0) {
-            DeckGallery(draft, Modifier.fillMaxSize())
+            DeckGallery(draft, commanderFormat, Modifier.fillMaxSize())
             return@Column
         }
         Box(Modifier.fillMaxSize()) {
@@ -361,6 +375,9 @@ private fun CardSearch(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.tapOrHold(card.name, onTap = { onAdd(card) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, 118.dp, showTapped = false)
+                            if (commanderFormat && canLead(card)) {
+                                CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
+                            }
                             HoldZoom(ui, held, caption = price?.let(::zoomCaption))
                         }
                         PriceTag(price)
@@ -396,7 +413,7 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 
 /** The deck as card images, grouped like the list, with copies and −/+ under each card. */
 @Composable
-private fun DeckGallery(draft: DeckDraft, modifier: Modifier) {
+private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, modifier: Modifier) {
     val main = draft.main.entries.map { it.key to it.value }
     val groups = listOf(
         "Commander" to draft.commander.entries.map { it.key to it.value },
@@ -436,6 +453,9 @@ private fun DeckGallery(draft: DeckDraft, modifier: Modifier) {
                                 fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Palette.OnAccent,
                             )
                         }
+                        if (commanderFormat && canLead(card)) {
+                            CommanderStar(commander, Modifier.align(Alignment.TopStart)) { draft.toggleCommander(card) }
+                        }
                         HoldZoom(ui, held, caption = price?.let(::zoomCaption))
                     }
                     Row(Modifier.width(118.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -454,6 +474,48 @@ private fun DeckGallery(draft: DeckDraft, modifier: Modifier) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+// ---- Commander -----------------------------------------------------------------------
+
+/** Round ☆ badge on a card tile: filled when it's the commander, tap to (un)set. */
+@Composable
+private fun CommanderStar(selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.padding(4.dp).size(34.dp)
+            .background(if (selected) Palette.Ochre else Palette.PaperLight.copy(alpha = 0.92f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (selected) Icons.Default.Star else Icons.Default.StarBorder, "Commander",
+            Modifier.size(22.dp), tint = if (selected) Palette.OnAccent else Palette.Ochre,
+        )
+    }
+}
+
+/** Shown while a Commander deck has no commander: one tap on a candidate sets it. */
+@Composable
+private fun CommanderPicker(draft: DeckDraft) {
+    val candidates = draft.main.keys.filter(::canLead).sortedBy { it.name }
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            .background(Palette.Paper).ornateFrame(Palette.Ochre, inset = 3.dp, corners = false).padding(12.dp),
+    ) {
+        Text("Choose your commander", style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+        Spacer(Modifier.height(6.dp))
+        if (candidates.isEmpty()) {
+            Text(
+                "No card in this deck can be a commander. Search for yours on the left and tap its ☆.",
+                style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+            )
+        } else {
+            @OptIn(ExperimentalLayoutApi::class)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                candidates.forEach { card -> Chip("☆ ${card.name}", false, fontSize = 13) { draft.makeCommander(card) } }
             }
         }
     }
@@ -521,10 +583,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
             if (commander) {
                 item { SectionLabel("Commander") }
                 if (draft.commander.isEmpty()) {
-                    item {
-                        Text("Tap ☆ on a legendary creature to make it your commander.",
-                            Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
-                    }
+                    item { CommanderPicker(draft) }
                 }
                 items(draft.commander.entries.toList(), key = { "c" + it.key.name }) { (card, n) ->
                     DeckRow(card, n, isCommander = true, showStar = true,
@@ -535,7 +594,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
                 if (cards.isEmpty()) return@forEach
                 item { Spacer(Modifier.height(6.dp)); SectionLabel("$label · ${cards.sumOf { it.value }}") }
                 items(cards.sortedBy { it.key.rules.manaCost.cmc * 1000 + it.key.name.first().code }, key = { "m" + it.key.name + it.key.edition }) { (card, n) ->
-                    DeckRow(card, n, isCommander = false, showStar = commander && card.rules.type.isLegendary && card.rules.type.isCreature,
+                    DeckRow(card, n, isCommander = false, showStar = commander && canLead(card),
                         onAdd = { draft.add(card) }, onRemove = { draft.remove(card, fromCommander = false) }, onStar = { draft.toggleCommander(card) })
                 }
             }
@@ -584,7 +643,7 @@ private fun DeckRow(
 // ---- Import ------------------------------------------------------------------------
 
 @Composable
-private fun ImportDialog(onDismiss: () -> Unit, onImported: (DeckImport.Result) -> Unit) {
+private fun ImportDialog(commanderFormat: Boolean, onDismiss: () -> Unit, onImported: (DeckImport.Result) -> Unit) {
     var text by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -631,7 +690,7 @@ private fun ImportDialog(onDismiss: () -> Unit, onImported: (DeckImport.Result) 
                     {
                         busy = true
                         scope.launch {
-                            val result = withContext(Dispatchers.IO) { runCatching { DeckImport.import(text, "Imported deck") } }
+                            val result = withContext(Dispatchers.IO) { runCatching { DeckImport.import(text, "Imported deck", commanderFormat) } }
                             busy = false
                             result.onSuccess { r -> if (r.unknown.isEmpty()) onImported(r) else pending = r }
                                 .onFailure { error = it.message ?: "Import failed" }
