@@ -101,9 +101,13 @@ private fun canLead(card: PaperCard) =
 private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
     val total get() = commander.values.sum() + main.values.sum()
 
-    fun toDeck(name: String) = Deck(name).apply {
-        commander.forEach { (c, n) -> getOrCreate(DeckSection.Commander).add(c, n) }
-        main.forEach { (c, n) -> getOrCreate(DeckSection.Main).add(c, n) }
+    // Not `Deck(name).apply { … }`: inside it, `main` would resolve to Forge's Deck.getMain()
+    // (the new, empty pool) instead of this draft's cards, and saves would drop the main deck.
+    fun toDeck(name: String): Deck {
+        val deck = Deck(name)
+        commander.forEach { (c, n) -> deck.getOrCreate(DeckSection.Commander).add(c, n) }
+        main.forEach { (c, n) -> deck.getOrCreate(DeckSection.Main).add(c, n) }
+        return deck
     }
 
     fun load(deck: Deck) {
