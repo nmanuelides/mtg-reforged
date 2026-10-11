@@ -53,6 +53,8 @@ data class Group(val values: Set<String> = emptySet(), val mode: GroupMode = Gro
 data class CardFilter(
     val exactName: Boolean = false,
     val hideDuplicates: Boolean = true,
+    /** Arena-only rebalanced cards ("A-Name"): not legal in paper and without images. */
+    val includeAlchemy: Boolean = false,
     val sort: SortBy = SortBy.Name,
     val descending: Boolean = false,
     val colors: Set<Byte> = emptySet(),
@@ -103,7 +105,8 @@ data class CardFilter(
         var matches = pool.asSequence().filter { card ->
             val rules = card.rules
             val name = card.name.lowercase()
-            (q.isEmpty() || if (exactName) name == q else q in name || q in rules.oracleText.orEmpty().lowercase()) &&
+            (includeAlchemy || !card.name.startsWith("A-")) &&
+                (q.isEmpty() || if (exactName) name == q else q in name || q in rules.oracleText.orEmpty().lowercase()) &&
                 matchesColors(rules, colorMask) &&
                 (identity.isEmpty() || rules.colorIdentity.hasNoColorsExcept(identityMask)) &&
                 (sets.isEmpty() || card.edition in sets) &&

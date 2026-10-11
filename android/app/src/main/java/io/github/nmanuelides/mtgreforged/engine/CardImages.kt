@@ -4,8 +4,15 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import forge.ImageKeys
+import forge.item.IPaperCard
 import forge.gui.GuiBase
+import forge.localinstance.properties.ForgeConstants
 import forge.util.ImageUtil
+import forge.util.ScryfallRateLimiter
+import io.github.nmanuelides.mtgreforged.BuildConfig
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -61,7 +68,19 @@ object CardImages {
         }
     }
 
-    private suspend fun fetch(key: String): File? = withContext(Dispatchers.Main) {
+    private suspend fun fetch(key: String): File? {
+        // Forge skips printings without a collector number and never calls back; don't wait for it.
+        if (hasNoCollectorNumber(key)) return withContext(Dispatchers.IO) { fetchByName(key) }
+        return fetchWithForge(key)
+    }
+
+    private fun hasNoCollectorNumber(gameKey: String): Boolean {
+        if (!gameKey.startsWith(ImageKeys.CARD_PREFIX)) return false
+        val card = runCatching { ImageUtil.getPaperCardFromImageKey(gameKey.removeSuffix(ImageKeys.BACKFACE_POSTFIX)) }.getOrNull()
+        return card != null && card.collectorNumber == IPaperCard.NO_COLLECTOR_NUMBER
+    }
+
+    private suspend fun fetchWithForge(key: String): File? = withContext(Dispatchers.Main) {
         // fetchImage silently returns without a callback in several cases, hence the timeout.
         withTimeoutOrNull(30_000) {
             suspendCancellableCoroutine { cont ->
@@ -72,7 +91,46 @@ object CardImages {
         }
         // The lookup before the download marked this card as missing; forget that.
         synchronized(ImageKeys::class.java) { ImageKeys.clearMissingCards() }
-        withContext(Dispatchers.IO) { findFile(key) }
+        withContext(Dispatchers.IO) { findFile(key) ?: fetchByName(key) }
+    }
+
+    /**
+     * Fallback for printings Forge can't build a Scryfall URL for (no collector number):
+     * Scryfall's exact-name lookup, saved where Forge would have. Scryfall has no Alchemy
+     * rebalanced cards ("A-Name"), so those show the original card's image.
+     */
+    private fun fetchByName(gameKey: String): File? {
+        if (!gameKey.startsWith(ImageKeys.CARD_PREFIX) || SPEC_FACES.keys.any { gameKey.endsWith(it) }) return null
+        val back = gameKey.endsWith(ImageKeys.BACKFACE_POSTFIX)
+        val card = ImageUtil.getPaperCardFromImageKey(gameKey.removeSuffix(ImageKeys.BACKFACE_POSTFIX)) ?: return null
+        val fileKey = (if (back) card.cardAltImageKey else card.cardImageKey)?.takeIf { it.isNotBlank() } ?: return null
+        val dest = File(ForgeConstants.CACHE_CARD_PICS_DIR, "$fileKey.jpg")
+        val name = card.name.removePrefix("A-")
+        val url = "https://api.scryfall.com/cards/named?exact=" + URLEncoder.encode(name, "UTF-8") +
+            "&format=image&version=normal" + if (back) "&face=back" else ""
+        if (ScryfallRateLimiter.shouldSkip(url)) return null
+        ScryfallRateLimiter.acquire(url)
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.setRequestProperty("User-Agent", "MTGReforged/${BuildConfig.VERSION_NAME}")
+        connection.setRequestProperty("Accept", "*/*")
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 20_000
+        return try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                ScryfallRateLimiter.noteIfRateLimited(connection.responseCode, url, connection.getHeaderField("Retry-After"))
+                null
+            } else {
+                val tmp = File("${dest.path}.tmp").apply { parentFile?.mkdirs() }
+                connection.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                tmp.renameTo(dest)
+                synchronized(ImageKeys::class.java) { ImageKeys.clearMissingCards() }
+                findFile(gameKey) ?: dest.takeIf { it.exists() }
+            }
+        } catch (e: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 
     /**

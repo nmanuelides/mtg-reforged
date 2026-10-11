@@ -83,6 +83,9 @@ fun FilterPanel(
             ToggleRow("Hide duplicates", "Show one printing of each card, even if there are several versions.", filter.hideDuplicates) {
                 onChange(filter.copy(hideDuplicates = it))
             }
+            ToggleRow("Include Alchemy cards", "Arena-only rebalanced versions (A-…). Not legal in paper.", filter.includeAlchemy) {
+                onChange(filter.copy(includeAlchemy = it))
+            }
             FilterRow("Sort by", "How results are ordered", "${filter.sort.label} ${if (filter.descending) "↓" else "↑"}", section("sort"), { toggle("sort") }) {
                 ChipFlow {
                     SortBy.entries.forEach { s -> Chip(s.label, filter.sort == s) { onChange(filter.copy(sort = s)) } }
@@ -206,7 +209,7 @@ fun FilterPanel(
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             OrnateButton(
-                "Clear all", { onChange(CardFilter(hideDuplicates = filter.hideDuplicates, sort = filter.sort, descending = filter.descending)) },
+                "Clear all", { onChange(CardFilter(hideDuplicates = filter.hideDuplicates, includeAlchemy = filter.includeAlchemy, sort = filter.sort, descending = filter.descending)) },
                 Modifier.weight(1f), accent = Palette.Slate, enabled = filter.activeCount > 0,
             )
             OrnateButton("Show $matches", onDone, Modifier.weight(1.3f), style = OrnateStyle.Primary)
