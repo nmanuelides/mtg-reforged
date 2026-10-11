@@ -34,6 +34,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -135,12 +139,29 @@ fun DeckBrowserScreen(
                 modifier = sheetModifier,
                 manage = {
                     // Deck management: new / import always, edit / delete for the player's own decks.
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OrnateButton("New", onNew, Modifier.weight(1f), style = OrnateStyle.Quiet, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
-                        OrnateButton("Import", onImport, Modifier.weight(1f), style = OrnateStyle.Quiet, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
-                        if (entry.custom) {
-                            OrnateButton("Edit", { onEdit(entry) }, Modifier.weight(1f), accent = Palette.Sage, height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
-                            OrnateButton("Delete", { onDelete(entry) }, Modifier.weight(1f), height = 40.dp, textStyle = MaterialTheme.typography.labelSmall)
+                    // Coloured frames and icons so these read as actions, not as part of the sheet.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        SectionLabel("Manage decks", color = Palette.InkSoft)
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OrnateButton(
+                                "New", onNew, Modifier.weight(1f), icon = Icons.Default.Add,
+                                accent = Palette.Sage, frameColor = Palette.Sage, height = 44.dp,
+                            )
+                            OrnateButton(
+                                "Import", onImport, Modifier.weight(1f), icon = Icons.Default.FileDownload,
+                                accent = Palette.Slate, frameColor = Palette.Slate, height = 44.dp,
+                            )
+                            if (entry.custom) {
+                                OrnateButton(
+                                    "Edit", { onEdit(entry) }, Modifier.weight(1f), icon = Icons.Default.Edit,
+                                    accent = Palette.Ochre, frameColor = Palette.Ochre, height = 44.dp,
+                                )
+                                OrnateButton(
+                                    "Delete", { onDelete(entry) }, Modifier.weight(1f), icon = Icons.Default.Delete,
+                                    accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 44.dp,
+                                )
+                            }
                         }
                     }
                 },
