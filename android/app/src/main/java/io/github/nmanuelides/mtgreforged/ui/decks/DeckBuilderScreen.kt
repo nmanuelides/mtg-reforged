@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenu
 import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
@@ -210,7 +212,8 @@ fun DeckBuilderScreen(
     var importing by remember { mutableStateOf(importFirst) }
     var problem by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf(CardFilter()) }
-    var filtering by remember { mutableStateOf(false) }
+    // The cards get the whole width; filters or the compact list open beside them on demand.
+    var panel by remember { mutableStateOf<SidePanel?>(null) }
     var wideLayout by remember { mutableStateOf(true) }
     var matches by remember { mutableIntStateOf(0) }
     var viewing by remember { mutableStateOf<Pair<List<PaperCard>, Int>?>(null) }
@@ -265,30 +268,43 @@ fun DeckBuilderScreen(
                 },
             )
             Spacer(Modifier.height(10.dp))
+            val toggle = { which: SidePanel -> panel = if (panel == which) null else which }
+            val cards: @Composable (Modifier) -> Unit = { m ->
+                CardSearch(
+                    m, draft, format, problem, filter, { filter = it },
+                    onOpenFilters = { toggle(SidePanel.Filters) },
+                    onOpenList = { toggle(SidePanel.List) },
+                    listOpen = panel == SidePanel.List,
+                    onCount = { matches = it }, onOpen = open,
+                ) { draft.add(it) }
+            }
             if (wide) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = !filtering }, { matches = it }, open) { draft.add(it) }
-                    // On tablets the filters take the deck's place, so results update beside them.
-                    if (filtering) {
-                        FilterPanel(
-                            filter, { filter = it }, matches, onDone = { filtering = false },
-                            Modifier.weight(0.42f).fillMaxHeight().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
+                    cards(Modifier.weight(1f).fillMaxHeight())
+                    when (panel) {
+                        SidePanel.Filters -> FilterPanel(
+                            filter, { filter = it }, matches, onDone = { panel = null },
+                            Modifier.width(460.dp).fillMaxHeight().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
                         )
-                    } else {
-                        DeckList(draft, format, problem, open, Modifier.weight(0.42f).fillMaxHeight())
+                        SidePanel.List -> DeckList(draft, format, problem, open, Modifier.width(460.dp).fillMaxHeight(), onClose = { panel = null })
+                        null -> Unit
                     }
                 }
             } else {
-                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = true }, { matches = it }, open) { draft.add(it) }
-                Spacer(Modifier.height(8.dp))
-                DeckList(draft, format, problem, open, Modifier.fillMaxWidth().weight(0.45f))
+                cards(Modifier.fillMaxSize())
             }
         }
     }
 
-    if (filtering && !wideLayout) {
-        OrnateDialog(onDismiss = { filtering = false }, maxWidth = 640.dp) {
-            FilterPanel(filter, { filter = it }, matches, onDone = { filtering = false }, Modifier.heightIn(max = 640.dp))
+    // Phones: the side panels open as dialogs instead.
+    if (panel == SidePanel.Filters && !wideLayout) {
+        OrnateDialog(onDismiss = { panel = null }, maxWidth = 640.dp) {
+            FilterPanel(filter, { filter = it }, matches, onDone = { panel = null }, Modifier.heightIn(max = 640.dp))
+        }
+    }
+    if (panel == SidePanel.List && !wideLayout) {
+        OrnateDialog(onDismiss = { panel = null }, maxWidth = 640.dp) {
+            DeckList(draft, format, problem, open, Modifier.heightIn(max = 640.dp), onClose = { panel = null })
         }
     }
 
@@ -347,15 +363,22 @@ internal fun fieldColors() = OutlinedTextFieldDefaults.colors(
 private fun CardSearch(
     modifier: Modifier,
     draft: DeckDraft,
-    commanderFormat: Boolean,
+    format: Engine.Format,
+    problem: String?,
     filter: CardFilter,
     onFilter: (CardFilter) -> Unit,
     onOpenFilters: () -> Unit,
+    onOpenList: () -> Unit,
+    listOpen: Boolean,
     onCount: (Int) -> Unit,
     onOpen: (List<PaperCard>, Int) -> Unit,
     onAdd: (PaperCard) -> Unit,
 ) {
+    val commanderFormat = format == Engine.Format.Commander
     var query by remember { mutableStateOf("") }
+    // Show the deck instead of the results without throwing the search away.
+    var showDeck by remember { mutableStateOf(false) }
+    LaunchedEffect(query, filter) { showDeck = false }
     var results by remember { mutableStateOf<List<PaperCard>>(emptyList()) }
     var total by remember { mutableIntStateOf(0) }
     var searching by remember { mutableStateOf(false) }
@@ -374,6 +397,8 @@ private fun CardSearch(
     }
 
     Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
+        DeckStatus(draft, format, problem, listOpen, onOpenList)
+        Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 query, { query = it }, singleLine = true,
@@ -408,22 +433,30 @@ private fun CardSearch(
             }
         }
         Spacer(Modifier.height(6.dp))
+        val idle = query.isBlank() && filter.activeCount == 0
+        // With nothing searched (or "Your deck" picked) the cards shown are the deck itself.
+        if ((idle || showDeck) && (draft.total > 0 || commanderFormat)) {
+            if (!idle) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Your deck", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+                    Chip("Back to results · $total", false, fontSize = 12) { showDeck = false }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
+            DeckGallery(draft, commanderFormat, onOpen, Modifier.fillMaxSize())
+            return@Column
+        }
         if (total > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     if (total > results.size) "Showing ${results.size} of $total cards" else "$total cards",
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
                 )
+                if (draft.total > 0) Chip("Your deck · ${draft.total}", false, fontSize = 12) { showDeck = true }
                 SortControl(filter.sort, filter.descending) { sort, descending -> onFilter(filter.copy(sort = sort, descending = descending)) }
             }
             Spacer(Modifier.height(4.dp))
-        }
-        val idle = query.isBlank() && filter.activeCount == 0
-        // With nothing searched, this side shows the deck itself as cards.
-        if (idle && draft.total > 0) {
-            DeckGallery(draft, commanderFormat, onOpen, Modifier.fillMaxSize())
-            return@Column
         }
         Box(Modifier.fillMaxSize()) {
             LazyVerticalGrid(
@@ -506,6 +539,40 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
     )
 }
 
+private enum class SidePanel { Filters, List }
+
+/** One line over the cards: size, legality, value, and the button for the compact list. */
+@Composable
+private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?, listOpen: Boolean, onList: () -> Unit) {
+    val commander = format == Engine.Format.Commander
+    val target = if (commander) 100 else 60
+    val prices by CardPrices.version.collectAsState()
+    val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
+        (draft.commander.entries + draft.main.entries).sumOf { (c, n) -> (CardPrices.of(c)?.retail ?: 0f).toDouble() * n }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+            color = if (draft.total == target || (!commander && draft.total >= target)) Palette.Sage else Palette.Ink,
+        )
+        Text(
+            problem ?: "Legal ✓",
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            color = if (problem == null) Palette.Sage else Palette.Terracotta,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        if (value > 0) {
+            Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
+        }
+        OrnateButton(
+            "List", onList, icon = Icons.AutoMirrored.Filled.List,
+            style = if (listOpen) OrnateStyle.Primary else OrnateStyle.Secondary,
+            accent = Palette.Slate, frameColor = Palette.Slate, height = 44.dp,
+        )
+    }
+}
+
 // ---- Deck gallery ------------------------------------------------------------------
 
 /** The deck as card images, grouped like the list, with copies and −/+ under each card. */
@@ -527,9 +594,13 @@ private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, onOpen: (Lis
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                "Your deck · ${draft.total} cards — search above to add more",
+                if (draft.total == 0) "Your deck is empty — search above to add cards"
+                else "Your deck · ${draft.total} cards — search above to add more",
                 style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
             )
+        }
+        if (commanderFormat && draft.commander.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { CommanderPicker(draft) }
         }
         groups.forEach { (label, cards) ->
             item(span = { GridItemSpan(maxLineSpan) }) { SectionLabel("$label · ${cards.sumOf { it.second }}") }
@@ -639,7 +710,14 @@ internal fun PriceTag(price: CardPrice?) {
 // ---- Deck list ---------------------------------------------------------------------
 
 @Composable
-private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, onOpen: (List<PaperCard>, Int) -> Unit, modifier: Modifier) {
+private fun DeckList(
+    draft: DeckDraft,
+    format: Engine.Format,
+    problem: String?,
+    onOpen: (List<PaperCard>, Int) -> Unit,
+    modifier: Modifier,
+    onClose: (() -> Unit)? = null,
+) {
     fun openCard(card: PaperCard) { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
     val commander = format == Engine.Format.Commander
     val target = if (commander) 100 else 60
@@ -672,6 +750,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
                     Text("Card Kingdom", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
                 }
             }
+            onClose?.let { IconButton(onClick = it) { Icon(Icons.Default.Close, "Close", tint = Palette.InkSoft) } }
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(Modifier.fillMaxSize()) {
