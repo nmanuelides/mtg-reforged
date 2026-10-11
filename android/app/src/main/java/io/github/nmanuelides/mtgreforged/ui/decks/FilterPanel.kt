@@ -74,6 +74,7 @@ fun FilterPanel(
     matches: Int,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    collectionAvailable: Boolean = false,
 ) {
     var open by rememberSaveable { mutableStateOf(setOf<String>()) }
     fun section(key: String) = key in open
@@ -87,6 +88,13 @@ fun FilterPanel(
             }
             ToggleRow("Hide duplicates", "Show one printing of each card, even if there are several versions.", filter.hideDuplicates) {
                 onChange(filter.copy(hideDuplicates = it))
+            }
+            FilterRow("Search in", "Every card, or only the ones you already have", filter.within.label, section("within"), { toggle("within") }) {
+                ChipFlow {
+                    Within.entries.filter { it != Within.Collection || collectionAvailable }.forEach { w ->
+                        Chip(w.label, filter.within == w) { onChange(filter.copy(within = w)) }
+                    }
+                }
             }
             ToggleRow("Include Alchemy cards", "Arena-only rebalanced versions (A-…). Not legal in paper.", filter.includeAlchemy) {
                 onChange(filter.copy(includeAlchemy = it))

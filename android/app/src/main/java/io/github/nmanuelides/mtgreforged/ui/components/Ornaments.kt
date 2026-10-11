@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -185,6 +186,7 @@ fun OrnateButton(
     frameColor: Color = Palette.LineStrong,
     textStyle: TextStyle = MaterialTheme.typography.labelLarge,
     height: Dp = 48.dp,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -205,7 +207,7 @@ fun OrnateButton(
             )
             .paper(fill)
             .ornateFrame(frame, inset = 3.dp, corners = style != OrnateStyle.Primary)
-            .clickable(interaction, indication = null, enabled = enabled, onClick = onClick)
+            .combinedClickable(interaction, indication = null, enabled = enabled, onLongClick = onLongClick, onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
     ) {

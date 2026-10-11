@@ -28,6 +28,9 @@ data class NumberFilter(val op: Op, val value: Double) {
 /** How a group of picked values (types, keywords…) has to match a card. */
 enum class GroupMode(val label: String) { Any("Any of"), All("All of"), Not("None of") }
 
+/** Where to search: the whole card pool, or only cards already in the deck / collection. */
+enum class Within(val label: String) { All("All cards"), Deck("This deck"), Collection("My collection") }
+
 enum class ColorMode(val label: String) { Including("Including"), Exactly("Exactly"), AtMost("At most") }
 
 enum class SortBy(val label: String) {
@@ -58,6 +61,7 @@ data class CardFilter(
     val hideDuplicates: Boolean = true,
     /** Arena-only rebalanced cards ("A-Name"): not legal in paper and without images. */
     val includeAlchemy: Boolean = false,
+    val within: Within = Within.All,
     val sort: SortBy = SortBy.Name,
     val descending: Boolean = false,
     val colors: Set<Byte> = emptySet(),
@@ -87,13 +91,14 @@ data class CardFilter(
             colors.isNotEmpty() || colorless, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
             legality != null, manaCost.isNotBlank(), manaValue != null, text.active, types.active,
             supertypes.active, subtypes.active, power != null, toughness != null, rarities.isNotEmpty(), artist.isNotBlank(),
-            price != null,
+            price != null, within != Within.All,
         ).count { it }
 
     /** Filters that depend on the printing rather than the card itself. */
     private val perPrinting get() = sets.isNotEmpty() || rarities.isNotEmpty() || artist.isNotBlank()
 
-    fun search(query: String, limit: Int = 240): Pair<List<PaperCard>, Int> {
+    /** [deck] / [collection]: card names for the "This deck" / "My collection" scopes. */
+    fun search(query: String, deck: Set<String> = emptySet(), collection: Set<String> = emptySet(), limit: Int = 240): Pair<List<PaperCard>, Int> {
         val q = query.trim().lowercase()
         if (q.length < 2 && activeCount == 0) return emptyList<PaperCard>() to 0
         val db = StaticData.instance().commonCards
@@ -109,6 +114,8 @@ data class CardFilter(
             val rules = card.rules
             val name = card.name.lowercase()
             (includeAlchemy || !card.name.startsWith("A-")) &&
+                (within != Within.Deck || card.name in deck) &&
+                (within != Within.Collection || card.name in collection) &&
                 (q.isEmpty() || if (exactName) name == q else q in name || q in rules.oracleText.orEmpty().lowercase()) &&
                 matchesColors(rules, colorMask) &&
                 (identity.isEmpty() || rules.colorIdentity.hasNoColorsExcept(identityMask)) &&

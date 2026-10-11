@@ -1,5 +1,18 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.engine.CardCollection
+import androidx.compose.material.icons.filled.IosShare
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.Popup
@@ -114,6 +127,24 @@ import kotlinx.coroutines.withContext
 
 private val QUICK_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land")
 
+/** Deck sections, in the order they're shown (commander comes first, separately). */
+internal val TYPE_GROUPS = listOf("Creatures", "Planeswalkers", "Instants", "Sorceries", "Enchantments", "Artifacts", "Battles", "Lands", "Other")
+
+internal fun typeGroup(card: PaperCard): String {
+    val t = card.rules.type
+    return when {
+        t.isCreature -> "Creatures"
+        t.isLand -> "Lands"
+        t.isPlaneswalker -> "Planeswalkers"
+        t.isBattle -> "Battles"
+        t.isInstant -> "Instants"
+        t.isSorcery -> "Sorceries"
+        t.isArtifact -> "Artifacts"
+        t.isEnchantment -> "Enchantments"
+        else -> "Other"
+    }
+}
+
 internal fun canLead(card: PaperCard) =
     card.rules.canBeCommander() || (card.rules.type.isLegendary && (card.rules.type.isCreature || card.rules.type.isPlaneswalker))
 
@@ -152,9 +183,7 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
         val byCurve = compareBy<PaperCard>({ it.rules.manaCost.cmc }, { it.name })
         val cards = main.keys.toList()
         return commander.keys.sortedBy { it.name } +
-            cards.filter { it.rules.type.isCreature }.sortedWith(byCurve) +
-            cards.filter { !it.rules.type.isCreature && !it.rules.type.isLand }.sortedWith(byCurve) +
-            cards.filter { it.rules.type.isLand }.sortedWith(byCurve)
+            TYPE_GROUPS.flatMap { group -> cards.filter { typeGroup(it) == group }.sortedWith(byCurve) }
     }
 
     /** Copies of [name] in the deck, whatever the printing. */
@@ -222,6 +251,7 @@ fun DeckBuilderScreen(
     val draft = remember { DeckDraft(mutableStateMapOf(), mutableStateMapOf()) }
     var name by remember { mutableStateOf(initial?.name ?: "New deck") }
     var importing by remember { mutableStateOf(importFirst) }
+    var exporting by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf(CardFilter()) }
     // The cards get the whole width; filters or the compact list open beside them on demand.
@@ -263,6 +293,8 @@ fun DeckBuilderScreen(
                 name = name, onName = { name = it }, format = format,
                 onBack = { onDone(saved) },
                 onImport = { importing = true },
+                onExport = { exporting = true },
+                canExport = draft.total > 0,
                 onSave = {
                     val snapshot = signature()
                     val deck = draft.toDeck(name)
@@ -337,6 +369,8 @@ fun DeckBuilderScreen(
         CardViewer(cards, index, draft, format == Engine.Format.Commander) { viewing = null }
     }
 
+    if (exporting) ExportDialog(name, draft) { exporting = false }
+
     if (importing) {
         ImportDialog(
             commanderFormat = format == Engine.Format.Commander,
@@ -357,6 +391,8 @@ private fun Header(
     format: Engine.Format,
     onBack: () -> Unit,
     onImport: () -> Unit,
+    onExport: () -> Unit,
+    canExport: Boolean,
     onSave: () -> Unit,
     canSave: Boolean,
     saveLabel: String,
@@ -371,6 +407,7 @@ private fun Header(
             modifier = Modifier.weight(1f),
         )
         OrnateButton("Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
+        OrnateButton("Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
         OrnateButton(saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
     }
 }
@@ -409,11 +446,12 @@ private fun CardSearch(
     var searching by remember { mutableStateOf(false) }
     val prices by CardPrices.version.collectAsState()
 
-    LaunchedEffect(query, filter, prices) {
+    val deckNames = (draft.commander.keys + draft.main.keys).map { it.name }.toSet()
+    LaunchedEffect(query, filter, prices, if (filter.within == Within.Deck) deckNames else null) {
         delay(250) // debounce typing
         searching = true
         val (found, count) = withContext(Dispatchers.Default) {
-            runCatching { filter.search(query) }.getOrElse { emptyList<PaperCard>() to 0 }
+            runCatching { filter.search(query, deck = deckNames, collection = CardCollection.names()) }.getOrElse { emptyList<PaperCard>() to 0 }
         }
         results = found
         total = count
@@ -444,6 +482,8 @@ private fun CardSearch(
             OrnateButton(
                 if (active > 0) "Filters · $active" else "Filters", onOpenFilters,
                 icon = Icons.Default.Tune, accent = Palette.Plum, frameColor = Palette.Plum, height = 56.dp,
+                // Long press: put the results aside and look at the deck.
+                onLongClick = { showDeck = true },
             )
         }
         Spacer(Modifier.height(8.dp))
@@ -464,6 +504,17 @@ private fun CardSearch(
         }
         Spacer(Modifier.height(6.dp))
         val idle = query.isBlank() && filter.activeCount == 0
+        // Pinch to zoom the card grids: fewer, bigger cards (down to 5 columns on a wide screen).
+        var zoomSteps by remember { mutableIntStateOf(0) }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val base = ((maxWidth + 8.dp) / 126.dp).toInt().coerceAtLeast(1)
+        val fewest = if (base > 5) 5 else (base - 2).coerceAtLeast(2).coerceAtMost(base)
+        val columns = (base - zoomSteps).coerceIn(fewest, base)
+        val tile = (maxWidth - 8.dp * (columns - 1)) / columns
+        Column(Modifier.fillMaxSize().pinchColumns(
+            onZoomIn = { if (columns > fewest) zoomSteps = base - columns + 1 },
+            onZoomOut = { if (columns < base) zoomSteps = base - columns - 1 },
+        )) {
         // With nothing searched (or "Your deck" picked) the cards shown are the deck itself.
         if ((idle || showDeck) && (draft.total > 0 || commanderFormat)) {
             if (!idle) {
@@ -473,7 +524,7 @@ private fun CardSearch(
                 }
                 Spacer(Modifier.height(4.dp))
             }
-            DeckGallery(draft, commanderFormat, onOpen, Modifier.fillMaxSize())
+            DeckGallery(draft, commanderFormat, onOpen, Modifier.fillMaxSize(), columns, tile)
             return@Column
         }
         if (total > 0) {
@@ -490,7 +541,7 @@ private fun CardSearch(
         }
         Box(Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                GridCells.Adaptive(118.dp),
+                GridCells.Fixed(columns),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -500,13 +551,13 @@ private fun CardSearch(
                     val price = remember(card, prices) { CardPrices.of(card) }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.tapOrHold(card.name, onTap = { onOpen(results, index) }, onHold = { h, _ -> held = h })) {
-                            CardTile(ui, 118.dp, showTapped = false)
+                            CardTile(ui, tile, showTapped = false)
                             if (commanderFormat && canLead(card)) {
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
                             }
                             HoldZoom(ui, held, caption = price?.let(::zoomCaption))
                         }
-                        Row(Modifier.width(118.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.width(tile), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
                             Icon(
                                 Icons.Default.Add, "Add to deck",
@@ -524,6 +575,8 @@ private fun CardSearch(
                     Modifier.align(Alignment.Center), color = Palette.InkSoft,
                 )
             }
+        }
+        }
         }
     }
 }
@@ -571,6 +624,70 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 
 private enum class SidePanel { Filters, List }
 
+/** Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. */
+private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        var scale = 1f
+        do {
+            val event = awaitPointerEvent()
+            if (event.changes.count { it.pressed } >= 2) {
+                scale *= event.calculateZoom()
+                if (scale > 1.2f) { onZoomIn(); scale = 1f }
+                if (scale < 0.83f) { onZoomOut(); scale = 1f }
+                event.changes.forEach { it.consume() }
+            }
+        } while (event.changes.any { it.pressed })
+    }
+}
+
+/** The deck as a plain list ("1 Name (SET) 123"), readable by Moxfield, Archidekt and our importer. */
+private fun deckText(draft: DeckDraft): String = buildString {
+    fun line(card: PaperCard, n: Int) {
+        append(n).append(' ').append(card.name).append(" (").append(card.edition).append(')')
+        card.collectorNumber?.takeIf { it.isNotBlank() && it != "0" }?.let { append(' ').append(it) }
+        append('\n')
+    }
+    if (draft.commander.isNotEmpty()) {
+        append("Commander\n")
+        draft.commander.forEach { (c, n) -> line(c, n) }
+        append('\n')
+    }
+    append("Deck\n")
+    draft.ordered().filter { it in draft.main }.forEach { line(it, draft.main[it] ?: 0) }
+}
+
+@Composable
+private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    var done by remember { mutableStateOf<String?>(null) }
+    val text = remember { deckText(draft) }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } }
+                .onSuccess { done = "Saved." }.onFailure { done = "Couldn't save: ${it.message}" }
+        }
+    }
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 520.dp) {
+        SectionLabel("Export deck")
+        Spacer(Modifier.height(8.dp))
+        Text("${draft.total} cards as a plain list, ready for Moxfield, Archidekt, ManaBox or a friend.",
+            style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OrnateButton("Copy list", { clipboard.setText(AnnotatedString(text)); done = "Copied to the clipboard." },
+                Modifier.weight(1f), icon = Icons.Default.ContentCopy, accent = Palette.Slate)
+            OrnateButton("Save .txt", { save.launch("${name.ifBlank { "deck" }}.txt") },
+                Modifier.weight(1f), icon = Icons.Default.Save, style = OrnateStyle.Primary)
+        }
+        done?.let {
+            Spacer(Modifier.height(10.dp))
+            Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Sage)
+        }
+    }
+}
+
 /** One line over the cards: size, legality, value, and the button for the compact list. */
 @Composable
 private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?, listOpen: Boolean, onList: () -> Unit) {
@@ -607,17 +724,22 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
 
 /** The deck as card images, grouped like the list, with copies and −/+ under each card. */
 @Composable
-private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, onOpen: (List<PaperCard>, Int) -> Unit, modifier: Modifier) {
+private fun DeckGallery(
+    draft: DeckDraft,
+    commanderFormat: Boolean,
+    onOpen: (List<PaperCard>, Int) -> Unit,
+    modifier: Modifier,
+    columns: Int,
+    tile: Dp,
+) {
     val main = draft.main.entries.map { it.key to it.value }
-    val groups = listOf(
-        "Commander" to draft.commander.entries.map { it.key to it.value },
-        "Creatures" to main.filter { it.first.rules.type.isCreature },
-        "Spells" to main.filter { !it.first.rules.type.isCreature && !it.first.rules.type.isLand },
-        "Lands" to main.filter { it.first.rules.type.isLand },
-    ).filter { it.second.isNotEmpty() }
+    val groups = (
+        listOf("Commander" to draft.commander.entries.map { it.key to it.value }) +
+            TYPE_GROUPS.map { group -> group to main.filter { typeGroup(it.first) == group } }
+        ).filter { it.second.isNotEmpty() }
 
     LazyVerticalGrid(
-        GridCells.Adaptive(118.dp),
+        GridCells.Fixed(columns),
         modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -643,7 +765,7 @@ private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, onOpen: (Lis
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
                     Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h })) {
-                        CardTile(ui, 118.dp, showTapped = false)
+                        CardTile(ui, tile, showTapped = false)
                         if (n > 1) {
                             Text(
                                 "×$n",
@@ -657,7 +779,7 @@ private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, onOpen: (Lis
                         }
                         HoldZoom(ui, held, caption = price?.let(::zoomCaption))
                     }
-                    Row(Modifier.width(118.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.width(tile), verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Remove, "Remove one",
                             Modifier.size(30.dp).clickable { draft.remove(card, fromCommander = commander) }.padding(4.dp),
@@ -776,11 +898,7 @@ private fun DeckList(
     val commander = format == Engine.Format.Commander
     val target = if (commander) 100 else 60
     val main = draft.main.entries.toList()
-    val groups = listOf(
-        "Creatures" to main.filter { it.key.rules.type.isCreature },
-        "Spells" to main.filter { !it.key.rules.type.isCreature && !it.key.rules.type.isLand },
-        "Lands" to main.filter { it.key.rules.type.isLand },
-    )
+    val groups = TYPE_GROUPS.map { group -> group to main.filter { typeGroup(it.key) == group } }
 
     val prices by CardPrices.version.collectAsState()
     val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
