@@ -22,6 +22,7 @@ import io.github.nmanuelides.mtgreforged.match.ComposeGuiGame
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import java.io.File
 import java.util.Locale
 
@@ -38,6 +39,15 @@ object Engine {
 
     private val _status = MutableStateFlow<Status>(Status.NotStarted)
     val status: StateFlow<Status> = _status.asStateFlow()
+
+    /**
+     * Progress updates arrive from several threads (and Forge queues some onto the UI
+     * thread), so a late one could land after Ready and leave the boot screen up forever
+     * on slower devices. Once Ready, progress updates are ignored.
+     */
+    private fun reportProgress(status: Status) {
+        _status.update { current -> if (current == Status.Ready) current else status }
+    }
 
     private lateinit var gui: AndroidGui
 
@@ -90,7 +100,7 @@ object Engine {
             // Unpacking the data is the first ~40% of a fresh boot.
             installer.install {
                 BootProgress.advance(it * 0.4f)
-                _status.value = Status.InstallingData(BootProgress.overall)
+                reportProgress(Status.InstallingData(BootProgress.overall))
             }
             BootProgress.engineStart = 0.4f
         }
@@ -108,7 +118,7 @@ object Engine {
                 val byTime = (SystemClock.uptimeMillis() - engineStartedAt).toFloat() / expected
                 val engine = minOf(0.95f, maxOf(byTime, BootProgress.forgeFraction * 0.6f))
                 BootProgress.advance(BootProgress.engineStart + (1f - BootProgress.engineStart) * engine)
-                _status.value = Status.Loading(BootProgress.step, BootProgress.overall)
+                reportProgress(Status.Loading(BootProgress.step, BootProgress.overall))
                 try { Thread.sleep(100) } catch (e: InterruptedException) { break }
             }
         }, "Boot progress").apply { isDaemon = true; start() }
@@ -126,6 +136,7 @@ object Engine {
             null
         }
         ticker.interrupt()
+        ticker.join(1_000)
         BootProgress.remember(context, SystemClock.uptimeMillis() - engineStartedAt)
         BootProgress.advance(1f)
         // Warm up every sound effect so the first play of each isn't lost to async loading.
