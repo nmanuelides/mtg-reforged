@@ -274,7 +274,7 @@ private fun Title(color: Color) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OrnateDivider(width = 80.dp, color = color)
             Text(
-                "  Forge engine ${BuildConfig.VERSION_NAME.substringBefore('-')}  ",
+                "  v${BuildConfig.VERSION_NAME} (build ${BuildConfig.BUILD_NUMBER}) · Forge engine ${BuildConfig.ENGINE_VERSION}  ",
                 style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft,
             )
             OrnateDivider(width = 80.dp, color = color)

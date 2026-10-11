@@ -90,7 +90,12 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/mtg-reforged-${{ steps.merge.outputs.version_code }}.apk"
+          # Gradle names it mtg-reforged-v<version>-b<build>.apk (see app/build.gradle.kts).
+          apk=$(ls dist/mtg-reforged-v*.apk | head -1)
+          cp "$apk" "$RUNNER_TEMP/"
+          echo "APK_FILE=$(basename "$apk")" >> "$GITHUB_ENV"
+          label=$(basename "$apk" .apk); label=${label#mtg-reforged-}
+          echo "APP_LABEL=${label/-b/ (build }" >> "$GITHUB_ENV"
 
       - name: Publish release
         if: steps.check.outputs.skip != 'true'
@@ -98,9 +103,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           code=${{ steps.merge.outputs.version_code }}
-          gh release create "build-$code" "$RUNNER_TEMP/mtg-reforged-$code.apk" \
+          # The tag stays build-<code>: installed apps read the build number from it to update.
+          gh release create "build-$code" "$RUNNER_TEMP/$APK_FILE" \
             --target "${{ github.sha }}" \
-            --title "MTG Reforged build $code" \
+            --title "MTG Reforged $APP_LABEL)" \
             --notes "Forge upstream ${{ steps.merge.outputs.upstream_sha }} merged into the fork.
 
           ${{ steps.check.outputs.marker }}" \

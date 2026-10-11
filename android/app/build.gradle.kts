@@ -18,6 +18,14 @@ val commitCount = git("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
 val commitSha = git("rev-parse", "--short=10", "HEAD").ifEmpty { "unknown" }
 val upstreamVersion: String = Regex("<versionCode>(.+)</versionCode>")
     .find(repoRoot.resolve("pom.xml").readText())?.groupValues?.get(1) ?: "0"
+// Our own semantic version (android/version.properties); the build number is the commit count.
+val appVersion: String = Regex("(?m)^version=(.+)$")
+    .find(rootProject.file("version.properties").readText())?.groupValues?.get(1)?.trim() ?: "0.0.0"
+// Commits on top of Forge's history when this fork started; build numbers count from there.
+// (versionCode stays the full count so installed apps keep updating.)
+val forkBase = 75237
+val buildNumber = (commitCount - forkBase).coerceAtLeast(1)
+val apkName = "mtg-reforged-v$appVersion-b$buildNumber.apk"
 
 android {
     namespace = "io.github.nmanuelides.mtgreforged"
@@ -28,9 +36,11 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = commitCount
-        versionName = "$upstreamVersion-$commitSha"
+        versionName = appVersion
 
         buildConfigField("String", "ENGINE_COMMIT", "\"$commitSha\"")
+        buildConfigField("String", "ENGINE_VERSION", "\"$upstreamVersion\"")
+        buildConfigField("int", "BUILD_NUMBER", "$buildNumber")
         buildConfigField("String", "UPDATE_REPO", "\"nmanuelides/mtg-reforged\"")
     }
 
@@ -152,3 +162,11 @@ dependencies {
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 }
+
+// Every release build also lands in android/dist as mtg-reforged-v<version>-b<build>.apk.
+val distRelease by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.file("outputs/apk/release/app-release.apk"))
+    into(rootProject.layout.projectDirectory.dir("dist"))
+    rename { apkName }
+}
+tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(distRelease) }
