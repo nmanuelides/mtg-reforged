@@ -1,5 +1,13 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.DropdownMenuItem
@@ -279,15 +287,28 @@ fun DeckBuilderScreen(
                 ) { draft.add(it) }
             }
             if (wide) {
-                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // The panel slides in from the right while its width grows, so the cards shrink with it.
+                var shownPanel by remember { mutableStateOf(panel) }
+                if (panel != null) shownPanel = panel
+                Row(Modifier.fillMaxSize()) {
                     cards(Modifier.weight(1f).fillMaxHeight())
-                    when (panel) {
-                        SidePanel.Filters -> FilterPanel(
-                            filter, { filter = it }, matches, onDone = { panel = null },
-                            Modifier.width(460.dp).fillMaxHeight().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
-                        )
-                        SidePanel.List -> DeckList(draft, format, problem, open, Modifier.width(460.dp).fillMaxHeight(), onClose = { panel = null })
-                        null -> Unit
+                    AnimatedVisibility(
+                        visible = panel != null,
+                        enter = expandHorizontally(tween(320), expandFrom = Alignment.Start) +
+                            slideInHorizontally(tween(320)) { it / 2 } + fadeIn(tween(220)),
+                        exit = shrinkHorizontally(tween(280), shrinkTowards = Alignment.Start) +
+                            slideOutHorizontally(tween(280)) { it / 2 } + fadeOut(tween(200)),
+                    ) {
+                        Box(Modifier.padding(start = 12.dp).width(460.dp).fillMaxHeight()) {
+                            when (shownPanel) {
+                                SidePanel.Filters -> FilterPanel(
+                                    filter, { filter = it }, matches, onDone = { panel = null },
+                                    Modifier.fillMaxSize().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
+                                )
+                                SidePanel.List -> DeckList(draft, format, problem, open, Modifier.fillMaxSize(), onClose = { panel = null })
+                                null -> Unit
+                            }
+                        }
                     }
                 }
             } else {
