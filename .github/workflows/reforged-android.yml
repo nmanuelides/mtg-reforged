@@ -19,6 +19,11 @@ on:
 permissions:
   contents: write
 
+# This repo is a fork with an `upstream` remote; without this gh resolves releases
+# against Card-Forge/forge instead of the fork.
+env:
+  GH_REPO: ${{ github.repository }}
+
 concurrency:
   group: reforged-android
   cancel-in-progress: false
