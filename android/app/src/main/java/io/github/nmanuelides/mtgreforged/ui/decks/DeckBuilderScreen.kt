@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -82,11 +84,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val COLOR_FILTERS = listOf(
-    "W" to MagicColor.WHITE, "U" to MagicColor.BLUE, "B" to MagicColor.BLACK,
-    "R" to MagicColor.RED, "G" to MagicColor.GREEN,
-)
-private val TYPE_FILTERS = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land")
+private val QUICK_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land")
 
 /** Editable deck: copies per card, split into the command zone and the main deck. */
 private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
@@ -159,6 +157,10 @@ fun DeckBuilderScreen(
     var name by remember { mutableStateOf(initial?.name ?: "New deck") }
     var importing by remember { mutableStateOf(importFirst) }
     var problem by remember { mutableStateOf<String?>(null) }
+    var filter by remember { mutableStateOf(CardFilter()) }
+    var filtering by remember { mutableStateOf(false) }
+    var wideLayout by remember { mutableStateOf(true) }
+    var matches by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     BackHandler { onDone(null) }
 
@@ -178,6 +180,7 @@ fun DeckBuilderScreen(
 
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
+        wideLayout = wide
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
             Header(
                 name = name, onName = { name = it }, format = format,
@@ -194,14 +197,28 @@ fun DeckBuilderScreen(
             Spacer(Modifier.height(10.dp))
             if (wide) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardSearch(Modifier.weight(0.58f).fillMaxHeight()) { draft.add(it) }
-                    DeckList(draft, format, problem, Modifier.weight(0.42f).fillMaxHeight())
+                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
+                    // On tablets the filters take the deck's place, so results update beside them.
+                    if (filtering) {
+                        FilterPanel(
+                            filter, { filter = it }, matches, onDone = { filtering = false },
+                            Modifier.weight(0.42f).fillMaxHeight().background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
+                        )
+                    } else {
+                        DeckList(draft, format, problem, Modifier.weight(0.42f).fillMaxHeight())
+                    }
                 }
             } else {
-                CardSearch(Modifier.fillMaxWidth().weight(0.55f)) { draft.add(it) }
+                CardSearch(Modifier.fillMaxWidth().weight(0.55f), filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
                 Spacer(Modifier.height(8.dp))
                 DeckList(draft, format, problem, Modifier.fillMaxWidth().weight(0.45f))
             }
+        }
+    }
+
+    if (filtering && !wideLayout) {
+        OrnateDialog(onDismiss = { filtering = false }, maxWidth = 640.dp) {
+            FilterPanel(filter, { filter = it }, matches, onDone = { filtering = false }, Modifier.heightIn(max = 640.dp))
         }
     }
 
@@ -242,7 +259,7 @@ private fun Header(
 }
 
 @Composable
-private fun fieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = Palette.Terracotta, unfocusedBorderColor = Palette.Line,
     focusedContainerColor = Palette.PaperLight, unfocusedContainerColor = Palette.PaperLight,
     focusedTextColor = Palette.Ink, unfocusedTextColor = Palette.Ink,
@@ -251,47 +268,79 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 // ---- Search ------------------------------------------------------------------------
 
 @Composable
-private fun CardSearch(modifier: Modifier, onAdd: (PaperCard) -> Unit) {
+private fun CardSearch(
+    modifier: Modifier,
+    filter: CardFilter,
+    onFilter: (CardFilter) -> Unit,
+    onOpenFilters: () -> Unit,
+    onCount: (Int) -> Unit,
+    onAdd: (PaperCard) -> Unit,
+) {
     var query by remember { mutableStateOf("") }
-    val colors = remember { mutableStateListOf<Byte>() }
-    val types = remember { mutableStateListOf<String>() }
     var results by remember { mutableStateOf<List<PaperCard>>(emptyList()) }
+    var total by remember { mutableIntStateOf(0) }
     var searching by remember { mutableStateOf(false) }
 
-    LaunchedEffect(query, colors.toList(), types.toList()) {
+    LaunchedEffect(query, filter) {
         delay(250) // debounce typing
         searching = true
-        results = withContext(Dispatchers.Default) { search(query, colors.toSet(), types.toSet()) }
+        val (found, count) = withContext(Dispatchers.Default) {
+            runCatching { filter.search(query) }.getOrElse { emptyList<PaperCard>() to 0 }
+        }
+        results = found
+        total = count
+        onCount(count)
         searching = false
     }
 
     Column(modifier.background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
-        OutlinedTextField(
-            query, { query = it }, singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
-            placeholder = { Text("Search cards by name or rules text", style = MaterialTheme.typography.bodyMedium) },
-            textStyle = MaterialTheme.typography.bodyLarge,
-            colors = fieldColors(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            COLOR_FILTERS.forEach { (label, color) ->
-                Chip(label, color in colors) { if (color in colors) colors.remove(color) else colors.add(color) }
-            }
-            Spacer(Modifier.width(6.dp))
-            TYPE_FILTERS.forEach { type ->
-                Chip(type.take(5), type in types) { if (type in types) types.remove(type) else types.add(type) }
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                query, { query = it }, singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+                placeholder = {
+                    Text(if (filter.exactName) "Exact card name" else "Search cards by name or rules text", style = MaterialTheme.typography.bodyMedium)
+                },
+                textStyle = MaterialTheme.typography.bodyLarge,
+                colors = fieldColors(),
+                modifier = Modifier.weight(1f),
+            )
+            val active = filter.activeCount
+            OrnateButton(
+                if (active > 0) "Filters · $active" else "Filters", onOpenFilters,
+                icon = Icons.Default.Tune, accent = Palette.Plum, frameColor = Palette.Plum, height = 56.dp,
+            )
         }
         Spacer(Modifier.height(8.dp))
+        // Quick toggles for the most used filters; the panel has the rest.
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterOptions.colors.forEach { (label, color) ->
+                Chip(label, color in filter.colors) {
+                    onFilter(filter.copy(colors = if (color in filter.colors) filter.colors - color else filter.colors + color))
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+            QUICK_TYPES.forEach { type ->
+                Chip(type.take(5), type in filter.types.values && filter.types.mode != GroupMode.Not) {
+                    onFilter(filter.copy(types = filter.types.toggle(type)))
+                }
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        if (total > 0) {
+            Text(
+                if (total > results.size) "Showing ${results.size} of $total cards" else "$total cards",
+                style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+            )
+            Spacer(Modifier.height(4.dp))
+        }
         Box(Modifier.fillMaxSize()) {
             LazyVerticalGrid(
                 GridCells.Adaptive(118.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(results, key = { it.name + it.edition }) { card ->
+                items(results, key = { "${it.name}|${it.edition}|${it.artIndex}" }) { card ->
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
                     Box(Modifier.tapOrHold(card.name, onTap = { onAdd(card) }, onHold = { h, _ -> held = h })) {
@@ -302,14 +351,17 @@ private fun CardSearch(modifier: Modifier, onAdd: (PaperCard) -> Unit) {
             }
             if (searching) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Palette.Terracotta)
             if (!searching && results.isEmpty()) {
-                Text("No cards match.", Modifier.align(Alignment.Center), color = Palette.InkSoft)
+                Text(
+                    if (query.isBlank() && filter.activeCount == 0) "Type a name or pick filters." else "No cards match.",
+                    Modifier.align(Alignment.Center), color = Palette.InkSoft,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick: () -> Unit) {
     Text(
         label,
         Modifier
@@ -317,24 +369,9 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
             .ornateFrame(if (selected) Palette.OnAccent.copy(alpha = 0.6f) else Palette.Line, inset = 2.dp, corners = false)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 5.dp),
-        fontFamily = Cinzel, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        fontFamily = Cinzel, fontSize = fontSize.sp, fontWeight = FontWeight.Bold,
         color = if (selected) Palette.OnAccent else Palette.InkSoft,
     )
-}
-
-private fun search(query: String, colors: Set<Byte>, types: Set<String>): List<PaperCard> {
-    val q = query.trim().lowercase()
-    if (q.length < 2 && colors.isEmpty() && types.isEmpty()) return emptyList()
-    return StaticData.instance().commonCards.uniqueCards.asSequence()
-        .filter { card ->
-            val rules = card.rules
-            (q.isEmpty() || q in card.name.lowercase() || q in rules.oracleText.orEmpty().lowercase()) &&
-                (colors.isEmpty() || colors.all { rules.color.hasAnyColor(it.toInt()) }) &&
-                (types.isEmpty() || types.any { rules.type.toString().contains(it) })
-        }
-        .sortedWith(compareBy({ !it.name.lowercase().startsWith(q) }, { it.name }))
-        .take(240)
-        .toList()
 }
 
 // ---- Deck list ---------------------------------------------------------------------

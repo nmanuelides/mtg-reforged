@@ -1,0 +1,346 @@
+package io.github.nmanuelides.mtgreforged.ui.decks
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import forge.card.CardRarity
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
+import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+private val RARITY_LABELS = mapOf(
+    CardRarity.Common to "Common", CardRarity.Uncommon to "Uncommon", CardRarity.Rare to "Rare",
+    CardRarity.MythicRare to "Mythic", CardRarity.Special to "Special",
+)
+
+/**
+ * Every search option in one scrolling panel: general switches and sort on top, then the
+ * linked filters (all must match), each collapsed to a one-line summary until opened.
+ */
+@Composable
+fun FilterPanel(
+    filter: CardFilter,
+    onChange: (CardFilter) -> Unit,
+    matches: Int,
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var open by rememberSaveable { mutableStateOf(setOf<String>()) }
+    fun section(key: String) = key in open
+    fun toggle(key: String) { open = if (key in open) open - key else open + key }
+
+    Column(modifier) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            SectionLabel("General", Modifier.fillMaxWidth())
+            ToggleRow("Exact-name match", "Match the card name exactly, from beginning to end.", filter.exactName) {
+                onChange(filter.copy(exactName = it))
+            }
+            ToggleRow("Hide duplicates", "Show one printing of each card, even if there are several versions.", filter.hideDuplicates) {
+                onChange(filter.copy(hideDuplicates = it))
+            }
+            FilterRow("Sort by", "How results are ordered", "${filter.sort.label} ${if (filter.descending) "↓" else "↑"}", section("sort"), { toggle("sort") }) {
+                ChipFlow {
+                    SortBy.entries.forEach { s -> Chip(s.label, filter.sort == s) { onChange(filter.copy(sort = s)) } }
+                }
+                Spacer(Modifier.height(6.dp))
+                ChipFlow {
+                    Chip("Ascending ↑", !filter.descending) { onChange(filter.copy(descending = false)) }
+                    Chip("Descending ↓", filter.descending) { onChange(filter.copy(descending = true)) }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            SectionLabel("Filters · linked", Modifier.fillMaxWidth())
+
+            val colorSummary = (filter.colors.map { c -> FilterOptions.colors.first { it.second == c }.first } +
+                listOfNotNull("C".takeIf { filter.colorless })).joinToString("")
+            FilterRow(
+                "Colors", "Colors of a spell or creature",
+                if (colorSummary.isEmpty()) null else "${filter.colorMode.label} $colorSummary",
+                section("colors"), { toggle("colors") }, onClear = { onChange(filter.copy(colors = emptySet(), colorless = false)) },
+            ) {
+                ChipFlow {
+                    FilterOptions.colors.forEach { (label, c) ->
+                        Chip(label, c in filter.colors) { onChange(filter.copy(colors = filter.colors.toggle(c))) }
+                    }
+                    Chip("C", filter.colorless) { onChange(filter.copy(colorless = !filter.colorless)) }
+                }
+                Spacer(Modifier.height(6.dp))
+                ChipFlow {
+                    ColorMode.entries.forEach { m -> Chip(m.label, filter.colorMode == m) { onChange(filter.copy(colorMode = m)) } }
+                }
+            }
+            FilterRow(
+                "Color identity", "Commander colors: cards that fit within them",
+                filter.identity.takeIf { it.isNotEmpty() }?.joinToString("") { c -> FilterOptions.colors.first { it.second == c }.first },
+                section("identity"), { toggle("identity") }, onClear = { onChange(filter.copy(identity = emptySet())) },
+            ) {
+                ChipFlow {
+                    FilterOptions.colors.forEach { (label, c) ->
+                        Chip(label, c in filter.identity) { onChange(filter.copy(identity = filter.identity.toggle(c))) }
+                    }
+                }
+            }
+            FilterRow(
+                "Sets / Editions", null, filter.sets.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                section("sets"), { toggle("sets") }, onClear = { onChange(filter.copy(sets = emptySet())) },
+            ) {
+                Picker({ FilterOptions.sets }, filter.sets, "Search sets by name or code") {
+                    onChange(filter.copy(sets = filter.sets.toggle(it)))
+                }
+            }
+            GroupRow("Keywords", "'Flying', 'Haste'…", filter.keywords, section("keywords"), { toggle("keywords") },
+                { onChange(filter.copy(keywords = it)) }) { group, set ->
+                Picker({ FilterOptions.keywords.map { it to it } }, group.values, "Search keywords") { set(group.toggle(it)) }
+            }
+            FilterRow(
+                "Legality", "Legal in a format", filter.legality,
+                section("legality"), { toggle("legality") }, onClear = { onChange(filter.copy(legality = null)) },
+            ) {
+                val formats by produceState(emptyList<String>()) { value = withContext(Dispatchers.Default) { FilterOptions.formats } }
+                ChipFlow {
+                    formats.forEach { f -> Chip(f, filter.legality == f) { onChange(filter.copy(legality = f.takeIf { filter.legality != f })) } }
+                }
+            }
+            FilterRow(
+                "Mana cost", "Exact casting cost & symbols", filter.manaCost.ifBlank { null },
+                section("cost"), { toggle("cost") }, onClear = { onChange(filter.copy(manaCost = "")) },
+            ) {
+                TextFilter(filter.manaCost, "e.g. {2}{G}{G} or 2GG") { onChange(filter.copy(manaCost = it)) }
+            }
+            NumberRow("Mana value", "Total cost to cast a spell", filter.manaValue, section("mv"), { toggle("mv") }) {
+                onChange(filter.copy(manaValue = it))
+            }
+            FilterRow(
+                "Text", "'Draw a card'…", filter.text.ifBlank { null },
+                section("text"), { toggle("text") }, onClear = { onChange(filter.copy(text = "")) },
+            ) {
+                TextFilter(filter.text, "Rules text contains…") { onChange(filter.copy(text = it)) }
+            }
+            GroupRow("Type", null, filter.types, section("type"), { toggle("type") }, { onChange(filter.copy(types = it)) }) { group, set ->
+                ChipFlow { FilterOptions.types.forEach { t -> Chip(t, t in group.values) { set(group.toggle(t)) } } }
+            }
+            GroupRow("Supertype", "Legendary, Basic, Snow…", filter.supertypes, section("super"), { toggle("super") },
+                { onChange(filter.copy(supertypes = it)) }) { group, set ->
+                ChipFlow { FilterOptions.supertypes.forEach { t -> Chip(t, t in group.values) { set(group.toggle(t)) } } }
+            }
+            GroupRow("Subtype", "Elf, Equipment, Saga…", filter.subtypes, section("sub"), { toggle("sub") },
+                { onChange(filter.copy(subtypes = it)) }) { group, set ->
+                Picker({ FilterOptions.subtypes.map { it to it } }, group.values, "Search subtypes") { set(group.toggle(it)) }
+            }
+            NumberRow("Power", null, filter.power, section("power"), { toggle("power") }) { onChange(filter.copy(power = it)) }
+            NumberRow("Toughness", null, filter.toughness, section("tough"), { toggle("tough") }) { onChange(filter.copy(toughness = it)) }
+            FilterRow(
+                "Rarity", null, filter.rarities.takeIf { it.isNotEmpty() }?.joinToString(", ") { RARITY_LABELS[it].orEmpty() },
+                section("rarity"), { toggle("rarity") }, onClear = { onChange(filter.copy(rarities = emptySet())) },
+            ) {
+                ChipFlow {
+                    FilterOptions.rarities.forEach { r ->
+                        Chip(RARITY_LABELS[r] ?: r.name, r in filter.rarities) { onChange(filter.copy(rarities = filter.rarities.toggle(r))) }
+                    }
+                }
+            }
+            FilterRow(
+                "Artist", null, filter.artist.ifBlank { null },
+                section("artist"), { toggle("artist") }, onClear = { onChange(filter.copy(artist = "")) },
+            ) {
+                TextFilter(filter.artist, "Artist name") { onChange(filter.copy(artist = it)) }
+                val artists by produceState(emptyList<String>()) { value = withContext(Dispatchers.Default) { FilterOptions.artists } }
+                val q = filter.artist.trim()
+                if (q.length >= 2) {
+                    val hits = remember(q, artists) { artists.filter { q.lowercase() in it.lowercase() && !it.equals(q, true) }.take(6) }
+                    hits.forEach { a -> SuggestionRow(a, false) { onChange(filter.copy(artist = a)) } }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            OrnateButton(
+                "Clear all", { onChange(CardFilter(hideDuplicates = filter.hideDuplicates, sort = filter.sort, descending = filter.descending)) },
+                Modifier.weight(1f), accent = Palette.Slate, enabled = filter.activeCount > 0,
+            )
+            OrnateButton("Show $matches", onDone, Modifier.weight(1.3f), style = OrnateStyle.Primary)
+        }
+    }
+}
+
+private fun <T> Set<T>.toggle(value: T) = if (value in this) this - value else this + value
+
+@Composable
+private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+        }
+        Switch(
+            checked, onChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Palette.PaperLight, checkedTrackColor = Palette.Terracotta,
+                uncheckedThumbColor = Palette.InkSoft, uncheckedTrackColor = Palette.Paper, uncheckedBorderColor = Palette.Line,
+            ),
+        )
+    }
+}
+
+/** One filter: title and summary on a line, its controls underneath while open. */
+@Composable
+private fun FilterRow(
+    title: String,
+    subtitle: String?,
+    summary: String?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onClear: (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft) }
+            }
+            Text(
+                summary ?: "Select",
+                Modifier.weight(1f, fill = false).padding(start = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (summary != null) Palette.Terracotta else Palette.InkSoft,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (summary != null && onClear != null) {
+                Icon(Icons.Default.Close, "Clear", Modifier.padding(start = 6.dp).clickable(onClick = onClear), tint = Palette.Terracotta)
+            }
+            Icon(if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, tint = Palette.InkSoft)
+        }
+        AnimatedVisibility(expanded) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) { content() }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line.copy(alpha = 0.5f)))
+    }
+}
+
+/** A filter over a group of values with an Any / All / None-of switch. */
+@Composable
+private fun GroupRow(
+    title: String,
+    subtitle: String?,
+    group: Group,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onChange: (Group) -> Unit,
+    content: @Composable (Group, (Group) -> Unit) -> Unit,
+) {
+    val summary = group.values.takeIf { it.isNotEmpty() }?.let {
+        (if (group.mode == GroupMode.Not) "NOT " else "") + it.joinToString(if (group.mode == GroupMode.Any) " or " else ", ")
+    }
+    FilterRow(title, subtitle, summary, expanded, onToggle, onClear = { onChange(group.copy(values = emptySet())) }) {
+        ChipFlow { GroupMode.entries.forEach { m -> Chip(m.label, group.mode == m) { onChange(group.copy(mode = m)) } } }
+        Spacer(Modifier.height(8.dp))
+        content(group, onChange)
+    }
+}
+
+@Composable
+private fun NumberRow(title: String, subtitle: String?, value: NumberFilter?, expanded: Boolean, onToggle: () -> Unit, onChange: (NumberFilter?) -> Unit) {
+    FilterRow(title, subtitle, value?.toString(), expanded, onToggle, onClear = { onChange(null) }) {
+        var op by remember { mutableStateOf(value?.op ?: NumberFilter.Op.EQ) }
+        var text by remember { mutableStateOf(value?.value?.toString().orEmpty()) }
+        fun emit() = onChange(text.toIntOrNull()?.let { NumberFilter(op, it) })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ChipFlow(Modifier.weight(1f)) {
+                NumberFilter.Op.entries.forEach { o -> Chip(" ${o.symbol} ", op == o, fontSize = 18) { op = o; emit() } }
+            }
+            Spacer(Modifier.width(10.dp))
+            OutlinedTextField(
+                text, { t -> text = t.filter(Char::isDigit).take(2); emit() },
+                singleLine = true, placeholder = { Text("0") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
+                modifier = Modifier.width(90.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TextFilter(value: String, placeholder: String, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value, onChange, singleLine = true,
+        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
+        textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+/** Searchable multi-select: picked values as chips, matches listed as you type. */
+@Composable
+private fun Picker(options: () -> List<Pair<String, String>>, selected: Set<String>, placeholder: String, onToggle: (String) -> Unit) {
+    val all by produceState(emptyList<Pair<String, String>>()) { value = withContext(Dispatchers.Default) { options() } }
+    var query by remember { mutableStateOf("") }
+    if (selected.isNotEmpty()) {
+        ChipFlow { selected.forEach { v -> Chip("$v ×", true) { onToggle(v) } } }
+        Spacer(Modifier.height(6.dp))
+    }
+    TextFilter(query, placeholder) { query = it }
+    val q = query.trim().lowercase()
+    val hits = remember(q, all) {
+        if (q.isEmpty()) all.take(8) else all.filter { (k, label) -> q in label.lowercase() || k.equals(q, true) }.take(8)
+    }
+    hits.forEach { (key, label) -> SuggestionRow(label, key in selected) { onToggle(key) } }
+}
+
+@Composable
+private fun SuggestionRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        (if (selected) "✓  " else "") + label,
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 9.dp, horizontal = 6.dp),
+        style = MaterialTheme.typography.bodyLarge,
+        color = if (selected) Palette.Terracotta else Palette.Ink,
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChipFlow(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    FlowRow(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+}
