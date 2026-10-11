@@ -24,6 +24,14 @@ data class DeckSummary(
     companion object {
         private val bracket = Regex("""\s*\[([^\]]+)]""")
 
+        private val cache = java.util.concurrent.ConcurrentHashMap<String, DeckSummary>()
+
+        /** [of], remembered until the deck file or the prices change (lists show many decks). */
+        fun cached(entry: Engine.DeckEntry): DeckSummary {
+            val key = "${entry.file.path}|${entry.file.lastModified()}|${CardPrices.version.value}"
+            return cache.getOrPut(key) { of(entry) }
+        }
+
         fun of(entry: Engine.DeckEntry): DeckSummary {
             val deck = Engine.loadDeck(entry)
             val commanders = deck.commanders.orEmpty()

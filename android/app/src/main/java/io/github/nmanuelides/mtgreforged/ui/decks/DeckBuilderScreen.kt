@@ -218,7 +218,7 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
     }
 }
 
-internal fun CardUi.Companion.fromPaper(card: PaperCard): CardUi {
+fun CardUi.Companion.fromPaper(card: PaperCard): CardUi {
     val rules = card.rules
     return CardUi(
         id = System.identityHashCode(card),

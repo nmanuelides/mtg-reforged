@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.runtime.snapshotFlow
 import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
 import io.github.nmanuelides.mtgreforged.ui.components.paper
@@ -521,15 +526,31 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
                 }
                 Text(
                     player.name + if (player.hasLost) " (out)" else "",
+                    Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     color = if (player.isActive) Palette.Terracotta else Palette.Ink,
                 )
+                // Zones sit right next to the name, as proper buttons.
+                Spacer(Modifier.width(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ZoneButton(Icons.Default.PanTool, "Hand", player.handSize, compact) {}
+                    ZoneButton(Icons.Default.Layers, "Library", player.librarySize, compact) {}
+                    ZoneButton(Icons.Default.Delete, "Grave", player.graveyard.size, compact) {
+                        actions.onZone("${player.name}'s graveyard", player.graveyard)
+                    }
+                    if (player.exile.isNotEmpty()) {
+                        ZoneButton(Icons.Default.Block, "Exile", player.exile.size, compact) { actions.onZone("${player.name}'s exile", player.exile) }
+                    }
+                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ZoneCount("Hand", player.handSize) {}
-                ZoneCount("Library", player.librarySize) {}
-                ZoneCount("Grave", player.graveyard.size) { actions.onZone("${player.name}'s graveyard", player.graveyard) }
-                if (player.exile.isNotEmpty()) ZoneCount("Exile", player.exile.size) { actions.onZone("${player.name}'s exile", player.exile) }
+            // This player's latest move, from the game log (newest entry that names them).
+            val lastAction = remember(state.log, player.name) { state.log.firstOrNull { player.name in it } }
+            if (lastAction != null) {
+                Text(
+                    lastAction,
+                    style = MaterialTheme.typography.labelSmall.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                    color = Palette.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
             if (player.commanderDamage.isNotEmpty()) {
                 Text(
@@ -554,13 +575,24 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
 }
 
 @Composable
-private fun ZoneCount(label: String, count: Int, onClick: () -> Unit) {
-    Text(
-        "$label $count",
-        Modifier.clickable(onClick = onClick),
-        style = MaterialTheme.typography.labelSmall,
-        color = Palette.TextSecondary,
-    )
+private fun ZoneButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, count: Int, compact: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .paperShadow(offsetY = 1.dp, blur = 3.dp, cover = Palette.Paper, darkness = 80)
+            .paper(Palette.Paper)
+            .ornateFrame(Palette.Line, inset = 2.dp, corners = false)
+            .clickable(onClick = onClick)
+            .padding(horizontal = if (compact) 6.dp else 9.dp, vertical = if (compact) 2.dp else 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, Modifier.size(if (compact) 13.dp else 16.dp), tint = Palette.InkSoft)
+        Spacer(Modifier.width(4.dp))
+        Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 14.sp, color = Palette.Ink)
+        if (!compact) {
+            Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+        }
+    }
 }
 
 @Composable

@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.ui.platform.LocalConfiguration
+import io.github.nmanuelides.mtgreforged.ui.decks.StalePriceWarning
+import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
+import io.github.nmanuelides.mtgreforged.ui.components.ManaSymbol
+import androidx.compose.material.icons.filled.Style
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -120,25 +125,27 @@ fun DeckBrowserScreen(
 ) {
     var index by remember(decks) { mutableIntStateOf(decks.indexOf(initial).coerceAtLeast(0)) }
     var searching by remember { mutableStateOf(false) }
+    var mineOnly by remember { mutableStateOf(false) }
+    var carousel by remember { mutableStateOf<Int?>(null) }
     BackHandler(onBack = onBack)
     val entry = decks.getOrNull(index) ?: return
 
     val prices by CardPrices.version.collectAsState()
     val summary by produceState<DeckSummary?>(null, entry, prices) {
-        value = withContext(Dispatchers.IO) { runCatching { DeckSummary.of(entry) }.getOrNull() }
+        value = withContext(Dispatchers.IO) { runCatching { DeckSummary.cached(entry) }.getOrNull() }
     }
 
     BoxWithConstraints(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp)) {
         val wide = maxWidth > maxHeight
         val content: @Composable (Modifier, Modifier) -> Unit = { artModifier, sheetModifier ->
-            ArtPanel(summary, artModifier)
+            ArtPanel(summary, artModifier.clickable { carousel = index })
             DeckSheet(
                 title = title,
                 summary = summary,
                 position = "${index + 1} / ${decks.size}",
                 onPrev = { index = (index - 1 + decks.size) % decks.size },
                 onNext = { index = (index + 1) % decks.size },
-                onSearch = { searching = true },
+                onSearch = { mineOnly = false; searching = true },
                 onBack = onBack,
                 onSelect = { onSelect(entry) },
                 wide = wide,
@@ -157,6 +164,11 @@ fun DeckBrowserScreen(
                             OrnateButton(
                                 "Import", onImport, Modifier.weight(1f), icon = Icons.Default.FileDownload,
                                 accent = Palette.Slate, frameColor = Palette.Slate, height = 44.dp,
+                            )
+                            OrnateButton(
+                                "My decks", { mineOnly = true; searching = true }, Modifier.weight(1f), icon = Icons.Default.Style,
+                                accent = Palette.Plum, frameColor = Palette.Plum, height = 44.dp,
+                                enabled = decks.any { it.custom },
                             )
                         }
                         // The player's own decks get a second row, so no label gets cut short.
@@ -190,7 +202,21 @@ fun DeckBrowserScreen(
     }
 
     if (searching) {
-        DeckSearchDialog(decks, onPick = { index = decks.indexOf(it); searching = false }, onDismiss = { searching = false })
+        DeckSearchDialog(
+            if (mineOnly) decks.filter { it.custom } else decks,
+            title = if (mineOnly) "My decks" else "Decks",
+            onPick = { index = decks.indexOf(it); searching = false },
+            onPreview = { searching = false; carousel = decks.indexOf(it) },
+            onDismiss = { searching = false },
+        )
+    }
+    carousel?.let { start ->
+        DeckCarousel(
+            decks, start,
+            onPage = { index = it },
+            onSelect = { carousel = null; onSelect(it) },
+            onDismiss = { carousel = null },
+        )
     }
 }
 
@@ -243,7 +269,7 @@ private fun DeckSheet(
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    summary?.let { SheetStats(it) }
+                    summary?.let { SheetStats(it); Spacer(Modifier.height(14.dp)); DeckFacts(it) }
                     Spacer(Modifier.weight(1f).height(18.dp))
                     manage()
                 }
@@ -273,6 +299,8 @@ private fun DeckSheet(
             Spacer(Modifier.height(12.dp))
             summary?.let { s ->
                 SheetStats(s)
+                Spacer(Modifier.height(12.dp))
+                DeckFacts(s)
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     s.featured.forEach { FeaturedCard(it, Modifier.weight(1f)) }
@@ -304,22 +332,37 @@ private fun SheetHeader(title: String, summary: DeckSummary?) {
             textAlign = TextAlign.Center,
             maxLines = 2,
         )
-        summary?.commander?.let {
-            Text(it, style = MaterialTheme.typography.titleLarge, color = Palette.Slate, textAlign = TextAlign.Center)
+    }
+}
+
+/** Commander, colours and value: under the stat bars, where there's room to show them big. */
+@Composable
+private fun DeckFacts(s: DeckSummary) {
+    Column(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 3.dp).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        s.commander?.let {
+            Column {
+                Text("COMMANDER", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                Text(it, style = MaterialTheme.typography.headlineSmall, color = Palette.Slate, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
         }
-        Spacer(Modifier.height(8.dp))
-        summary?.let { s ->
-            if (s.colors.isNotEmpty()) Pill(s.colors.joinToString(" • ") { COLOR_NAMES[it].orEmpty() }, colorOf(s.colors.first()))
-        }
-        Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OrnateDivider(width = 40.dp)
-            Text(
-                "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards" +
-                    (summary?.value?.takeIf { it > 0 }?.let { " · ${CardPrice.usd(it)}" } ?: "") + "  ",
-                style = MaterialTheme.typography.labelMedium, color = Palette.Terracotta,
-            )
-            OrnateDivider(width = 40.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (s.colors.isEmpty()) ManaSymbol(ManaPip.Colorless, 34.dp)
+                s.colors.forEach { ManaSymbol(ManaPip.of(it), 34.dp) }
+            }
+            Spacer(Modifier.weight(1f))
+            s.value?.takeIf { it > 0 }?.let { value ->
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(CardPrice.usd(value), style = MaterialTheme.typography.headlineMedium, color = Palette.Slate)
+                        if (CardPrices.stale) StalePriceWarning()
+                    }
+                    Text("Card Kingdom · basic lands not counted", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                }
+            }
         }
     }
 }
@@ -364,11 +407,18 @@ private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false
 }
 
 @Composable
-private fun DeckSearchDialog(decks: List<DeckEntry>, onPick: (DeckEntry) -> Unit, onDismiss: () -> Unit) {
+private fun DeckSearchDialog(
+    decks: List<DeckEntry>,
+    title: String,
+    onPick: (DeckEntry) -> Unit,
+    onPreview: (DeckEntry) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, decks) { decks.filter { it.name.contains(query, ignoreCase = true) } }
-    OrnateDialog(onDismiss = onDismiss, maxWidth = 640.dp) {
-        SectionLabel("Decks")
+    val listHeight = (LocalConfiguration.current.screenHeightDp * 0.62f).dp
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 720.dp) {
+        SectionLabel(title)
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             query, { query = it },
@@ -382,13 +432,40 @@ private fun DeckSearchDialog(decks: List<DeckEntry>, onPick: (DeckEntry) -> Unit
             ),
             modifier = Modifier.fillMaxWidth(),
         )
-        LazyColumn(Modifier.fillMaxWidth().height(420.dp).padding(top = 8.dp)) {
-            items(filtered, key = { it.name }) { deck ->
-                Column(Modifier.fillMaxWidth().clickable { onPick(deck) }) {
-                    Text(deck.name, Modifier.padding(vertical = 12.dp, horizontal = 4.dp), style = MaterialTheme.typography.bodyLarge)
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Line.copy(alpha = 0.5f)))
-                }
+        LazyColumn(Modifier.fillMaxWidth().height(listHeight).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered, key = { it.file.path }) { deck -> DeckCard(deck, { onPick(deck) }, { onPreview(deck) }) }
+        }
+    }
+}
+
+/** One deck in the search list: commander thumbnail (tap to see it big), name, colours, value. */
+@Composable
+private fun DeckCard(deck: DeckEntry, onPick: () -> Unit, onPreview: () -> Unit) {
+    val summary by produceState<DeckSummary?>(null, deck) {
+        value = withContext(Dispatchers.IO) { runCatching { DeckSummary.cached(deck) }.getOrNull() }
+    }
+    Row(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 2.dp, corners = false)
+            .clickable(onClick = onPick).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ArtImage(
+            summary?.artCard,
+            Modifier.size(width = 72.dp, height = 52.dp).border(1.dp, Palette.Line).clickable(onClick = onPreview),
+            placeholder = Palette.PaperDeep,
+            alignment = Alignment.Center,
+        )
+        Column(Modifier.weight(1f)) {
+            Text(summary?.title ?: deck.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            summary?.commander?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Slate, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { summary?.colors?.forEach { ManaSymbol(ManaPip.of(it), 18.dp) } }
+        Text(
+            summary?.value?.takeIf { it > 0 }?.let { CardPrice.usd(it) } ?: "",
+            Modifier.width(64.dp), style = MaterialTheme.typography.titleSmall, color = Palette.Slate, textAlign = TextAlign.End,
+        )
     }
 }
