@@ -1,5 +1,9 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.runtime.collectAsState
+import io.github.nmanuelides.mtgreforged.engine.ImageDownloader
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.CloudDownload
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.compose.foundation.Canvas
@@ -141,22 +145,39 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     UpdateBanner(update, onInstallUpdate)
-                    // Light / dark switch, a small paper tab in the corner of the art.
+                    // Small paper tabs in the corner of the art: offline images and light / dark.
                     val context = LocalContext.current
-                    Box(
-                        Modifier
-                            .align(Alignment.End)
-                            .paperShadow(offsetY = 3.dp, blur = 10.dp)
-                            .paper(Palette.Paper)
-                            .clickable { ThemeMode.toggle(context) }
-                            .padding(10.dp),
-                    ) {
-                        Icon(
-                            if (ThemeMode.dark) Icons.Default.LightMode else Icons.Default.DarkMode,
-                            contentDescription = if (ThemeMode.dark) "Light theme" else "Dark theme",
-                            tint = accent,
-                        )
+                    var offline by remember { mutableStateOf(false) }
+                    val downloading by ImageDownloader.progress.collectAsState()
+                    Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            Modifier
+                                .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                                .paper(Palette.Paper)
+                                .clickable { offline = true }
+                                .padding(10.dp),
+                        ) {
+                            Icon(
+                                if (downloading.running) Icons.Default.Downloading else Icons.Default.CloudDownload,
+                                contentDescription = "Offline card images",
+                                tint = accent,
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                                .paper(Palette.Paper)
+                                .clickable { ThemeMode.toggle(context) }
+                                .padding(10.dp),
+                        ) {
+                            Icon(
+                                if (ThemeMode.dark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                contentDescription = if (ThemeMode.dark) "Light theme" else "Dark theme",
+                                tint = accent,
+                            )
+                        }
                     }
+                    if (offline) OfflineImagesDialog { offline = false }
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)

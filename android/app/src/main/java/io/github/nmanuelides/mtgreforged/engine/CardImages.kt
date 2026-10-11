@@ -68,6 +68,14 @@ object CardImages {
         }
     }
 
+    enum class DiskResult { AlreadyThere, Downloaded, Failed }
+
+    /** Downloads [key] if it isn't on disk yet, without decoding it (bulk / offline download). */
+    suspend fun ensureOnDisk(key: String): DiskResult {
+        if (withContext(Dispatchers.IO) { findFile(key) } != null) return DiskResult.AlreadyThere
+        return if (fetch(key) != null) DiskResult.Downloaded else DiskResult.Failed
+    }
+
     private suspend fun fetch(key: String): File? {
         // Forge skips printings without a collector number and never calls back; don't wait for it.
         if (hasNoCollectorNumber(key)) return withContext(Dispatchers.IO) { fetchByName(key) }
