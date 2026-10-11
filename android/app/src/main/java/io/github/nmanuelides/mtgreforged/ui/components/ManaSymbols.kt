@@ -1,5 +1,12 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import io.github.nmanuelides.mtgreforged.ui.theme.Cinzel
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.runtime.remember
+import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -87,5 +94,46 @@ fun ManaChip(pip: ManaPip, selected: Boolean, size: Dp = 32.dp, onClick: () -> U
             .clickable(onClick = onClick),
     ) {
         ManaSymbol(pip, size)
+    }
+}
+
+// Android's ICU regex needs the closing brace escaped too.
+private val SHARD = Regex("""\{([^}]+)\}""")
+
+/** A mana cost like "{4}{W}{W}" drawn as symbols: generic amounts on a stone disc, colours as pips. */
+@Composable
+fun ManaCost(cost: String, size: Dp = 18.dp, modifier: Modifier = Modifier) {
+    val symbols = remember(cost) { SHARD.findAll(cost).map { it.groupValues[1].uppercase() }.toList() }
+    if (symbols.isEmpty()) return
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        symbols.forEach { s ->
+            val pip = when (s) {
+                "W" -> ManaPip.White
+                "U" -> ManaPip.Blue
+                "B" -> ManaPip.Black
+                "R" -> ManaPip.Red
+                "G" -> ManaPip.Green
+                "C" -> ManaPip.Colorless
+                else -> null
+            }
+            if (pip != null) ManaSymbol(pip, size) else GenericSymbol(s, size)
+        }
+    }
+}
+
+/** Generic, X, hybrid and other non-colour symbols: their text on a stone disc. */
+@Composable
+private fun GenericSymbol(text: String, size: Dp) {
+    val label = text.replace("/", "")
+    Box(
+        Modifier.size(size).background(ManaPip.Colorless.disc, CircleShape).border(1.dp, GlyphInk.copy(alpha = 0.35f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = GlyphInk,
+            fontSize = (size.value * if (label.length > 1) 0.42f else 0.6f).sp,
+            lineHeight = (size.value * 0.6f).sp,
+        )
     }
 }

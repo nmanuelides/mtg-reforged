@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -385,7 +386,11 @@ private fun CardDetailPanel(card: CardUi, onClose: () -> Unit) {
         CardTile(card, 240.dp, showTapped = false, onClick = onClose)
         Spacer(Modifier.height(8.dp))
         Text(card.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        Text("${card.typeLine}  ${card.manaCost}", color = Palette.TextSecondary, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(card.typeLine, color = Palette.TextSecondary, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            Spacer(Modifier.width(8.dp))
+            ManaCost(card.manaCost, 16.dp)
+        }
         Spacer(Modifier.height(6.dp))
         Text(card.text, style = MaterialTheme.typography.bodySmall)
         if (card.counters.isNotEmpty()) {
@@ -675,7 +680,11 @@ private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
             CardTile(card, 260.dp, showTapped = false)
             Spacer(Modifier.height(12.dp))
             Text(card.name, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-            Text("${card.typeLine}  ${card.manaCost}", color = Palette.TextSecondary, textAlign = TextAlign.Center)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(card.typeLine, color = Palette.TextSecondary, textAlign = TextAlign.Center)
+                Spacer(Modifier.width(8.dp))
+                ManaCost(card.manaCost, 18.dp)
+            }
             Spacer(Modifier.height(8.dp))
             Text(card.text, style = MaterialTheme.typography.bodyMedium)
             if (card.counters.isNotEmpty()) {

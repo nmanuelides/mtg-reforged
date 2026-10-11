@@ -115,7 +115,7 @@ private fun CardFallback(card: CardUi, width: Dp) {
             lineHeight = if (compact) 9.sp else 14.sp,
         )
         if (!compact) {
-            Text(card.manaCost, fontSize = 10.sp, color = Palette.Ochre)
+            ManaCost(card.manaCost, 13.dp, Modifier.padding(vertical = 2.dp))
             Text(card.typeLine, fontSize = 10.sp, color = Color(0xFFE6D5B3), maxLines = 2)
             Text(card.text, fontSize = 9.sp, color = Palette.OnAccent, maxLines = 8, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
         } else {

@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
 import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
 import io.github.nmanuelides.mtgreforged.ui.components.ManaChip
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
@@ -64,9 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -563,18 +562,14 @@ private fun zoomCaption(price: CardPrice) =
     price.label + (if (price.buylist > 0) "  ·  buylist ${CardPrice.usd(price.buylist)}" else "") +
         (if (price.inStock == 0) "  ·  out of stock" else "")
 
-/** Card Kingdom price; tapping it opens the card's page on their site. */
+/** Card Kingdom price, plain text. */
 @Composable
 internal fun PriceTag(price: CardPrice?) {
-    val uri = LocalUriHandler.current
     Text(
         price?.label ?: "—",
-        Modifier
-            .clickable(enabled = price != null) { price?.let { runCatching { uri.openUri(it.url) } } }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+        Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
         style = MaterialTheme.typography.labelMedium,
-        color = if (price == null) Palette.InkSoft else Palette.Slate,
-        textDecoration = if (price != null) TextDecoration.Underline else null,
+        color = if (price == null) Palette.InkSoft else Palette.Ink,
     )
 }
 
@@ -664,7 +659,8 @@ private fun DeckRow(
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(ui.manaCost, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+            Spacer(Modifier.height(3.dp))
+            ManaCost(ui.manaCost, 17.dp)
         }
         PriceTag(price)
         if (showStar) {
