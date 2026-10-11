@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
+import io.github.nmanuelides.mtgreforged.ui.components.ManaChip
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
@@ -342,8 +344,9 @@ private fun CardSearch(
         Spacer(Modifier.height(8.dp))
         // Quick toggles for the most used filters; the panel has the rest.
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterOptions.colors.forEach { (label, color) ->
-                Chip(label, color in filter.colors) {
+            ManaPip.WUBRG.forEach { pip ->
+                val color = pip.color
+                ManaChip(pip, color in filter.colors) {
                     onFilter(filter.copy(colors = if (color in filter.colors) filter.colors - color else filter.colors + color))
                 }
             }

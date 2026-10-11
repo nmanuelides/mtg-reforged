@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Paint
@@ -21,9 +20,10 @@ import io.github.nmanuelides.mtgreforged.R
 import kotlin.math.roundToInt
 
 /**
- * A scanned sheet of old paper, stored as a grey relief map centred on mid-grey. Blended
- * in overlay mode it keeps each surface's own colour (light or dark theme) and only adds
- * the grain and stains, so every panel and button reads as a real piece of paper.
+ * A scanned sheet of old paper, stored as grain only: dark-brown pixels where the scan is
+ * darker than average, white where it's lighter, with the difference as alpha. Drawn on
+ * top, it keeps each surface's own colour (light or dark theme) and only adds the grain
+ * and stains, so every panel and button reads as a real piece of paper.
  */
 object PaperTexture {
     /** How strongly the paper shows through. */
@@ -56,7 +56,6 @@ object PaperTexture {
             srcSize = IntSize(srcW, srcH),
             dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
             alpha = strength,
-            blendMode = BlendMode.Overlay,
         )
     }
 }

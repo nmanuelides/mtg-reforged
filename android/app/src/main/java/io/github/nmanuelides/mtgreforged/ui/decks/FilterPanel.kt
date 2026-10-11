@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
+import io.github.nmanuelides.mtgreforged.ui.components.ManaChip
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
@@ -103,10 +105,10 @@ fun FilterPanel(
                 section("colors"), { toggle("colors") }, onClear = { onChange(filter.copy(colors = emptySet(), colorless = false)) },
             ) {
                 ChipFlow {
-                    FilterOptions.colors.forEach { (label, c) ->
-                        Chip(label, c in filter.colors) { onChange(filter.copy(colors = filter.colors.toggle(c))) }
+                    ManaPip.WUBRG.forEach { pip ->
+                        ManaChip(pip, pip.color in filter.colors) { onChange(filter.copy(colors = filter.colors.toggle(pip.color))) }
                     }
-                    Chip("C", filter.colorless) { onChange(filter.copy(colorless = !filter.colorless)) }
+                    ManaChip(ManaPip.Colorless, filter.colorless) { onChange(filter.copy(colorless = !filter.colorless)) }
                 }
                 Spacer(Modifier.height(6.dp))
                 ChipFlow {
@@ -119,8 +121,8 @@ fun FilterPanel(
                 section("identity"), { toggle("identity") }, onClear = { onChange(filter.copy(identity = emptySet())) },
             ) {
                 ChipFlow {
-                    FilterOptions.colors.forEach { (label, c) ->
-                        Chip(label, c in filter.identity) { onChange(filter.copy(identity = filter.identity.toggle(c))) }
+                    ManaPip.WUBRG.forEach { pip ->
+                        ManaChip(pip, pip.color in filter.identity) { onChange(filter.copy(identity = filter.identity.toggle(pip.color))) }
                     }
                 }
             }
