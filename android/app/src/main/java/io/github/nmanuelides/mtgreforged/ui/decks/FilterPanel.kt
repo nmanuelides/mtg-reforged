@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
 import io.github.nmanuelides.mtgreforged.ui.components.ManaChip
 import androidx.compose.material.icons.filled.Add
@@ -353,7 +358,13 @@ private fun TermInput(terms: Set<String>, placeholder: String, onAdd: (String) -
             textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { commit() }),
-            modifier = Modifier.weight(1f),
+            // Hardware keyboards (emulators, tablets with covers) send Enter as a key event.
+            modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
+                if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                    if (event.type == KeyEventType.KeyUp) commit()
+                    true
+                } else false
+            },
         )
         Spacer(Modifier.width(8.dp))
         OrnateButton("", { commit() }, Modifier.width(56.dp), icon = Icons.Default.Add, enabled = draft.isNotBlank(), height = 56.dp)

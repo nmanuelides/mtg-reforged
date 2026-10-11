@@ -201,7 +201,6 @@ private fun ArtPanel(summary: DeckSummary?, modifier: Modifier) {
         Box(
             Modifier
                 .fillMaxSize()
-                .padding(end = 30.dp)
                 .border(2.dp, Palette.LineStrong)
                 .padding(6.dp)
                 .clip(androidx.compose.ui.graphics.RectangleShape),
@@ -213,19 +212,6 @@ private fun ArtPanel(summary: DeckSummary?, modifier: Modifier) {
                 ArtImage(card, Modifier.fillMaxSize())
             }
         }
-        // The sheet's geometric accents: a disc and a diamond breaking out of the frame.
-        Canvas(Modifier.align(Alignment.CenterEnd).size(120.dp).padding(start = 30.dp)) {
-            drawCircle(accent.copy(alpha = 0.85f), radius = size.minDimension / 2.4f, center = Offset(size.width * 0.35f, size.height * 0.2f))
-        }
-        Box(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .padding(top = 140.dp)
-                .size(86.dp)
-                .rotate(45f)
-                .background(Palette.Terracotta)
-                .border(2.dp, Palette.PaperLight),
-        )
     }
 }
 

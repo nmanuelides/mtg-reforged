@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import kotlin.random.Random
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.ImageShader
@@ -27,8 +32,11 @@ import io.github.nmanuelides.mtgreforged.ui.theme.Palette
  * the same grain everywhere, so every panel and button reads as a real piece of paper.
  */
 object PaperTexture {
-    /** How strongly the paper shows through. */
+    /** How strongly the paper shows through on backgrounds. */
     const val STRENGTH = 0.35f
+
+    /** Buttons, bars and panels: much fainter, so they read as their own pieces of paper. */
+    const val ELEMENT_STRENGTH = 0.14f
 
     @Volatile private var image: ImageBitmap? = null
 
@@ -47,16 +55,23 @@ object PaperTexture {
     @Volatile private var brush: ShaderBrush? = null
 
     /** Draws the paper grain over what's already drawn, at the same scale on every surface. */
-    fun DrawScope.drawPaper(strength: Float = STRENGTH) {
+    fun DrawScope.drawPaper(strength: Float = STRENGTH, offset: Offset = Offset.Zero) {
         val grain = brush ?: return
-        drawRect(grain, alpha = strength)
+        // Shifting the shader shows a different part of the sheet.
+        translate(-offset.x, -offset.y) { drawRect(grain, topLeft = offset, size = size, alpha = strength) }
     }
 }
 
-/** A flat paper surface in [color] with the paper texture on it (use instead of background). */
-fun Modifier.paper(color: Color, strength: Float = PaperTexture.STRENGTH): Modifier = drawBehind {
-    drawRect(color)
-    with(PaperTexture) { drawPaper(strength) }
+/**
+ * A separate piece of paper in [color] (use instead of background): faint grain from its
+ * own random part of the sheet, so it never looks continuous with what's behind it.
+ */
+fun Modifier.paper(color: Color, strength: Float = PaperTexture.ELEMENT_STRENGTH): Modifier = composed {
+    val offset = remember { Offset(Random.nextFloat() * 1200f, Random.nextFloat() * 1200f) }
+    drawBehind {
+        drawRect(color)
+        with(PaperTexture) { drawPaper(strength, offset) }
+    }
 }
 
 /**

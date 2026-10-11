@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.runtime.collectAsState
+import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -24,7 +26,8 @@ fun ArtImage(
     placeholder: Color = Color.Transparent,
     alignment: Alignment = Alignment.TopCenter,
 ) {
-    val image by produceState<ImageBitmap?>(cardName?.let(ArtImages::cached)?.asImageBitmap(), cardName) {
+    val online by Connectivity.online.collectAsState()
+    val image by produceState<ImageBitmap?>(cardName?.let(ArtImages::cached)?.asImageBitmap(), cardName, online) {
         value = cardName?.let(ArtImages::cached)?.asImageBitmap()
         if (cardName != null && value == null) value = ArtImages.load(cardName)?.asImageBitmap()
     }

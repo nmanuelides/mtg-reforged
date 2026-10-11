@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import io.github.nmanuelides.mtgreforged.ui.components.PaperTexture
 import android.app.Application
 import android.content.res.Configuration
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         PaperTexture.load(this)
+        Connectivity.watch(this)
         val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         ThemeMode.init(this, systemDark)
         Engine.start(this)

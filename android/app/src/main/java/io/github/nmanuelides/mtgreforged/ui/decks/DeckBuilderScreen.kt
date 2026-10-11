@@ -1,5 +1,9 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.window.Popup
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
@@ -424,6 +428,11 @@ private fun CardSearch(
             OutlinedTextField(
                 query, { query = it }, singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) }
+                    }
+                },
                 placeholder = {
                     Text(if (filter.exactName) "Exact card name" else "Search cards by name or rules text", style = MaterialTheme.typography.bodyMedium)
                 },
@@ -569,7 +578,7 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
     val target = if (commander) 100 else 60
     val prices by CardPrices.version.collectAsState()
     val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
-        (draft.commander.entries + draft.main.entries).sumOf { (c, n) -> (CardPrices.of(c)?.retail ?: 0f).toDouble() * n }
+        CardPrices.deckValue(draft.commander.entries + draft.main.entries)
     }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -717,15 +726,39 @@ private fun zoomCaption(price: CardPrice) =
     price.label + (if (price.buylist > 0) "  ·  buylist ${CardPrice.usd(price.buylist)}" else "") +
         (if (price.inStock == 0) "  ·  out of stock" else "")
 
-/** Card Kingdom price, plain text. */
+/** Card Kingdom price, plain text; a ⚠ when the saved list is old (tap it for the date). */
 @Composable
 internal fun PriceTag(price: CardPrice?) {
-    Text(
-        price?.label ?: "—",
-        Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-        style = MaterialTheme.typography.labelMedium,
-        color = if (price == null) Palette.InkSoft else Palette.Ink,
-    )
+    Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            price?.label ?: "—",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (price == null) Palette.InkSoft else Palette.Ink,
+        )
+        if (price != null && CardPrices.stale) StalePriceWarning()
+    }
+}
+
+@Composable
+internal fun StalePriceWarning() {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Icon(
+            Icons.Default.WarningAmber, "Old price",
+            Modifier.padding(start = 3.dp).size(15.dp).clickable { open = !open },
+            tint = Palette.Ochre,
+        )
+        if (open) {
+            val date = remember { java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(CardPrices.fetchedAt)) }
+            Popup(alignment = Alignment.BottomCenter, onDismissRequest = { open = false }, properties = PopupProperties(focusable = true)) {
+                Text(
+                    "Card Kingdom price from $date.\nIt may have changed since.",
+                    Modifier.widthIn(max = 240.dp).paper(Palette.PaperLight).ornateFrame(Palette.Ochre, inset = 2.dp, corners = false).padding(10.dp),
+                    style = MaterialTheme.typography.bodySmall, color = Palette.Ink,
+                )
+            }
+        }
+    }
 }
 
 // ---- Deck list ---------------------------------------------------------------------
@@ -751,7 +784,7 @@ private fun DeckList(
 
     val prices by CardPrices.version.collectAsState()
     val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
-        (draft.commander.entries + draft.main.entries).sumOf { (c, n) -> (CardPrices.of(c)?.retail ?: 0f).toDouble() * n }
+        CardPrices.deckValue(draft.commander.entries + draft.main.entries)
     }
     Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {

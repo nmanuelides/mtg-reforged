@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.runtime.snapshotFlow
 import io.github.nmanuelides.mtgreforged.ui.components.ManaCost
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.activity.compose.BackHandler
@@ -358,7 +359,7 @@ private fun SidePanel(
             PlayerChoices(state, game::tapPlayer)
             if (p.passesPriority) {
                 // Passing priority can skip whole phases; make it deliberate.
-                SwipeToConfirm("Pass", game::pressOk, Modifier.fillMaxWidth(), enabled = p.okEnabled)
+                SwipeToConfirm("Next Step", { NextStep.press(); game.pressOk() }, Modifier.fillMaxWidth(), enabled = p.okEnabled)
             } else {
                 OrnateButton(
                     p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
@@ -627,7 +628,7 @@ private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Uni
             Spacer(Modifier.width(8.dp))
         }
         if (p.passesPriority) {
-            SwipeToConfirm("Pass", onOk, Modifier.width(200.dp), enabled = p.okEnabled, height = 44.dp)
+            SwipeToConfirm("Next Step", { NextStep.press(); onOk() }, Modifier.width(200.dp), enabled = p.okEnabled, height = 44.dp)
         } else {
             OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, enabled = p.okEnabled, style = OrnateStyle.Primary, height = 42.dp)
         }
@@ -760,6 +761,12 @@ private fun TurnBanner(state: MatchUiState) {
     }
 }
 
+/** Counts "Next Step" presses so the cast spotlight can get out of the way. */
+private object NextStep {
+    val presses = androidx.compose.runtime.mutableIntStateOf(0)
+    fun press() { presses.intValue++ }
+}
+
 /** Shows each new spell or ability on the stack front and centre, with who played it. */
 @Composable
 private fun CastSpotlight(state: MatchUiState) {
@@ -770,8 +777,17 @@ private fun CastSpotlight(state: MatchUiState) {
     LaunchedEffect(top?.id, top?.source != null) {
         if (top == null || top.source == null || !seen.add(top.id)) return@LaunchedEffect
         spotlight = top
+    }
+    // The timer belongs to the spotlight itself, so a stack change mid-way can't strand it.
+    LaunchedEffect(spotlight?.id) {
+        if (spotlight == null) return@LaunchedEffect
         kotlinx.coroutines.delay(3500)
         spotlight = null
+    }
+    // Moving to the next step dismisses it straight away.
+    LaunchedEffect(Unit) {
+        var last = NextStep.presses.intValue
+        snapshotFlow { NextStep.presses.intValue }.collect { if (it != last) { last = it; spotlight = null } }
     }
     // Purely informative: it never blocks the game. Only the card itself takes touches,
     // so a swipe up on it dismisses early; everything around it stays playable.

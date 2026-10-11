@@ -54,6 +54,17 @@ object CardPrices {
 
     val available get() = index != null
 
+    /** When the saved price list was downloaded (0 = never). */
+    @Volatile var fetchedAt: Long = 0L
+        private set
+
+    /** Prices older than a day weren't refreshed (offline, mobile data…) and may have changed. */
+    val stale get() = available && System.currentTimeMillis() - fetchedAt > 26 * 60 * 60 * 1000L
+
+    /** What a deck is worth, leaving out basic lands (everyone has piles of them). */
+    fun deckValue(cards: Iterable<Map.Entry<PaperCard, Int>>): Double =
+        cards.filterNot { it.key.rules.type.isBasicLand }.sumOf { (c, n) -> (of(c)?.retail ?: 0f).toDouble() * n }
+
     private fun file(context: Context) = File(context.filesDir, "ck-prices.tsv")
 
     /** Loads the saved list, then downloads a fresh one if it's a day old and we're on Wi-Fi. */
@@ -63,13 +74,15 @@ object CardPrices {
         if (index == null && saved.exists()) runCatching { load(saved) }.onFailure { Log.w(TAG, "load failed", it) }
 
         val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val age = System.currentTimeMillis() - prefs.getLong(KEY_FETCHED, 0L)
+        fetchedAt = prefs.getLong(KEY_FETCHED, 0L)
+        val age = System.currentTimeMillis() - fetchedAt
         val connectivity = app.getSystemService(ConnectivityManager::class.java)
         if (age < MAX_AGE_MS && saved.exists()) return
         if (connectivity?.isActiveNetworkMetered != false) return
         runCatching {
             download(saved)
-            prefs.edit().putLong(KEY_FETCHED, System.currentTimeMillis()).apply()
+            fetchedAt = System.currentTimeMillis()
+            prefs.edit().putLong(KEY_FETCHED, fetchedAt).apply()
             load(saved)
         }.onFailure { Log.w(TAG, "download failed", it) }
     }

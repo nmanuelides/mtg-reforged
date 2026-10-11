@@ -30,6 +30,9 @@ object ArtImages {
 
     fun cached(cardName: String): Bitmap? = memory.get(cardName)
 
+    /** Nothing is remembered as missing here: a failed art crop is simply tried again. */
+    fun forgetMissing() = Unit
+
     suspend fun load(cardName: String): Bitmap? {
         memory.get(cardName)?.let { return it }
         val lock = synchronized(locks) { locks.getOrPut(cardName) { Mutex() } }

@@ -57,7 +57,7 @@ data class DeckSummary(
                     .sortedByDescending { it.rules.manaCost.cmc * 10 + it.rarity.ordinal }
                     .take(3)
                     .map { it.name },
-                value = if (CardPrices.available) all.sumOf { (CardPrices.of(it)?.retail ?: 0f).toDouble() }.toFloat() else null,
+                value = if (CardPrices.available) all.filterNot { it.rules.type.isBasicLand }.sumOf { (CardPrices.of(it)?.retail ?: 0f).toDouble() }.toFloat() else null,
             )
         }
     }

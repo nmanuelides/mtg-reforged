@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.runtime.collectAsState
+import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -43,7 +45,9 @@ enum class CardMark { None, Selectable, Highlighted, Attacking, Blocking }
 fun rememberCardImage(key: String?): ImageBitmap? {
     // produceState keeps its value across key changes, so reset it for every new card;
     // otherwise a reused tile keeps showing the previous card's image.
-    val image by produceState(initialValue = key?.let(CardImages::cached)?.asImageBitmap(), key) {
+    // Re-runs when the network comes back, so cards that failed offline load then.
+    val online by Connectivity.online.collectAsState()
+    val image by produceState(initialValue = key?.let(CardImages::cached)?.asImageBitmap(), key, online) {
         value = key?.let(CardImages::cached)?.asImageBitmap()
         if (key != null && value == null) value = CardImages.load(key)?.asImageBitmap()
     }

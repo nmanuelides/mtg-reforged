@@ -179,6 +179,9 @@ object CardImages {
         return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 
+    /** Lets cards that failed (e.g. while offline) try again; see [Connectivity]. */
+    fun forgetMissing() = missing.clear()
+
     fun clear() {
         memory.evictAll()
         missing.clear()
