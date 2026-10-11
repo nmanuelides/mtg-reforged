@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -98,11 +99,11 @@ import kotlinx.coroutines.withContext
 
 private val QUICK_TYPES = listOf("Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker", "Land")
 
-private fun canLead(card: PaperCard) =
+internal fun canLead(card: PaperCard) =
     card.rules.canBeCommander() || (card.rules.type.isLegendary && (card.rules.type.isCreature || card.rules.type.isPlaneswalker))
 
 /** Editable deck: copies per card, split into the command zone and the main deck. */
-private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
+internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
     val total get() = commander.values.sum() + main.values.sum()
 
     // Not `Deck(name).apply { … }`: inside it, `main` would resolve to Forge's Deck.getMain()
@@ -131,6 +132,16 @@ private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val mai
         if (n <= 0) pool.remove(card) else pool[card] = n
     }
 
+    /** Every card in the order the deck is shown: commander, creatures, spells, lands. */
+    fun ordered(): List<PaperCard> {
+        val byCurve = compareBy<PaperCard>({ it.rules.manaCost.cmc }, { it.name })
+        val cards = main.keys.toList()
+        return commander.keys.sortedBy { it.name } +
+            cards.filter { it.rules.type.isCreature }.sortedWith(byCurve) +
+            cards.filter { !it.rules.type.isCreature && !it.rules.type.isLand }.sortedWith(byCurve) +
+            cards.filter { it.rules.type.isLand }.sortedWith(byCurve)
+    }
+
     /** Puts [card] in the command zone, taking a copy out of the main deck if it's there. */
     fun makeCommander(card: PaperCard) {
         if (commander.containsKey(card)) return
@@ -149,7 +160,7 @@ private class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val mai
     }
 }
 
-private fun CardUi.Companion.fromPaper(card: PaperCard): CardUi {
+internal fun CardUi.Companion.fromPaper(card: PaperCard): CardUi {
     val rules = card.rules
     return CardUi(
         id = System.identityHashCode(card),
@@ -187,6 +198,8 @@ fun DeckBuilderScreen(
     var filtering by remember { mutableStateOf(false) }
     var wideLayout by remember { mutableStateOf(true) }
     var matches by remember { mutableIntStateOf(0) }
+    var viewing by remember { mutableStateOf<Pair<List<PaperCard>, Int>?>(null) }
+    val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = cards to index }
     val scope = rememberCoroutineScope()
     BackHandler { onDone(null) }
 
@@ -223,7 +236,7 @@ fun DeckBuilderScreen(
             Spacer(Modifier.height(10.dp))
             if (wide) {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = !filtering }, { matches = it }) { draft.add(it) }
+                    CardSearch(Modifier.weight(0.58f).fillMaxHeight(), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = !filtering }, { matches = it }, open) { draft.add(it) }
                     // On tablets the filters take the deck's place, so results update beside them.
                     if (filtering) {
                         FilterPanel(
@@ -231,13 +244,13 @@ fun DeckBuilderScreen(
                             Modifier.weight(0.42f).fillMaxHeight().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
                         )
                     } else {
-                        DeckList(draft, format, problem, Modifier.weight(0.42f).fillMaxHeight())
+                        DeckList(draft, format, problem, open, Modifier.weight(0.42f).fillMaxHeight())
                     }
                 }
             } else {
-                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = true }, { matches = it }) { draft.add(it) }
+                CardSearch(Modifier.fillMaxWidth().weight(0.55f), draft, format == Engine.Format.Commander, filter, { filter = it }, { filtering = true }, { matches = it }, open) { draft.add(it) }
                 Spacer(Modifier.height(8.dp))
-                DeckList(draft, format, problem, Modifier.fillMaxWidth().weight(0.45f))
+                DeckList(draft, format, problem, open, Modifier.fillMaxWidth().weight(0.45f))
             }
         }
     }
@@ -246,6 +259,10 @@ fun DeckBuilderScreen(
         OrnateDialog(onDismiss = { filtering = false }, maxWidth = 640.dp) {
             FilterPanel(filter, { filter = it }, matches, onDone = { filtering = false }, Modifier.heightIn(max = 640.dp))
         }
+    }
+
+    viewing?.let { (cards, index) ->
+        CardViewer(cards, index, draft, format == Engine.Format.Commander) { viewing = null }
     }
 
     if (importing) {
@@ -303,6 +320,7 @@ private fun CardSearch(
     onFilter: (CardFilter) -> Unit,
     onOpenFilters: () -> Unit,
     onCount: (Int) -> Unit,
+    onOpen: (List<PaperCard>, Int) -> Unit,
     onAdd: (PaperCard) -> Unit,
 ) {
     var query by remember { mutableStateOf("") }
@@ -368,7 +386,7 @@ private fun CardSearch(
         val idle = query.isBlank() && filter.activeCount == 0
         // With nothing searched, this side shows the deck itself as cards.
         if (idle && draft.total > 0) {
-            DeckGallery(draft, commanderFormat, Modifier.fillMaxSize())
+            DeckGallery(draft, commanderFormat, onOpen, Modifier.fillMaxSize())
             return@Column
         }
         Box(Modifier.fillMaxSize()) {
@@ -377,19 +395,26 @@ private fun CardSearch(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(results, key = { "${it.name}|${it.edition}|${it.artIndex}" }) { card ->
+                itemsIndexed(results, key = { _, it -> "${it.name}|${it.edition}|${it.artIndex}" }) { index, card ->
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
                     val price = remember(card, prices) { CardPrices.of(card) }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.tapOrHold(card.name, onTap = { onAdd(card) }, onHold = { h, _ -> held = h })) {
+                        Box(Modifier.tapOrHold(card.name, onTap = { onOpen(results, index) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, 118.dp, showTapped = false)
                             if (commanderFormat && canLead(card)) {
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
                             }
                             HoldZoom(ui, held, caption = price?.let(::zoomCaption))
                         }
-                        PriceTag(price)
+                        Row(Modifier.width(118.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
+                            Icon(
+                                Icons.Default.Add, "Add to deck",
+                                Modifier.size(32.dp).clickable { onAdd(card) }.padding(4.dp),
+                                tint = Palette.Sage,
+                            )
+                        }
                     }
                 }
             }
@@ -423,7 +448,7 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 
 /** The deck as card images, grouped like the list, with copies and −/+ under each card. */
 @Composable
-private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, modifier: Modifier) {
+private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, onOpen: (List<PaperCard>, Int) -> Unit, modifier: Modifier) {
     val main = draft.main.entries.map { it.key to it.value }
     val groups = listOf(
         "Commander" to draft.commander.entries.map { it.key to it.value },
@@ -453,7 +478,8 @@ private fun DeckGallery(draft: DeckDraft, commanderFormat: Boolean, modifier: Mo
                 val prices by CardPrices.version.collectAsState()
                 val price = remember(card, prices) { CardPrices.of(card) }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.tapOrHold(card.name, onTap = {}, onHold = { h, _ -> held = h })) {
+                    val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
+                    Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h })) {
                         CardTile(ui, 118.dp, showTapped = false)
                         if (n > 1) {
                             Text(
@@ -539,7 +565,7 @@ private fun zoomCaption(price: CardPrice) =
 
 /** Card Kingdom price; tapping it opens the card's page on their site. */
 @Composable
-private fun PriceTag(price: CardPrice?) {
+internal fun PriceTag(price: CardPrice?) {
     val uri = LocalUriHandler.current
     Text(
         price?.label ?: "—",
@@ -555,7 +581,8 @@ private fun PriceTag(price: CardPrice?) {
 // ---- Deck list ---------------------------------------------------------------------
 
 @Composable
-private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, modifier: Modifier) {
+private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, onOpen: (List<PaperCard>, Int) -> Unit, modifier: Modifier) {
+    fun openCard(card: PaperCard) { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
     val commander = format == Engine.Format.Commander
     val target = if (commander) 100 else 60
     val main = draft.main.entries.toList()
@@ -596,7 +623,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
                     item { CommanderPicker(draft) }
                 }
                 items(draft.commander.entries.toList(), key = { "c" + it.key.name }) { (card, n) ->
-                    DeckRow(card, n, isCommander = true, showStar = true,
+                    DeckRow(card, n, isCommander = true, showStar = true, onOpen = { openCard(card) },
                         onAdd = {}, onRemove = { draft.remove(card, fromCommander = true) }, onStar = { draft.toggleCommander(card) })
                 }
             }
@@ -604,7 +631,7 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
                 if (cards.isEmpty()) return@forEach
                 item { Spacer(Modifier.height(6.dp)); SectionLabel("$label · ${cards.sumOf { it.value }}") }
                 items(cards.sortedBy { it.key.rules.manaCost.cmc * 1000 + it.key.name.first().code }, key = { "m" + it.key.name + it.key.edition }) { (card, n) ->
-                    DeckRow(card, n, isCommander = false, showStar = commander && canLead(card),
+                    DeckRow(card, n, isCommander = false, showStar = commander && canLead(card), onOpen = { openCard(card) },
                         onAdd = { draft.add(card) }, onRemove = { draft.remove(card, fromCommander = false) }, onStar = { draft.toggleCommander(card) })
                 }
             }
@@ -618,6 +645,7 @@ private fun DeckRow(
     count: Int,
     isCommander: Boolean,
     showStar: Boolean,
+    onOpen: () -> Unit,
     onAdd: () -> Unit,
     onRemove: () -> Unit,
     onStar: () -> Unit,
@@ -627,7 +655,7 @@ private fun DeckRow(
     val prices by CardPrices.version.collectAsState()
     val price = remember(card, prices) { CardPrices.of(card) }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = {}, onHold = { h, _ -> held = h }),
+        Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = { onOpen() }, onHold = { h, _ -> held = h }),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(28.dp).background(Palette.Paper, CircleShape), contentAlignment = Alignment.Center) {
