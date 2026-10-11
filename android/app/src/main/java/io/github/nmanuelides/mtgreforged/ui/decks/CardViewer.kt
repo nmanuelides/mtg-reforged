@@ -1,5 +1,18 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import forge.StaticData
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -71,6 +84,9 @@ internal fun CardViewer(
     if (cards.isEmpty()) return
     val pager = rememberPagerState(start.coerceIn(0, cards.lastIndex)) { cards.size }
     val prices by CardPrices.version.collectAsState()
+    // Printing picked per page with a vertical swipe; until then, the card as listed.
+    val picked = remember { mutableStateMapOf<Int, PaperCard>() }
+    fun shown(page: Int) = picked[page] ?: cards[page]
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         BoxWithConstraints(
@@ -84,9 +100,17 @@ internal fun CardViewer(
             val side = (maxWidth - cardWidth) / 2
 
             Column(Modifier.fillMaxSize().padding(vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                val current = shown(pager.currentPage)
+                val printings = remember(current.name) { printingsOf(current) }
                 Text(
                     "${pager.currentPage + 1} / ${cards.size}",
                     fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f),
+                )
+                Text(
+                    editionLabel(current) + if (printings.size > 1) {
+                        "  ·  printing ${printings.indexOf(current) + 1} of ${printings.size}  ·  swipe ↑↓"
+                    } else "",
+                    style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.65f),
                 )
                 Spacer(Modifier.height(10.dp))
                 HorizontalPager(
@@ -98,24 +122,75 @@ internal fun CardViewer(
                     flingBehavior = PagerDefaults.flingBehavior(pager, pagerSnapDistance = PagerSnapDistance.atMost(1)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) { page ->
-                    val ui = remember(cards[page]) { CardUi.fromPaper(cards[page]) }
+                    val card = shown(page)
+                    val pagePrintings = remember(card.name) { printingsOf(card) }
+                    var direction by remember { mutableIntStateOf(1) }
                     val offset = ((pager.currentPage - page) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+                    val threshold = with(LocalDensity.current) { 56.dp.toPx() }
                     Box(
-                        Modifier.graphicsLayer {
-                            val s = 1f - 0.12f * offset
-                            scaleX = s; scaleY = s
-                            alpha = 1f - 0.45f * offset
-                        },
+                        Modifier
+                            .graphicsLayer {
+                                val s = 1f - 0.12f * offset
+                                scaleX = s; scaleY = s
+                                alpha = 1f - 0.45f * offset
+                            }
+                            // Up / down: the next / previous printing. The one showing is the one the deck uses.
+                            .pointerInput(page, pagePrintings) {
+                                var dragged = 0f
+                                detectVerticalDragGestures(
+                                    onDragStart = { dragged = 0f },
+                                    onVerticalDrag = { change, dy -> dragged += dy; change.consume() },
+                                    onDragEnd = {
+                                        if (pagePrintings.size > 1 && dragged.absoluteValue > threshold) {
+                                            val step = if (dragged < 0) 1 else -1
+                                            val now = pagePrintings.indexOf(shown(page)).coerceAtLeast(0)
+                                            val next = pagePrintings[(now + step + pagePrintings.size) % pagePrintings.size]
+                                            direction = step
+                                            picked[page] = next
+                                            draft.usePrintingIfInDeck(next)
+                                        }
+                                    },
+                                )
+                            },
                     ) {
-                        CardTile(ui, cardWidth, showTapped = false)
+                        AnimatedContent(
+                            card,
+                            transitionSpec = {
+                                (slideInVertically { it * direction / 3 } + fadeIn()) togetherWith
+                                    (slideOutVertically { -it * direction / 3 } + fadeOut())
+                            },
+                            label = "printing",
+                        ) { printing ->
+                            val ui = remember(printing) { CardUi.fromPaper(printing) }
+                            CardTile(ui, cardWidth, showTapped = false)
+                        }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                val card = cards[pager.currentPage]
-                ViewerBar(card, draft, commanderFormat, remember(card, prices) { CardPrices.of(card) }, onDismiss)
+                ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss)
             }
         }
     }
+}
+
+/** Every printing of [card]'s name, newest first. */
+private fun printingsOf(card: PaperCard): List<PaperCard> {
+    val db = StaticData.instance()
+    val all = runCatching { db.commonCards.getAllCards(card.name) }.getOrNull().orEmpty()
+    return all.ifEmpty { listOf(card) }
+        .sortedByDescending { db.getCardEdition(it.edition)?.date?.time ?: 0L }
+        .let { if (card in it) it else listOf(card) + it }
+}
+
+private fun editionLabel(card: PaperCard): String {
+    val edition = StaticData.instance().getCardEdition(card.edition)
+    val year = edition?.date?.let { java.text.SimpleDateFormat("yyyy", java.util.Locale.US).format(it) }
+    return (edition?.name ?: card.edition) + (year?.let { " ($it)" } ?: "")
+}
+
+/** Swapping printings only touches the deck when that card is already in it. */
+private fun DeckDraft.usePrintingIfInDeck(card: PaperCard) {
+    if (countOf(card.name) > 0) usePrinting(card)
 }
 
 @Composable
@@ -126,8 +201,8 @@ private fun ViewerBar(
     price: io.github.nmanuelides.mtgreforged.engine.CardPrice?,
     onClose: () -> Unit,
 ) {
-    val isCommander = draft.commander.containsKey(card)
-    val count = (draft.main[card] ?: 0) + (draft.commander[card] ?: 0)
+    val isCommander = draft.commander.keys.any { it.name == card.name }
+    val count = draft.countOf(card.name)
     Row(
         Modifier
             .widthIn(max = 720.dp)
@@ -144,23 +219,27 @@ private fun ViewerBar(
         Column(Modifier.weight(1f)) {
             Text(card.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                "${card.edition} · " + if (count > 0) "$count in deck" else "not in deck",
+                when {
+                    count == 0 -> "not in deck"
+                    draft.main.containsKey(card) || draft.commander.containsKey(card) -> "$count in deck · this printing"
+                    else -> "$count in deck · another printing (+ / − switch to this one)"
+                },
                 style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
             )
         }
         PriceTag(price)
         if (commanderFormat && canLead(card)) {
-            IconButton(onClick = { if (isCommander) draft.toggleCommander(card) else draft.makeCommander(card) }) {
+            IconButton(onClick = { draft.usePrinting(card); if (isCommander) draft.toggleCommander(card) else draft.makeCommander(card) }) {
                 Icon(if (isCommander) Icons.Default.Star else Icons.Default.StarBorder, "Commander", tint = Palette.Ochre)
             }
         }
-        IconButton(onClick = { draft.remove(card, fromCommander = isCommander && (draft.main[card] ?: 0) == 0) }, enabled = count > 0) {
+        IconButton(onClick = { draft.usePrinting(card); draft.remove(card, fromCommander = isCommander && (draft.main[card] ?: 0) == 0) }, enabled = count > 0) {
             Icon(Icons.Default.Remove, "Remove one", tint = if (count > 0) Palette.Terracotta else Palette.Line)
         }
         Box(Modifier.size(30.dp).background(Palette.Paper, CircleShape), contentAlignment = Alignment.Center) {
             Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Palette.Ink)
         }
-        IconButton(onClick = { draft.add(card) }, enabled = !isCommander) {
+        IconButton(onClick = { draft.usePrinting(card); draft.add(card) }, enabled = !isCommander) {
             Icon(Icons.Default.Add, "Add one", tint = if (!isCommander) Palette.Sage else Palette.Line)
         }
         Spacer(Modifier.width(4.dp))

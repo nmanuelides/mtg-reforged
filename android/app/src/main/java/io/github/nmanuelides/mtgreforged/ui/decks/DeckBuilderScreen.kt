@@ -141,6 +141,20 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
             cards.filter { it.rules.type.isLand }.sortedWith(byCurve)
     }
 
+    /** Copies of [name] in the deck, whatever the printing. */
+    fun countOf(name: String) =
+        commander.entries.filter { it.key.name == name }.sumOf { it.value } + main.entries.filter { it.key.name == name }.sumOf { it.value }
+
+    /** Makes [card] the printing the deck uses for its name, keeping copies and commander status. */
+    fun usePrinting(card: PaperCard) {
+        for (pool in listOf(commander, main)) {
+            pool.keys.filter { it.name == card.name && it != card }.forEach { old ->
+                val n = pool.remove(old) ?: 0
+                pool[card] = (pool[card] ?: 0) + n
+            }
+        }
+    }
+
     /** Puts [card] in the command zone, taking a copy out of the main deck if it's there. */
     fun makeCommander(card: PaperCard) {
         if (commander.containsKey(card)) return
