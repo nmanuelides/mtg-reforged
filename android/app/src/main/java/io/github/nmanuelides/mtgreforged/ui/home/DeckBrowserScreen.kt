@@ -157,7 +157,11 @@ fun DeckBrowserScreen(
                                 "Import", onImport, Modifier.weight(1f), icon = Icons.Default.FileDownload,
                                 accent = Palette.Slate, frameColor = Palette.Slate, height = 44.dp,
                             )
-                            if (entry.custom) {
+                        }
+                        // The player's own decks get a second row, so no label gets cut short.
+                        if (entry.custom) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OrnateButton(
                                     "Edit", { onEdit(entry) }, Modifier.weight(1f), icon = Icons.Default.Edit,
                                     accent = Palette.Ochre, frameColor = Palette.Ochre, height = 44.dp,
