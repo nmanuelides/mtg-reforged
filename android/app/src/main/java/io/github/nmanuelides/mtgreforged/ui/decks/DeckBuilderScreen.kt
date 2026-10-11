@@ -1,5 +1,11 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Check
+import io.github.nmanuelides.mtgreforged.ui.components.LandFrom
+import io.github.nmanuelides.mtgreforged.ui.components.landIn
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
 import io.github.nmanuelides.mtgreforged.engine.CardCollection
 import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.ContentCopy
@@ -246,6 +252,8 @@ fun DeckBuilderScreen(
     format: Engine.Format,
     initial: Engine.DeckEntry?,
     importFirst: Boolean,
+    /** Edit the player's card collection instead of a deck: no format rules, no commander. */
+    collection: Boolean = false,
     onDone: (Engine.DeckEntry?) -> Unit,
 ) {
     val draft = remember { DeckDraft(mutableStateMapOf(), mutableStateMapOf()) }
@@ -271,6 +279,13 @@ fun DeckBuilderScreen(
     BackHandler { onDone(saved) }
 
     LaunchedEffect(initial) {
+        if (collection) {
+            name = "My collection"
+            val owned = withContext(Dispatchers.IO) { CardCollection.cards() }
+            draft.main.clear()
+            draft.main.putAll(owned)
+            savedSignature = signature()
+        }
         initial?.let { entry ->
             val deck = withContext(Dispatchers.IO) { Engine.loadDeck(entry) }
             draft.load(deck)
@@ -279,16 +294,19 @@ fun DeckBuilderScreen(
     }
     // Forge's own legality check for the format, re-run as the deck changes.
     LaunchedEffect(draft.total, draft.commander.size) {
+        if (collection) return@LaunchedEffect
         delay(300)
         problem = withContext(Dispatchers.Default) {
             runCatching { format.gameType.deckFormat.getDeckConformanceProblem(draft.toDeck(name)) }.getOrNull()
         }
     }
 
+    CompositionLocalProvider(LocalCollectionMode provides collection) {
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
         wideLayout = wide
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
+            Box(Modifier.landIn(0, LandFrom.Top)) {
             Header(
                 name = name, onName = { name = it }, format = format,
                 onBack = { onDone(saved) },
@@ -299,7 +317,8 @@ fun DeckBuilderScreen(
                     val snapshot = signature()
                     val deck = draft.toDeck(name)
                     scope.launch {
-                        saved = withContext(Dispatchers.IO) { UserDecks.save(deck, format, saved) }
+                        if (collection) withContext(Dispatchers.IO) { CardCollection.save(snapshotMain(draft)) }
+                        else saved = withContext(Dispatchers.IO) { UserDecks.save(deck, format, saved) }
                         savedSignature = snapshot
                         justSaved = true
                     }
@@ -307,10 +326,11 @@ fun DeckBuilderScreen(
                 canSave = draft.total > 0 && dirty,
                 saveLabel = when {
                     justSaved -> "Saved ✓"
-                    !dirty && saved != null -> "Saved"
+                    !dirty && (saved != null || collection) -> "Saved"
                     else -> "Save"
                 },
             )
+            }
             Spacer(Modifier.height(10.dp))
             val toggle = { which: SidePanel -> panel = if (panel == which) null else which }
             val cards: @Composable (Modifier) -> Unit = { m ->
@@ -327,7 +347,7 @@ fun DeckBuilderScreen(
                 var shownPanel by remember { mutableStateOf(panel) }
                 if (panel != null) shownPanel = panel
                 Row(Modifier.fillMaxSize()) {
-                    cards(Modifier.weight(1f).fillMaxHeight())
+                    cards(Modifier.weight(1f).fillMaxHeight().landIn(1))
                     AnimatedVisibility(
                         visible = panel != null,
                         enter = expandHorizontally(tween(320), expandFrom = Alignment.Start) +
@@ -340,6 +360,7 @@ fun DeckBuilderScreen(
                                 SidePanel.Filters -> FilterPanel(
                                     filter, { filter = it }, matches, onDone = { panel = null },
                                     Modifier.fillMaxSize().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
+                                    collectionAvailable = CardCollection.names().isNotEmpty(),
                                 )
                                 SidePanel.List -> DeckList(draft, format, problem, open, Modifier.fillMaxSize(), onClose = { panel = null })
                                 null -> Unit
@@ -348,15 +369,16 @@ fun DeckBuilderScreen(
                     }
                 }
             } else {
-                cards(Modifier.fillMaxSize())
+                cards(Modifier.fillMaxSize().landIn(1))
             }
         }
     }
 
+    }
     // Phones: the side panels open as dialogs instead.
     if (panel == SidePanel.Filters && !wideLayout) {
         OrnateDialog(onDismiss = { panel = null }, maxWidth = 640.dp) {
-            FilterPanel(filter, { filter = it }, matches, onDone = { panel = null }, Modifier.heightIn(max = 640.dp))
+            FilterPanel(filter, { filter = it }, matches, onDone = { panel = null }, Modifier.heightIn(max = 640.dp), CardCollection.names().isNotEmpty())
         }
     }
     if (panel == SidePanel.List && !wideLayout) {
@@ -376,8 +398,15 @@ fun DeckBuilderScreen(
             commanderFormat = format == Engine.Format.Commander,
             onDismiss = { importing = false },
             onImported = { result ->
-                draft.load(result.deck)
-                if (initial == null || name == "New deck") name = result.deck.name
+                if (collection) {
+                    // Imports add to the collection instead of replacing it.
+                    listOf(DeckSection.Commander, DeckSection.Main, DeckSection.Sideboard).forEach { section ->
+                        result.deck.get(section)?.forEach { (card, n) -> draft.main[card] = (draft.main[card] ?: 0) + n }
+                    }
+                } else {
+                    draft.load(result.deck)
+                    if (initial == null || name == "New deck") name = result.deck.name
+                }
                 importing = false
             },
         )
@@ -402,7 +431,8 @@ private fun Header(
         OutlinedTextField(
             name, onName, singleLine = true,
             textStyle = MaterialTheme.typography.titleLarge,
-            label = { Text("${format.label} deck", style = MaterialTheme.typography.labelSmall) },
+            label = { Text(if (LocalCollectionMode.current) "Collection" else "${format.label} deck", style = MaterialTheme.typography.labelSmall) },
+            readOnly = LocalCollectionMode.current,
             colors = fieldColors(),
             modifier = Modifier.weight(1f),
         )
@@ -552,6 +582,7 @@ private fun CardSearch(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.tapOrHold(card.name, onTap = { onOpen(results, index) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, tile, showTapped = false)
+                            OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                             if (commanderFormat && canLead(card)) {
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
                             }
@@ -623,6 +654,26 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 }
 
 private enum class SidePanel { Filters, List }
+
+/** True while the builder edits the collection rather than a deck. */
+internal val LocalCollectionMode = staticCompositionLocalOf { false }
+
+private fun snapshotMain(draft: DeckDraft): Map<PaperCard, Int> = draft.main.toMap()
+
+/** A small check on cards the player owns (from their collection). */
+@Composable
+private fun OwnedBadge(name: String, modifier: Modifier) {
+    if (LocalCollectionMode.current) return
+    val version by CardCollection.version.collectAsState()
+    val owned = remember(name, version) { CardCollection.owns(name) }
+    if (!owned) return
+    Box(
+        modifier.padding(4.dp).size(24.dp).background(Palette.Sage, CircleShape).border(1.5.dp, Palette.PaperLight, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.Default.Check, "In your collection", Modifier.size(16.dp), tint = Palette.OnAccent)
+    }
+}
 
 /** Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. */
 private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = pointerInput(Unit) {
@@ -697,13 +748,14 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
     val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
         CardPrices.deckValue(draft.commander.entries + draft.main.entries)
     }
+    val collectionMode = LocalCollectionMode.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            "${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-            color = if (draft.total == target || (!commander && draft.total >= target)) Palette.Sage else Palette.Ink,
+            if (collectionMode) "${draft.total} cards" else "${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+            color = if (!collectionMode && (draft.total == target || (!commander && draft.total >= target))) Palette.Sage else Palette.Ink,
         )
         Text(
-            problem ?: "Legal ✓",
+            if (collectionMode) "${draft.main.size} different cards" else problem ?: "Legal ✓",
             Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall,
             color = if (problem == null) Palette.Sage else Palette.Terracotta,
@@ -766,6 +818,7 @@ private fun DeckGallery(
                     val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
                     Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h })) {
                         CardTile(ui, tile, showTapped = false)
+                            OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                         if (n > 1) {
                             Text(
                                 "×$n",

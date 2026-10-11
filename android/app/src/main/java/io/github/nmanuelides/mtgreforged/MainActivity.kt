@@ -99,6 +99,7 @@ class MainActivity : ComponentActivity() {
                 var selections by remember { mutableStateOf<Map<Int, Engine.DeckEntry>>(emptyMap()) }
                 var browsing by remember { mutableStateOf<Pair<Engine.Format, Int>?>(null) }
                 // Deck editor: which deck (null = new) and whether to open on the importer.
+                var collecting by remember { mutableStateOf(false) }
                 var editing by remember { mutableStateOf<Triple<Engine.Format, Engine.DeckEntry?, Boolean>?>(null) }
                 var deleting by remember { mutableStateOf<Pair<Engine.Format, Engine.DeckEntry>?>(null) }
 
@@ -126,6 +127,7 @@ class MainActivity : ComponentActivity() {
                 val game = match
                 when {
                     game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
+                    collecting -> DeckBuilderScreen(Engine.Format.Constructed, null, false, collection = true) { collecting = false }
                     editing != null -> {
                         val (fmt, entry, importFirst) = editing!!
                         DeckBuilderScreen(fmt, entry, importFirst) { saved ->
@@ -173,6 +175,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 chromeVisible = booted,
                                 onArtBounds = { landingArea = it },
+                                onCollection = { collecting = true },
                             )
                         }
                         if (!booted) {

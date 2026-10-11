@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.runtime.collectAsState
 import io.github.nmanuelides.mtgreforged.engine.ImageDownloader
 import androidx.compose.material.icons.filled.Downloading
@@ -119,6 +121,7 @@ fun HomeScreen(
     /** False while the boot window is still opening onto this screen. */
     chromeVisible: Boolean = true,
     onArtBounds: (Rect) -> Unit = {},
+    onCollection: () -> Unit = {},
 ) {
     var opponentCount by rememberSaveable { mutableStateOf(3) }
     var showRivals by remember { mutableStateOf(false) }
@@ -148,8 +151,18 @@ fun HomeScreen(
                     // Small paper tabs in the corner of the art: offline images and light / dark.
                     val context = LocalContext.current
                     var offline by remember { mutableStateOf(false) }
+                    var backup by remember { mutableStateOf(false) }
                     val downloading by ImageDownloader.progress.collectAsState()
                     Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            Modifier
+                                .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                                .paper(Palette.Paper)
+                                .clickable { backup = true }
+                                .padding(10.dp),
+                        ) {
+                            Icon(Icons.Default.Backup, contentDescription = "Backup & restore", tint = accent)
+                        }
                         Box(
                             Modifier
                                 .paperShadow(offsetY = 3.dp, blur = 10.dp)
@@ -178,6 +191,7 @@ fun HomeScreen(
                         }
                     }
                     if (offline) OfflineImagesDialog { offline = false }
+                    if (backup) BackupDialog { backup = false }
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
@@ -229,6 +243,7 @@ fun HomeScreen(
                     { m -> OrnateButton("${opponentCount} opponent${if (opponentCount > 1) "s" else ""}", { opponentCount = opponentCount % 3 + 1 }, m, icon = Icons.Default.Groups, accent = Palette.Slate) },
                     { m -> OrnateButton("Your deck", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
                     { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
+                    { m -> OrnateButton("Collection", onCollection, m, icon = Icons.Default.CollectionsBookmark, accent = Palette.Plum) },
                 )
                 if (wide) {
                     Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
