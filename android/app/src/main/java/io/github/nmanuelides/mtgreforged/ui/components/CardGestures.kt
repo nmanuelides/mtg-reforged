@@ -6,6 +6,11 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Alignment
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -75,13 +80,20 @@ private object CenterOnAnchor : PopupPositionProvider {
 
 /** While [visible], shows [card] enlarged right on top of the composable that hosts it. */
 @Composable
-fun HoldZoom(card: CardUi, visible: Boolean, width: Dp = 300.dp) {
+fun HoldZoom(card: CardUi, visible: Boolean, width: Dp = 300.dp, caption: String? = null) {
     if (!visible) return
     val grow = remember(card.id) { Animatable(0.6f) }
     LaunchedEffect(card.id) { grow.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = 500f)) }
     Popup(popupPositionProvider = CenterOnAnchor, properties = PopupProperties(focusable = false, clippingEnabled = false)) {
-        Box(Modifier.graphicsLayer { scaleX = grow.value; scaleY = grow.value; alpha = grow.value }) {
+        Column(
+            Modifier.graphicsLayer { scaleX = grow.value; scaleY = grow.value; alpha = grow.value },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             CardTile(card, width, showTapped = false)
+            caption?.let {
+                Spacer(Modifier.height(8.dp))
+                Pill(it, Palette.Slate)
+            }
         }
     }
 }

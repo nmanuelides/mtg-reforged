@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import forge.card.CardRarity
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
 import io.github.nmanuelides.mtgreforged.ui.components.SectionLabel
@@ -169,6 +170,10 @@ fun FilterPanel(
             }
             NumberRow("Power", null, filter.power, section("power"), { toggle("power") }) { onChange(filter.copy(power = it)) }
             NumberRow("Toughness", null, filter.toughness, section("tough"), { toggle("tough") }) { onChange(filter.copy(toughness = it)) }
+            NumberRow(
+                "Price", if (CardPrices.available) "Card Kingdom, USD" else "Card Kingdom prices download on Wi-Fi",
+                filter.price, section("price"), { toggle("price") }, decimals = true,
+            ) { onChange(filter.copy(price = it)) }
             FilterRow(
                 "Rarity", null, filter.rarities.takeIf { it.isNotEmpty() }?.joinToString(", ") { RARITY_LABELS[it].orEmpty() },
                 section("rarity"), { toggle("rarity") }, onClear = { onChange(filter.copy(rarities = emptySet())) },
@@ -281,20 +286,28 @@ private fun GroupRow(
 }
 
 @Composable
-private fun NumberRow(title: String, subtitle: String?, value: NumberFilter?, expanded: Boolean, onToggle: () -> Unit, onChange: (NumberFilter?) -> Unit) {
+private fun NumberRow(
+    title: String,
+    subtitle: String?,
+    value: NumberFilter?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    decimals: Boolean = false,
+    onChange: (NumberFilter?) -> Unit,
+) {
     FilterRow(title, subtitle, value?.toString(), expanded, onToggle, onClear = { onChange(null) }) {
         var op by remember { mutableStateOf(value?.op ?: NumberFilter.Op.EQ) }
-        var text by remember { mutableStateOf(value?.value?.toString().orEmpty()) }
-        fun emit() = onChange(text.toIntOrNull()?.let { NumberFilter(op, it) })
+        var text by remember { mutableStateOf(value?.toString()?.substringAfter(' ').orEmpty()) }
+        fun emit() = onChange(text.toDoubleOrNull()?.let { NumberFilter(op, it) })
         Row(verticalAlignment = Alignment.CenterVertically) {
             ChipFlow(Modifier.weight(1f)) {
                 NumberFilter.Op.entries.forEach { o -> Chip(" ${o.symbol} ", op == o, fontSize = 18) { op = o; emit() } }
             }
             Spacer(Modifier.width(10.dp))
             OutlinedTextField(
-                text, { t -> text = t.filter(Char::isDigit).take(2); emit() },
+                text, { t -> text = t.filter { it.isDigit() || (decimals && it == '.') }.take(if (decimals) 7 else 2); emit() },
                 singleLine = true, placeholder = { Text("0") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                keyboardOptions = KeyboardOptions(keyboardType = if (decimals) KeyboardType.Decimal else KeyboardType.Number),
                 textStyle = MaterialTheme.typography.bodyLarge, colors = fieldColors(),
                 modifier = Modifier.width(90.dp),
             )

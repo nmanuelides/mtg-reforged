@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import forge.card.MagicColor
+import io.github.nmanuelides.mtgreforged.engine.CardPrice
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.engine.DeckSummary
 import io.github.nmanuelides.mtgreforged.engine.Engine.DeckEntry
 import io.github.nmanuelides.mtgreforged.ui.components.ArtImage
@@ -119,7 +122,8 @@ fun DeckBrowserScreen(
     BackHandler(onBack = onBack)
     val entry = decks.getOrNull(index) ?: return
 
-    val summary by produceState<DeckSummary?>(null, entry) {
+    val prices by CardPrices.version.collectAsState()
+    val summary by produceState<DeckSummary?>(null, entry, prices) {
         value = withContext(Dispatchers.IO) { runCatching { DeckSummary.of(entry) }.getOrNull() }
     }
 
@@ -320,7 +324,8 @@ private fun SheetHeader(title: String, summary: DeckSummary?) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             OrnateDivider(width = 40.dp)
             Text(
-                "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards  ",
+                "  ${summary?.tag?.ifBlank { null } ?: "Precon"} · ${summary?.cardCount ?: 0} cards" +
+                    (summary?.value?.takeIf { it > 0 }?.let { " · ${CardPrice.usd(it)}" } ?: "") + "  ",
                 style = MaterialTheme.typography.labelMedium, color = Palette.Terracotta,
             )
             OrnateDivider(width = 40.dp)

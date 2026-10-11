@@ -8,10 +8,11 @@ import forge.card.MagicColor
 import forge.game.GameFormat
 import forge.item.PaperCard
 import forge.model.FModel
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 
 /** A comparison against a number printed on the card: mana value, power or toughness. */
-data class NumberFilter(val op: Op, val value: Int) {
-    enum class Op(val symbol: String, val test: (Int, Int) -> Boolean) {
+data class NumberFilter(val op: Op, val value: Double) {
+    enum class Op(val symbol: String, val test: (Double, Double) -> Boolean) {
         EQ("=", { a, b -> a == b }),
         LT("<", { a, b -> a < b }),
         LE("≤", { a, b -> a <= b }),
@@ -20,8 +21,8 @@ data class NumberFilter(val op: Op, val value: Int) {
         NE("≠", { a, b -> a != b }),
     }
 
-    fun matches(n: Int?) = n != null && op.test(n, value)
-    override fun toString() = "${op.symbol} $value"
+    fun matches(n: Number?) = n != null && op.test(n.toDouble(), value)
+    override fun toString() = "${op.symbol} ${if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()}"
 }
 
 /** How a group of picked values (types, keywords…) has to match a card. */
@@ -31,7 +32,7 @@ enum class ColorMode(val label: String) { Including("Including"), Exactly("Exact
 
 enum class SortBy(val label: String) {
     Name("Name"), ManaValue("Mana value"), Color("Color"), Rarity("Rarity"),
-    Power("Power"), Toughness("Toughness"), Newest("Newest"),
+    Power("Power"), Toughness("Toughness"), Price("Price"), Newest("Newest"),
 }
 
 /** A set of picked values plus how they combine. */
@@ -71,6 +72,8 @@ data class CardFilter(
     val toughness: NumberFilter? = null,
     val rarities: Set<CardRarity> = emptySet(),
     val artist: String = "",
+    /** Card Kingdom retail price in USD, see [CardPrices]. */
+    val price: NumberFilter? = null,
 ) {
     /** Number of filters in use, for the badge on the Filters button. */
     val activeCount: Int
@@ -78,6 +81,7 @@ data class CardFilter(
             colors.isNotEmpty() || colorless, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
             legality != null, manaCost.isNotBlank(), manaValue != null, text.isNotBlank(), types.active,
             supertypes.active, subtypes.active, power != null, toughness != null, rarities.isNotEmpty(), artist.isNotBlank(),
+            price != null,
         ).count { it }
 
     /** Filters that depend on the printing rather than the card itself. */
@@ -113,7 +117,8 @@ data class CardFilter(
                 supertypes.matches(rules.type.supertypes.map { it.name }) &&
                 subtypes.matches(rules.type.subtypes.toList()) &&
                 (!keywords.active || keywords.matches(keywordsOf(rules))) &&
-                (format == null || format.filterRules.test(card))
+                (format == null || format.filterRules.test(card)) &&
+                (price == null || price.matches(priceOf(card)))
         }
         // One printing per card: the first one that matched, so a set or artist filter shows that art.
         if (hideDuplicates && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }
@@ -132,6 +137,10 @@ data class CardFilter(
         }
     }
 
+    /** With one printing per card, a budget filter cares about the cheapest printing. */
+    private fun priceOf(card: PaperCard): Float? =
+        (if (hideDuplicates && sets.isEmpty() && artist.isBlank()) CardPrices.cheapest(card.name) else CardPrices.of(card))?.retail
+
     private fun comparator(): Comparator<PaperCard> {
         val byName = compareBy<PaperCard> { it.name }
         val primary: Comparator<PaperCard> = when (sort) {
@@ -141,6 +150,7 @@ data class CardFilter(
             SortBy.Rarity -> compareBy { it.rarity.ordinal }
             SortBy.Power -> compareBy(nullsFirst()) { it.rules.power?.toIntOrNull() }
             SortBy.Toughness -> compareBy(nullsFirst()) { it.rules.toughness?.toIntOrNull() }
+            SortBy.Price -> compareBy(nullsLast()) { priceOf(it) }
             SortBy.Newest -> compareBy { -(StaticData.instance().getCardEdition(it.edition)?.date?.time ?: 0L) }
         }
         return (if (descending) primary.reversed() else primary).then(byName)

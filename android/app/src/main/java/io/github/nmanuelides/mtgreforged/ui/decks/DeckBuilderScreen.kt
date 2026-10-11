@@ -44,6 +44,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -55,7 +56,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +67,8 @@ import forge.card.MagicColor
 import forge.deck.Deck
 import forge.deck.DeckSection
 import forge.item.PaperCard
+import io.github.nmanuelides.mtgreforged.engine.CardPrice
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.engine.DeckImport
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.UserDecks
@@ -280,8 +285,9 @@ private fun CardSearch(
     var results by remember { mutableStateOf<List<PaperCard>>(emptyList()) }
     var total by remember { mutableIntStateOf(0) }
     var searching by remember { mutableStateOf(false) }
+    val prices by CardPrices.version.collectAsState()
 
-    LaunchedEffect(query, filter) {
+    LaunchedEffect(query, filter, prices) {
         delay(250) // debounce typing
         searching = true
         val (found, count) = withContext(Dispatchers.Default) {
@@ -343,9 +349,13 @@ private fun CardSearch(
                 items(results, key = { "${it.name}|${it.edition}|${it.artIndex}" }) { card ->
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
-                    Box(Modifier.tapOrHold(card.name, onTap = { onAdd(card) }, onHold = { h, _ -> held = h })) {
-                        CardTile(ui, 118.dp, showTapped = false)
-                        HoldZoom(ui, held)
+                    val price = remember(card, prices) { CardPrices.of(card) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.tapOrHold(card.name, onTap = { onAdd(card) }, onHold = { h, _ -> held = h })) {
+                            CardTile(ui, 118.dp, showTapped = false)
+                            HoldZoom(ui, held, caption = price?.let(::zoomCaption))
+                        }
+                        PriceTag(price)
                     }
                 }
             }
@@ -374,6 +384,27 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
     )
 }
 
+// ---- Prices ------------------------------------------------------------------------
+
+private fun zoomCaption(price: CardPrice) =
+    price.label + (if (price.buylist > 0) "  ·  buylist ${CardPrice.usd(price.buylist)}" else "") +
+        (if (price.inStock == 0) "  ·  out of stock" else "")
+
+/** Card Kingdom price; tapping it opens the card's page on their site. */
+@Composable
+private fun PriceTag(price: CardPrice?) {
+    val uri = LocalUriHandler.current
+    Text(
+        price?.label ?: "—",
+        Modifier
+            .clickable(enabled = price != null) { price?.let { runCatching { uri.openUri(it.url) } } }
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = if (price == null) Palette.InkSoft else Palette.Slate,
+        textDecoration = if (price != null) TextDecoration.Underline else null,
+    )
+}
+
 // ---- Deck list ---------------------------------------------------------------------
 
 @Composable
@@ -387,6 +418,10 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
         "Lands" to main.filter { it.key.rules.type.isLand },
     )
 
+    val prices by CardPrices.version.collectAsState()
+    val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
+        (draft.commander.entries + draft.main.entries).sumOf { (c, n) -> (CardPrices.of(c)?.retail ?: 0f).toDouble() * n }
+    }
     Column(modifier.background(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
@@ -399,6 +434,12 @@ private fun DeckList(draft: DeckDraft, format: Engine.Format, problem: String?, 
                 color = if (problem == null) Palette.Sage else Palette.Terracotta,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
+            if (value > 0) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
+                    Text("Card Kingdom", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(Modifier.fillMaxSize()) {
@@ -439,6 +480,8 @@ private fun DeckRow(
 ) {
     val ui = remember(card) { CardUi.fromPaper(card) }
     var held by remember { mutableStateOf(false) }
+    val prices by CardPrices.version.collectAsState()
+    val price = remember(card, prices) { CardPrices.of(card) }
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = {}, onHold = { h, _ -> held = h }),
         verticalAlignment = Alignment.CenterVertically,
@@ -451,6 +494,7 @@ private fun DeckRow(
             Text(card.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(ui.manaCost, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
         }
+        PriceTag(price)
         if (showStar) {
             IconButton(onClick = onStar) {
                 Icon(if (isCommander) Icons.Default.Star else Icons.Default.StarBorder, "Commander", tint = Palette.Ochre)
@@ -458,7 +502,7 @@ private fun DeckRow(
         }
         IconButton(onClick = onRemove) { Icon(Icons.Default.Remove, "Remove one", tint = Palette.Terracotta) }
         if (!isCommander) IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Add one", tint = Palette.Sage) }
-        Box { HoldZoom(ui, held) }
+        Box { HoldZoom(ui, held, caption = price?.let(::zoomCaption)) }
     }
 }
 

@@ -18,6 +18,8 @@ data class DeckSummary(
     val spells: Int,
     val averageCmc: Float,
     val featured: List<String>,
+    /** Card Kingdom value of the whole deck in USD, or null before prices are downloaded. */
+    val value: Float?,
 ) {
     companion object {
         private val bracket = Regex("""\s*\[([^\]]+)]""")
@@ -55,6 +57,7 @@ data class DeckSummary(
                     .sortedByDescending { it.rules.manaCost.cmc * 10 + it.rarity.ordinal }
                     .take(3)
                     .map { it.name },
+                value = if (CardPrices.available) all.sumOf { (CardPrices.of(it)?.retail ?: 0f).toDouble() }.toFloat() else null,
             )
         }
     }

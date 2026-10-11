@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.PromptHost
 import io.github.nmanuelides.mtgreforged.engine.SavedGame
@@ -212,6 +213,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _update = MutableStateFlow<UpdateUi>(UpdateUi.None)
     val update: StateFlow<UpdateUi> = _update.asStateFlow()
+
+    init {
+        // Card Kingdom prices: load the saved list, refresh it daily on Wi-Fi.
+        viewModelScope.launch(Dispatchers.IO) { CardPrices.refresh(app) }
+    }
 
     private val _decks = MutableStateFlow<Map<Engine.Format, List<Engine.DeckEntry>>>(emptyMap())
     val decks: StateFlow<Map<Engine.Format, List<Engine.DeckEntry>>> = _decks.asStateFlow()
