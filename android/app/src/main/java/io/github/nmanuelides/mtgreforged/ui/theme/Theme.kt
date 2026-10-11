@@ -48,9 +48,10 @@ private fun pick(light: Long, dark: Long) = if (ThemeMode.dark) Color(dark) else
  * follows [ThemeMode], so switching themes recomposes the whole app with no other wiring.
  */
 object Palette {
-    val Paper get() = pick(0xFFF1E6CE, 0xFF2B221C)
-    val PaperLight get() = pick(0xFFF7EEDC, 0xFF3A2E25)
-    val PaperDeep get() = pick(0xFFE6D5B3, 0xFF221A15)
+    // Light tones sampled from the paper scan (see PaperTexture): warm, toasted, not grey.
+    val Paper get() = pick(0xFFF2D5AC, 0xFF2B221C)
+    val PaperLight get() = pick(0xFFF8E2C2, 0xFF3A2E25)
+    val PaperDeep get() = pick(0xFFE7C595, 0xFF221A15)
     val Ink get() = pick(0xFF3A2E26, 0xFFEADBC0)
     val InkSoft get() = pick(0xFF7A6656, 0xFFB9A587)
     val Line get() = pick(0xFFC09A82, 0xFF6E5745)

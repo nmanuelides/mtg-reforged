@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.nmanuelides.mtgreforged.R
+import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 import kotlin.math.roundToInt
 
 /**
@@ -30,7 +31,7 @@ object PaperTexture {
     const val STRENGTH = 0.35f
 
     /** Screen pixels per texture pixel, so the grain is the same size on every surface. */
-    private const val GRAIN_SCALE = 1.5f
+    private const val GRAIN_SCALE = 1.0f
 
     @Volatile private var image: ImageBitmap? = null
 
@@ -71,7 +72,7 @@ fun Modifier.paper(color: Color, strength: Float = PaperTexture.STRENGTH): Modif
  * (positive) or up (negative). Apply before the sheet's own background; [cover] should be
  * the sheet's colour, since the shadow-casting rectangle is drawn underneath it.
  */
-fun Modifier.paperShadow(offsetY: Dp, blur: Dp = 18.dp, cover: Color = Color(0xFFF1E6CE), darkness: Int = 190): Modifier = drawBehind {
+fun Modifier.paperShadow(offsetY: Dp, blur: Dp = 18.dp, cover: Color = Palette.Paper, darkness: Int = 190): Modifier = drawBehind {
     drawIntoCanvas { canvas ->
         val paint = Paint().asFrameworkPaint().apply {
             color = cover.toArgb()

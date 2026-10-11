@@ -76,7 +76,7 @@ fun ManaSymbol(pip: ManaPip, size: Dp = 24.dp, modifier: Modifier = Modifier) {
     }
 }
 
-/** Toggle chip for a colour filter: faded when off, lifted with an accent ring when on. */
+/** Toggle chip for a colour filter: faded when off, full colour and lifted when on. */
 @Composable
 fun ManaChip(pip: ManaPip, selected: Boolean, size: Dp = 32.dp, onClick: () -> Unit) {
     Box(
@@ -84,7 +84,6 @@ fun ManaChip(pip: ManaPip, selected: Boolean, size: Dp = 32.dp, onClick: () -> U
             .padding(2.dp)
             .shadow(if (selected) 4.dp else 0.dp, CircleShape)
             .alpha(if (selected) 1f else 0.5f)
-            .border(if (selected) 2.dp else 0.dp, if (selected) Palette.Terracotta else Color.Transparent, CircleShape)
             .clickable(onClick = onClick),
     ) {
         ManaSymbol(pip, size)
