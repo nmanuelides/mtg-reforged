@@ -16,6 +16,7 @@ import forge.game.player.PlayerView
 import forge.game.spellability.SpellAbilityView
 import forge.game.zone.ZoneType
 import forge.gamemodes.match.AbstractGuiGame
+import forge.gamemodes.net.NetworkGuiGame
 import forge.gamemodes.match.HostedMatch
 import forge.gamemodes.match.input.InputAttack
 import forge.gamemodes.match.input.InputConfirm
@@ -50,7 +51,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * thread. Player actions are forwarded to the game controller on a game thread, the
  * same way the libGDX frontend does it.
  */
-class ComposeGuiGame : AbstractGuiGame() {
+class ComposeGuiGame : NetworkGuiGame() {
 
     private val main = Handler(Looper.getMainLooper())
     private val _state = MutableStateFlow(MatchUiState())
@@ -277,6 +278,9 @@ class ComposeGuiGame : AbstractGuiGame() {
     // ---- IGuiGame: view updates --------------------------------------------------
 
     override fun updateCurrentPlayer(player: PlayerView?) = requestRefresh()
+
+    // Network guests: the host streams state changes as deltas; redraw after each one.
+    override fun afterDeltaApplied() = requestRefresh()
     override fun openView(myPlayers: TrackableCollection<PlayerView>?) {
         gameOver = null
         // Local matches are already on screen; network ones appear here.
