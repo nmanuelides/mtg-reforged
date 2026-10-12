@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Check
 import io.github.nmanuelides.mtgreforged.ui.components.LandFrom
@@ -301,7 +303,16 @@ fun DeckBuilderScreen(
         }
     }
 
-    CompositionLocalProvider(LocalCollectionMode provides collection) {
+    val clearCollection: (() -> Unit)? = if (!collection) null else {
+        {
+            draft.main.clear()
+            scope.launch {
+                withContext(Dispatchers.IO) { CardCollection.save(emptyMap()) }
+                savedSignature = signature()
+            }
+        }
+    }
+    CompositionLocalProvider(LocalCollectionMode provides collection, LocalClearCollection provides clearCollection) {
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
         wideLayout = wide
@@ -658,6 +669,36 @@ private enum class SidePanel { Filters, List }
 /** True while the builder edits the collection rather than a deck. */
 internal val LocalCollectionMode = staticCompositionLocalOf { false }
 
+/** Collection mode only: empties the whole collection (after two confirmations). */
+internal val LocalClearCollection = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+@Composable
+private fun ClearCollectionButton() {
+    val clear = LocalClearCollection.current ?: return
+    var step by remember { mutableIntStateOf(0) }
+    OrnateButton("Delete all", { step = 1 }, icon = Icons.Default.DeleteForever, accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 44.dp)
+    if (step > 0) {
+        OrnateDialog(onDismiss = { step = 0 }, maxWidth = 480.dp) {
+            SectionLabel(if (step == 1) "Delete your collection?" else "Are you sure?")
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (step == 1) "This removes every card from My collection. Your decks are not affected."
+                else "This can't be undone. Make a backup first if you might want it back.",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrnateButton("Cancel", { step = 0 }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton(
+                    if (step == 1) "Delete" else "Yes, delete everything",
+                    { if (step == 1) step = 2 else { step = 0; clear() } },
+                    Modifier.weight(1f), style = OrnateStyle.Primary,
+                )
+            }
+        }
+    }
+}
+
 private fun snapshotMain(draft: DeckDraft): Map<PaperCard, Int> = draft.main.toMap()
 
 /** A small check on cards the player owns (from their collection). */
@@ -678,10 +719,11 @@ private fun OwnedBadge(name: String, modifier: Modifier) {
 /** Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. */
 private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = pointerInput(Unit) {
     awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false)
+        // Initial pass: see the fingers before the grid's own scrolling takes them.
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         var scale = 1f
         do {
-            val event = awaitPointerEvent()
+            val event = awaitPointerEvent(PointerEventPass.Initial)
             if (event.changes.count { it.pressed } >= 2) {
                 scale *= event.calculateZoom()
                 if (scale > 1.2f) { onZoomIn(); scale = 1f }
@@ -764,6 +806,7 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
         if (value > 0) {
             Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
         }
+        if (collectionMode) ClearCollectionButton()
         OrnateButton(
             "List", onList, icon = Icons.AutoMirrored.Filled.List,
             style = if (listOpen) OrnateStyle.Primary else OrnateStyle.Secondary,
