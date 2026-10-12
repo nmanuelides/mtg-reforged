@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.ui.home.OnlineScreen
 import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import io.github.nmanuelides.mtgreforged.ui.components.PaperTexture
 import android.app.Application
@@ -100,6 +101,7 @@ class MainActivity : ComponentActivity() {
                 var browsing by remember { mutableStateOf<Pair<Engine.Format, Int>?>(null) }
                 // Deck editor: which deck (null = new) and whether to open on the importer.
                 var collecting by remember { mutableStateOf(false) }
+                var friends by remember { mutableStateOf(false) }
                 var editing by remember { mutableStateOf<Triple<Engine.Format, Engine.DeckEntry?, Boolean>?>(null) }
                 var deleting by remember { mutableStateOf<Pair<Engine.Format, Engine.DeckEntry>?>(null) }
 
@@ -127,6 +129,7 @@ class MainActivity : ComponentActivity() {
                 val game = match
                 when {
                     game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
+                    friends -> OnlineScreen(format, decks[format].orEmpty()) { friends = false }
                     collecting -> DeckBuilderScreen(Engine.Format.Constructed, null, false, collection = true) { collecting = false }
                     editing != null -> {
                         val (fmt, entry, importFirst) = editing!!
@@ -176,6 +179,7 @@ class MainActivity : ComponentActivity() {
                                 chromeVisible = booted,
                                 onArtBounds = { landingArea = it },
                                 onCollection = { collecting = true },
+                                onFriends = { friends = true },
                             )
                         }
                         if (!booted) {

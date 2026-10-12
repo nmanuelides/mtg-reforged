@@ -291,5 +291,12 @@ object Engine {
         _match.value = null
         PromptHost.cancelAll()
         ThreadUtil.invokeInGameThread { runCatching { current.hostedMatch?.endCurrentGame() } }
+        // A network match also closes the lobby / connection.
+        if (Online.lobby.value != null) Thread { Online.leave() }.start()
+    }
+
+    /** Network matches are created by Forge's lobby; their GUI announces itself here when it opens. */
+    fun showMatch(game: ComposeGuiGame) {
+        if (_match.value !== game) _match.value = game
     }
 }

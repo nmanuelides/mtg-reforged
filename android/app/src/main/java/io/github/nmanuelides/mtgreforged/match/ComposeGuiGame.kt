@@ -217,7 +217,9 @@ class ComposeGuiGame : AbstractGuiGame() {
     fun tapCard(id: Int) {
         val cv = cardsById[id] ?: return
         onGameThread {
-            val controller = gameController as? PlayerControllerHuman ?: return@onGameThread
+            // On a network guest the controller is Forge's remote one: just send the tap.
+            val controller = gameController as? PlayerControllerHuman
+                ?: return@onGameThread run { gameController?.selectCard(cv, null, Tap) }
             if (!undeclareElsewhereAttacker(controller, cv)) controller.selectCard(cv, null, Tap)
         }
     }
@@ -277,6 +279,8 @@ class ComposeGuiGame : AbstractGuiGame() {
     override fun updateCurrentPlayer(player: PlayerView?) = requestRefresh()
     override fun openView(myPlayers: TrackableCollection<PlayerView>?) {
         gameOver = null
+        // Local matches are already on screen; network ones appear here.
+        android.os.Handler(android.os.Looper.getMainLooper()).post { io.github.nmanuelides.mtgreforged.engine.Engine.showMatch(this) }
         requestRefresh()
     }
 

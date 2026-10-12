@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.runtime.collectAsState
@@ -122,6 +123,7 @@ fun HomeScreen(
     chromeVisible: Boolean = true,
     onArtBounds: (Rect) -> Unit = {},
     onCollection: () -> Unit = {},
+    onFriends: () -> Unit = {},
 ) {
     var opponentCount by rememberSaveable { mutableStateOf(3) }
     var showRivals by remember { mutableStateOf(false) }
@@ -244,6 +246,7 @@ fun HomeScreen(
                     { m -> OrnateButton("Your deck", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
                     { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
                     { m -> OrnateButton("Collection", onCollection, m, icon = Icons.Default.CollectionsBookmark, accent = Palette.Plum) },
+                    { m -> OrnateButton("Friends", onFriends, m, icon = Icons.Default.Wifi, accent = Palette.Sage) },
                 )
                 if (wide) {
                     Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
