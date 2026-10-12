@@ -1,5 +1,11 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.ui.composed
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.border
@@ -262,6 +268,7 @@ fun DeckBuilderScreen(
     var name by remember { mutableStateOf(initial?.name ?: "New deck") }
     var importing by remember { mutableStateOf(importFirst) }
     var exporting by remember { mutableStateOf(false) }
+    var cheapening by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     var filter by remember { mutableStateOf(CardFilter()) }
     // The cards get the whole width; filters or the compact list open beside them on demand.
@@ -323,6 +330,7 @@ fun DeckBuilderScreen(
                 onBack = { onDone(saved) },
                 onImport = { importing = true },
                 onExport = { exporting = true },
+                onCheapest = { cheapening = true },
                 canExport = draft.total > 0,
                 onSave = {
                     val snapshot = signature()
@@ -403,6 +411,7 @@ fun DeckBuilderScreen(
     }
 
     if (exporting) ExportDialog(name, draft) { exporting = false }
+    if (cheapening) CheapestDialog(draft) { cheapening = false }
 
     if (importing) {
         ImportDialog(
@@ -433,6 +442,7 @@ private fun Header(
     onImport: () -> Unit,
     onExport: () -> Unit,
     canExport: Boolean,
+    onCheapest: () -> Unit,
     onSave: () -> Unit,
     canSave: Boolean,
     saveLabel: String,
@@ -449,6 +459,9 @@ private fun Header(
         )
         OrnateButton("Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
         OrnateButton("Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
+        if (!LocalCollectionMode.current) {
+            OrnateButton("Cheapest", onCheapest, icon = Icons.Default.Savings, accent = Palette.Sage, enabled = canExport)
+        }
         OrnateButton(saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
     }
 }
@@ -717,7 +730,14 @@ private fun OwnedBadge(name: String, modifier: Modifier) {
 }
 
 /** Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. */
-private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = pointerInput(Unit) {
+private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = composed {
+    // The gesture loop lives across recompositions; read the newest callbacks, not the first ones.
+    val zoomIn by rememberUpdatedState(onZoomIn)
+    val zoomOut by rememberUpdatedState(onZoomOut)
+    pointerInput(Unit) { pinchLoop({ zoomIn() }, { zoomOut() }) }
+}
+
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.pinchLoop(onZoomIn: () -> Unit, onZoomOut: () -> Unit) {
     awaitEachGesture {
         // Initial pass: see the fingers before the grid's own scrolling takes them.
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -750,33 +770,125 @@ private fun deckText(draft: DeckDraft): String = buildString {
     draft.ordered().filter { it in draft.main }.forEach { line(it, draft.main[it] ?: 0) }
 }
 
+/** Cards of the deck the collection doesn't cover (basic lands left out), with what they'd cost. */
+private fun shoppingList(draft: DeckDraft): Pair<String, Double> {
+    val need = LinkedHashMap<String, Pair<PaperCard, Int>>()
+    draft.ordered().forEach { card ->
+        if (card.rules.type.isBasicLand) return@forEach
+        val n = (draft.commander[card] ?: 0) + (draft.main[card] ?: 0)
+        val prev = need[card.name]
+        need[card.name] = card to (prev?.second ?: 0) + n
+    }
+    var total = 0.0
+    val text = buildString {
+        need.forEach { (name, pair) ->
+            val missing = pair.second - CardCollection.count(name).coerceAtMost(pair.second)
+            if (missing <= 0) return@forEach
+            val price = CardPrices.cheapest(name)?.retail
+            if (price != null) total += price * missing
+            append(missing).append(' ').append(name)
+            price?.let { append("  (").append(CardPrice.usd(it)).append(')') }
+            append('\n')
+        }
+    }
+    return text.trim() to total
+}
+
 @Composable
 private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var done by remember { mutableStateOf<String?>(null) }
-    val text = remember { deckText(draft) }
+    var shopping by remember { mutableStateOf(false) }
+    val deck = remember { deckText(draft) }
+    val (missing, cost) = remember { shoppingList(draft) }
+    val text = if (shopping) "$name — shopping list\n\n$missing" else deck
     val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) {
             runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } }
                 .onSuccess { done = "Saved." }.onFailure { done = "Couldn't save: ${it.message}" }
         }
     }
-    OrnateDialog(onDismiss = onDismiss, maxWidth = 520.dp) {
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 560.dp) {
         SectionLabel("Export deck")
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("Deck list", !shopping, fontSize = 12) { shopping = false; done = null }
+            Chip("Shopping list", shopping, fontSize = 12) { shopping = true; done = null }
+        }
         Spacer(Modifier.height(8.dp))
-        Text("${draft.total} cards as a plain list, ready for Moxfield, Archidekt, ManaBox or a friend.",
-            style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        Text(
+            if (!shopping) "${draft.total} cards as a plain list, ready for Moxfield, Archidekt, ManaBox or a friend."
+            else if (missing.isBlank()) "You already own every card in this deck."
+            else "Cards in this deck that your collection doesn't cover (basic lands left out)" +
+                if (cost > 0) " · about ${CardPrice.usd(cost.toFloat())} at Card Kingdom." else ".",
+            style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+        )
+        if (shopping && missing.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                missing, Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                style = MaterialTheme.typography.bodySmall, color = Palette.Ink,
+            )
+        }
         Spacer(Modifier.height(14.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OrnateButton("Copy list", { clipboard.setText(AnnotatedString(text)); done = "Copied to the clipboard." },
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OrnateButton("Copy", { clipboard.setText(AnnotatedString(text)); done = "Copied to the clipboard." },
                 Modifier.weight(1f), icon = Icons.Default.ContentCopy, accent = Palette.Slate)
-            OrnateButton("Save .txt", { save.launch("${name.ifBlank { "deck" }}.txt") },
+            OrnateButton("Share", {
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(android.content.Intent.EXTRA_TEXT, text)
+                context.startActivity(android.content.Intent.createChooser(send, null))
+            }, Modifier.weight(1f), icon = Icons.Default.IosShare, accent = Palette.Sage)
+            OrnateButton("Save .txt", { save.launch("${name.ifBlank { "deck" }}${if (shopping) " - shopping list" else ""}.txt") },
                 Modifier.weight(1f), icon = Icons.Default.Save, style = OrnateStyle.Primary)
         }
         done?.let {
             Spacer(Modifier.height(10.dp))
             Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Sage)
+        }
+    }
+}
+
+/** For each card in the deck, the printing Card Kingdom sells cheapest (when it's a different one). */
+private fun cheapestSwaps(draft: DeckDraft): Map<PaperCard, PaperCard> {
+    val db = StaticData.instance().commonCards
+    return (draft.commander.keys + draft.main.keys).mapNotNull { card ->
+        val best = runCatching { db.getAllCards(card.name) }.getOrNull().orEmpty()
+            .mapNotNull { p -> CardPrices.of(p)?.takeIf { it.exact }?.let { p to it.retail } }
+            .minByOrNull { it.second } ?: return@mapNotNull null
+        val now = CardPrices.of(card)?.takeIf { it.exact }?.retail ?: Float.MAX_VALUE
+        if (best.first != card && best.second < now) card to best.first else null
+    }.toMap()
+}
+
+@Composable
+private fun CheapestDialog(draft: DeckDraft, onDismiss: () -> Unit) {
+    val swaps by produceState<Map<PaperCard, PaperCard>?>(null) { value = withContext(Dispatchers.Default) { cheapestSwaps(draft) } }
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 480.dp) {
+        SectionLabel("Cheapest printings")
+        Spacer(Modifier.height(10.dp))
+        val list = swaps
+        if (list == null) {
+            CircularProgressIndicator(color = Palette.Terracotta)
+        } else {
+            val saving = list.entries.sumOf { (old, new) ->
+                val n = (draft.commander[old] ?: 0) + (draft.main[old] ?: 0)
+                ((CardPrices.of(old)?.retail ?: 0f) - (CardPrices.of(new)?.retail ?: 0f)).toDouble().coerceAtLeast(0.0) * n
+            }
+            Text(
+                if (list.isEmpty()) "Every card already uses its cheapest Card Kingdom printing."
+                else "Switch ${list.size} card(s) to their cheapest Card Kingdom printing" +
+                    if (saving > 0) ", saving about ${CardPrice.usd(saving.toFloat())}?" else "?",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+            )
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrnateButton(if (list.isEmpty()) "Close" else "Cancel", onDismiss, Modifier.weight(1f), accent = Palette.Slate)
+                if (list.isNotEmpty()) {
+                    OrnateButton("Switch", { list.values.forEach { draft.usePrinting(it) }; onDismiss() }, Modifier.weight(1f), style = OrnateStyle.Primary)
+                }
+            }
         }
     }
 }
