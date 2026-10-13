@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import forge.gamemodes.match.LobbySlotType
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.Online
-import io.github.nmanuelides.mtgreforged.ui.components.LandFrom
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
@@ -73,7 +72,7 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
         Modifier.fillMaxSize().parchment().statusBarsPadding().navigationBarsPadding().padding(20.dp).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(Modifier.fillMaxWidth().landIn(0, LandFrom.Top), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().landIn(0), verticalAlignment = Alignment.CenterVertically) {
             OrnateButton("", { leave() }, icon = Icons.AutoMirrored.Filled.ArrowBack)
             Spacer(Modifier.padding(start = 12.dp))
             SectionLabel("Play with friends · ${format.label}")

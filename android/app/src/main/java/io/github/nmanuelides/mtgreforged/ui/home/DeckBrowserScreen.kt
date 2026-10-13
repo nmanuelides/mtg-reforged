@@ -1,6 +1,5 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
-import io.github.nmanuelides.mtgreforged.ui.components.LandFrom
 import io.github.nmanuelides.mtgreforged.ui.components.landIn
 import androidx.compose.ui.platform.LocalConfiguration
 import io.github.nmanuelides.mtgreforged.ui.decks.StalePriceWarning
@@ -195,15 +194,15 @@ fun DeckBrowserScreen(
             Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
                 // A narrow portrait of the deck's art; the sheet gets the rest of the width.
                 content(
-                    Modifier.weight(0.3f).fillMaxHeight().landIn(0, LandFrom.Left),
-                    Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp).landIn(1, LandFrom.Right),
+                    Modifier.weight(0.3f).fillMaxHeight().landIn(0),
+                    Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp).landIn(1),
                 )
             }
         } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
                 content(
-                    Modifier.fillMaxWidth().weight(0.4f).landIn(0, LandFrom.Top),
-                    Modifier.fillMaxWidth().weight(0.6f).padding(top = 12.dp).landIn(1, LandFrom.Bottom),
+                    Modifier.fillMaxWidth().weight(0.4f).landIn(0),
+                    Modifier.fillMaxWidth().weight(0.6f).padding(top = 12.dp).landIn(1),
                 )
             }
         }

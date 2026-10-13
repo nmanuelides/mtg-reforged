@@ -10,7 +10,6 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Check
-import io.github.nmanuelides.mtgreforged.ui.components.LandFrom
 import io.github.nmanuelides.mtgreforged.ui.components.landIn
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -324,7 +323,7 @@ fun DeckBuilderScreen(
         val wide = maxWidth > maxHeight
         wideLayout = wide
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
-            Box(Modifier.landIn(0, LandFrom.Top)) {
+            Box(Modifier.landIn(0)) {
             Header(
                 name = name, onName = { name = it }, format = format,
                 onBack = { onDone(saved) },
