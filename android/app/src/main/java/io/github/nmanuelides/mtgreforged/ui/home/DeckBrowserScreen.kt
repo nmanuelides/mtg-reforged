@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import io.github.nmanuelides.mtgreforged.ui.components.landIn
 import androidx.compose.ui.platform.LocalConfiguration
 import io.github.nmanuelides.mtgreforged.ui.decks.StalePriceWarning
@@ -136,6 +137,7 @@ fun DeckBrowserScreen(
         value = withContext(Dispatchers.IO) { runCatching { DeckSummary.cached(entry) }.getOrNull() }
     }
 
+    EntranceScope {
     BoxWithConstraints(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp)) {
         val wide = maxWidth > maxHeight
         val content: @Composable (Modifier, Modifier) -> Unit = { artModifier, sheetModifier ->
@@ -195,17 +197,19 @@ fun DeckBrowserScreen(
                 // A narrow portrait of the deck's art; the sheet gets the rest of the width.
                 content(
                     Modifier.weight(0.3f).fillMaxHeight().landIn(0),
-                    Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp).landIn(1),
+                    Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp),
                 )
             }
         } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
                 content(
-                    Modifier.fillMaxWidth().weight(0.4f).landIn(0),
-                    Modifier.fillMaxWidth().weight(0.6f).padding(top = 12.dp).landIn(1),
+                    Modifier.fillMaxWidth().weight(0.28f).landIn(0),
+                    Modifier.fillMaxWidth().weight(0.72f).padding(top = 10.dp),
                 )
             }
         }
+    }
+
     }
 
     if (searching) {
@@ -272,27 +276,31 @@ private fun DeckSheet(
     if (wide) {
         // Tablet: header across the top, stats beside the key cards, and every action on one bottom row.
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-            SheetHeader(title, summary)
+            Box(Modifier.landIn(2)) { SheetHeader(title, summary) }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
-                    summary?.let { SheetStats(it); Spacer(Modifier.height(14.dp)); DeckFacts(it) }
+                    summary?.let {
+                        Box(Modifier.landIn(3)) { SheetStats(it) }
+                        Spacer(Modifier.height(14.dp))
+                        Box(Modifier.landIn(5)) { DeckFacts(it) }
+                    }
                     Spacer(Modifier.weight(1f).height(18.dp))
-                    manage()
+                    Box(Modifier.landIn(7)) { manage() }
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    SectionLabel("Key cards", color = Palette.InkSoft)
+                    SectionLabel("Key cards", Modifier.landIn(3), color = Palette.InkSoft)
                     Spacer(Modifier.height(8.dp))
                     summary?.let { s ->
                         // The key cards stretch to the bottom of the sheet with tall art.
                         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            s.featured.forEach { FeaturedCard(it, Modifier.weight(1f).fillMaxHeight(), tall = true) }
+                            s.featured.forEachIndexed { i, card -> FeaturedCard(card, Modifier.weight(1f).fillMaxHeight().landIn(4 + i), tall = true) }
                         }
                     }
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.landIn(8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 navigation(Modifier.weight(1.4f))
                 OrnateButton("Back", onBack, Modifier.weight(0.8f), accent = Palette.Slate, height = 54.dp)
                 OrnateButton("Select", onSelect, Modifier.weight(1f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
@@ -302,25 +310,25 @@ private fun DeckSheet(
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            SheetHeader(title, summary)
+            Box(Modifier.landIn(2)) { SheetHeader(title, summary) }
             Spacer(Modifier.height(12.dp))
             summary?.let { s ->
-                SheetStats(s)
+                Box(Modifier.landIn(3)) { SheetStats(s) }
                 Spacer(Modifier.height(12.dp))
-                DeckFacts(s)
+                Box(Modifier.landIn(4)) { DeckFacts(s) }
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    s.featured.forEach { FeaturedCard(it, Modifier.weight(1f)) }
+                    s.featured.forEachIndexed { i, card -> FeaturedCard(card, Modifier.weight(1f).landIn(5 + i)) }
                 }
             }
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.landIn(8)) { manage() }
         }
 
-        Spacer(Modifier.height(12.dp))
-        manage()
-        Spacer(Modifier.height(8.dp))
-        navigation(Modifier)
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        navigation(Modifier.landIn(9))
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.landIn(10), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             OrnateButton("Back", onBack, Modifier.weight(1f), accent = Palette.Slate, height = 54.dp)
             OrnateButton("Select", onSelect, Modifier.weight(1.3f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
         }

@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.foundation.horizontalScroll
+import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.produceState
@@ -318,10 +320,12 @@ fun DeckBuilderScreen(
             }
         }
     }
+    EntranceScope {
     CompositionLocalProvider(LocalCollectionMode provides collection, LocalClearCollection provides clearCollection) {
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
         wideLayout = wide
+        val compactHeader = maxWidth < 600.dp
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
             Box(Modifier.landIn(0)) {
             Header(
@@ -330,6 +334,7 @@ fun DeckBuilderScreen(
                 onImport = { importing = true },
                 onExport = { exporting = true },
                 onCheapest = { cheapening = true },
+                compact = compactHeader,
                 canExport = draft.total > 0,
                 onSave = {
                     val snapshot = signature()
@@ -365,7 +370,7 @@ fun DeckBuilderScreen(
                 var shownPanel by remember { mutableStateOf(panel) }
                 if (panel != null) shownPanel = panel
                 Row(Modifier.fillMaxSize()) {
-                    cards(Modifier.weight(1f).fillMaxHeight().landIn(1))
+                    cards(Modifier.weight(1f).fillMaxHeight())
                     AnimatedVisibility(
                         visible = panel != null,
                         enter = expandHorizontally(tween(320), expandFrom = Alignment.Start) +
@@ -387,11 +392,12 @@ fun DeckBuilderScreen(
                     }
                 }
             } else {
-                cards(Modifier.fillMaxSize().landIn(1))
+                cards(Modifier.fillMaxSize())
             }
         }
     }
 
+    }
     }
     // Phones: the side panels open as dialogs instead.
     if (panel == SidePanel.Filters && !wideLayout) {
@@ -442,6 +448,7 @@ private fun Header(
     onExport: () -> Unit,
     canExport: Boolean,
     onCheapest: () -> Unit,
+    compact: Boolean = false,
     onSave: () -> Unit,
     canSave: Boolean,
     saveLabel: String,
@@ -456,12 +463,12 @@ private fun Header(
             colors = fieldColors(),
             modifier = Modifier.weight(1f),
         )
-        OrnateButton("Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
-        OrnateButton("Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
+        OrnateButton(if (compact) "" else "Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
+        OrnateButton(if (compact) "" else "Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
         if (!LocalCollectionMode.current) {
-            OrnateButton("Cheapest", onCheapest, icon = Icons.Default.Savings, accent = Palette.Sage, enabled = canExport)
+            OrnateButton(if (compact) "" else "Cheapest", onCheapest, icon = Icons.Default.Savings, accent = Palette.Sage, enabled = canExport)
         }
-        OrnateButton(saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
+        OrnateButton(if (compact) "" else saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
     }
 }
 
@@ -513,9 +520,9 @@ private fun CardSearch(
     }
 
     Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
-        DeckStatus(draft, format, problem, listOpen, onOpenList)
+        Box(Modifier.landIn(1)) { DeckStatus(draft, format, problem, listOpen, onOpenList) }
         Spacer(Modifier.height(10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.landIn(2), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 query, { query = it }, singleLine = true,
                 leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
@@ -541,7 +548,10 @@ private fun CardSearch(
         }
         Spacer(Modifier.height(8.dp))
         // Quick toggles for the most used filters; the panel has the rest.
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.landIn(3).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+        ) {
             ManaPip.WUBRG.forEach { pip ->
                 val color = pip.color
                 ManaChip(pip, color in filter.colors) {
@@ -593,16 +603,18 @@ private fun CardSearch(
             Spacer(Modifier.height(4.dp))
         }
         Box(Modifier.fillMaxSize()) {
+            val cascade = remember { java.util.concurrent.atomic.AtomicInteger(4) }
             LazyVerticalGrid(
                 GridCells.Fixed(columns),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 itemsIndexed(results, key = { _, it -> "${it.name}|${it.edition}|${it.artIndex}" }) { index, card ->
+                    val order = remember { cascade.getAndIncrement() }
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
                     val price = remember(card, prices) { CardPrices.of(card) }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.tapOrHold(card.name, onTap = { onOpen(results, index) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, tile, showTapped = false)
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
@@ -944,6 +956,7 @@ private fun DeckGallery(
             TYPE_GROUPS.map { group -> group to main.filter { typeGroup(it.first) == group } }
         ).filter { it.second.isNotEmpty() }
 
+    val cascade = remember { java.util.concurrent.atomic.AtomicInteger(4) }
     LazyVerticalGrid(
         GridCells.Fixed(columns),
         modifier,
@@ -963,12 +976,13 @@ private fun DeckGallery(
         groups.forEach { (label, cards) ->
             item(span = { GridItemSpan(maxLineSpan) }) { SectionLabel("$label · ${cards.sumOf { it.second }}") }
             items(cards.sortedBy { it.first.rules.manaCost.cmc * 1000 + it.first.name.first().code }, key = { label + it.first.name + it.first.edition }) { (card, n) ->
+                val order = remember { cascade.getAndIncrement() }
                 val commander = label == "Commander"
                 val ui = remember(card) { CardUi.fromPaper(card) }
                 var held by remember { mutableStateOf(false) }
                 val prices by CardPrices.version.collectAsState()
                 val price = remember(card, prices) { CardPrices.of(card) }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
                     val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
                     Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h })) {
                         CardTile(ui, tile, showTapped = false)
