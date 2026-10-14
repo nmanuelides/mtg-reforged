@@ -214,7 +214,8 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     private fun choosablePlayerIdsUnsafe(view: GameView): Set<Int> {
         val input = currentInput() ?: return emptySet()
-        if (input !is InputSelectTargets && input !is InputSelectEntitiesFromList<*>) return emptySet()
+        // Inputs that park the game thread waiting for this player (incl. choosing whom to attack).
+        if (input !is InputSelectTargets && input !is InputSelectEntitiesFromList<*> && input !is InputAttack) return emptySet()
         val game = view.game ?: return emptySet()
         val ids = HashSet<Int>()
         var type: Class<*>? = input.javaClass
