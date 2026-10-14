@@ -133,6 +133,9 @@ object Engine {
             // Sound effects play through AndroidAudioClip; there is no music player (yet).
             prefs.setPref(FPref.UI_ENABLE_SOUNDS, true)
             prefs.setPref(FPref.UI_ENABLE_MUSIC, false)
+            // Seconds the AI may spend choosing one play before it settles for what it has
+            // (Forge's default 5 piles up into minutes on big multiplayer boards).
+            prefs.setPref(FPref.MATCH_AI_TIMEOUT, "3")
             null
         }
         ticker.interrupt()

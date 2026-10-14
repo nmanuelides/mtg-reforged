@@ -85,10 +85,14 @@ class ComposeGuiGame : NetworkGuiGame() {
     private fun requestRefresh() {
         if (refreshQueued) return
         refreshQueued = true
+        // While others (the AI) are thinking, redraw a few times a second instead of every
+        // frame: each redraw walks the whole board on the main thread, and on big late-game
+        // boards that CPU is better spent on the AI.
+        val waitingForMe = runCatching { currentInput() != null }.getOrDefault(true)
         main.postDelayed({
             refreshQueued = false
             rebuild()
-        }, 16)
+        }, if (waitingForMe) 16L else 150L)
     }
 
     private fun rebuild() {
