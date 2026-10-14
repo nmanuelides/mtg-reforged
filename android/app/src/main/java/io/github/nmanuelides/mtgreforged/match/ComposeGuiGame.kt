@@ -309,7 +309,8 @@ class ComposeGuiGame : NetworkGuiGame() {
     private fun checkpoint() {
         if (currentInput() !is InputPassPriority) return
         val game = gameView?.game ?: return // network guests don't hold the game
-        runCatching { GameSnapshot(game) }
+        // GameSnapshot only copies the game when makeCopy() is called.
+        runCatching { GameSnapshot(game).also { it.makeCopy() } }
             .onSuccess { undoStack.addLast(it); while (undoStack.size > MAX_UNDO) undoStack.removeFirst() }
             .onFailure { Log.w("Undo", "snapshot failed", it) }
         requestRefresh()

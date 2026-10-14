@@ -336,7 +336,6 @@ private fun SidePanel(
                     style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            UndoButton(state, game::undo)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OrnateButton("Log", onLog, Modifier.weight(1f), style = OrnateStyle.Quiet, icon = Icons.AutoMirrored.Filled.List,
@@ -371,11 +370,16 @@ private fun SidePanel(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                p.message.ifBlank { "Waiting…" },
-                Modifier.fillMaxWidth().heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
-                style = MaterialTheme.typography.bodyLarge,
-            )
+            // Who has priority, with Undo in the box's top-right corner.
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    p.message.ifBlank { "Waiting…" },
+                    Modifier.weight(1f).heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Spacer(Modifier.width(8.dp))
+                UndoButton(state, game::undo)
+            }
             PlayerChoices(state, game::tapPlayer)
             if (p.passesPriority) {
                 // Passing priority can skip whole phases; make it deliberate.
