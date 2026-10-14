@@ -32,7 +32,8 @@ object ThemeMode {
     /** Uses the saved choice, or the system setting if the player never picked one. */
     fun init(context: Context, systemDark: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        dark = if (prefs.contains(KEY)) prefs.getBoolean(KEY, false) else systemDark
+        // Light unless the player switched to dark themselves (the system setting doesn't decide).
+        dark = prefs.getBoolean(KEY, false)
     }
 
     fun toggle(context: Context) {

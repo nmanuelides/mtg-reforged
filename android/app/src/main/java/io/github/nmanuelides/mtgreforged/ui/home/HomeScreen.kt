@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.ui.draw.shadow
 import io.github.nmanuelides.mtgreforged.engine.Profiles
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Backup
@@ -159,7 +160,7 @@ fun HomeScreen(
                     val downloading by ImageDownloader.progress.collectAsState()
                     Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         // Profile: your avatar (or initial) opens name and avatars.
-                        AvatarImage(0, Profiles.name, Modifier.size(44.dp).paperShadow(offsetY = 3.dp, blur = 10.dp).border(2.dp, accent, CircleShape).clickable { profile = true })
+                        AvatarImage(0, Profiles.name, Modifier.size(44.dp).shadow(6.dp, CircleShape).border(2.dp, accent, CircleShape).clickable { profile = true })
                         Box(
                             Modifier
                                 .paperShadow(offsetY = 3.dp, blur = 10.dp)
