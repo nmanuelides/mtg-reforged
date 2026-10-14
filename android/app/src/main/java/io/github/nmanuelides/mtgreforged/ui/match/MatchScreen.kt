@@ -364,7 +364,7 @@ private fun SidePanel(
             PlayerChoices(state, game::tapPlayer)
             if (p.passesPriority) {
                 // Passing priority can skip whole phases; make it deliberate.
-                SwipeToConfirm("Next Step", { NextStep.press(); game.pressOk() }, Modifier.fillMaxWidth(), enabled = p.okEnabled)
+                SwipeToConfirm(passLabel(state), { NextStep.press(); game.pressOk() }, Modifier.fillMaxWidth(), enabled = p.okEnabled)
             } else {
                 OrnateButton(
                     p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),
@@ -372,10 +372,15 @@ private fun SidePanel(
                 )
             }
             if (p.cancelLabel.isNotBlank()) {
-                OrnateButton(
-                    p.cancelLabel, game::pressCancel, Modifier.fillMaxWidth(),
-                    accent = Palette.Slate, enabled = p.cancelEnabled, height = 46.dp,
-                )
+                if (p.passesPriority) {
+                    // "End Turn" skips even more than a step: same deliberate swipe.
+                    SwipeToConfirm(p.cancelLabel, { NextStep.press(); game.pressCancel() }, Modifier.fillMaxWidth(), enabled = p.cancelEnabled, height = 46.dp)
+                } else {
+                    OrnateButton(
+                        p.cancelLabel, game::pressCancel, Modifier.fillMaxWidth(),
+                        accent = Palette.Slate, enabled = p.cancelEnabled, height = 46.dp,
+                    )
+                }
             }
         }
     }
@@ -656,11 +661,15 @@ private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Uni
         )
         Spacer(Modifier.width(8.dp))
         if (p.cancelLabel.isNotBlank()) {
-            OrnateButton(p.cancelLabel, onCancel, enabled = p.cancelEnabled, accent = Palette.Slate, height = 42.dp)
+            if (p.passesPriority) {
+                SwipeToConfirm(p.cancelLabel, { NextStep.press(); onCancel() }, Modifier.width(170.dp), enabled = p.cancelEnabled, height = 44.dp)
+            } else {
+                OrnateButton(p.cancelLabel, onCancel, enabled = p.cancelEnabled, accent = Palette.Slate, height = 42.dp)
+            }
             Spacer(Modifier.width(8.dp))
         }
         if (p.passesPriority) {
-            SwipeToConfirm("Next Step", { NextStep.press(); onOk() }, Modifier.width(200.dp), enabled = p.okEnabled, height = 44.dp)
+            SwipeToConfirm(passLabel(state), { NextStep.press(); onOk() }, Modifier.width(200.dp), enabled = p.okEnabled, height = 44.dp)
         } else {
             OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, enabled = p.okEnabled, style = OrnateStyle.Primary, height = 42.dp)
         }
@@ -792,6 +801,9 @@ private fun TurnBanner(state: MatchUiState) {
         }
     }
 }
+
+/** Passing with something on the stack resolves it; with an empty stack it moves to the next step. */
+private fun passLabel(state: MatchUiState) = if (state.stack.isNotEmpty()) "Resolve" else "Next Step"
 
 /** Counts "Next Step" presses so the cast spotlight can get out of the way. */
 private object NextStep {

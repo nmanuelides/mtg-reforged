@@ -262,7 +262,8 @@ object Engine {
                 // Breeze through "who starts" and mulligans, then lay the saved state over the new game.
                 guiGame.autoStart = true
                 hosted.setStartGameHook {
-                    GameState().apply { parse(resume.state.lines()) }.applyToGame(hosted.game)
+                    // Forge's parser chokes on blank lines (state text written on Windows / edited saves).
+                    GameState().apply { parse(resume.state.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(hosted.game)
                 }
             }
             _match.value = guiGame
