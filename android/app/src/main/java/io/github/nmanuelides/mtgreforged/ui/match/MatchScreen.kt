@@ -175,6 +175,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
 
         YourTurnGlow(state)
         TurnBanner(state)
+        ImpactAnimations(state)
         CastSpotlight(state)
 
         AnimatedVisibility(state.gameOver != null, enter = fadeIn(), exit = fadeOut()) {
@@ -523,7 +524,7 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
         val portrait = player.command.firstOrNull()?.name
         val ring = if (player.isAi) Palette.Slate else Palette.Terracotta
         Box(
-            Modifier.size(if (compact) 34.dp else 42.dp).background(ring, CircleShape).padding(2.dp),
+            Modifier.size(if (compact) 34.dp else 42.dp).trackPosition("p${player.id}").background(ring, CircleShape).padding(2.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (portrait != null) {

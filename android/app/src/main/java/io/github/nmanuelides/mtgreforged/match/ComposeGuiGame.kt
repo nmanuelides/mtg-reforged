@@ -147,6 +147,7 @@ class ComposeGuiGame : NetworkGuiGame() {
                 text = item.text,
                 source = item.sourceCard?.let(::card),
                 controllerName = item.activatingPlayer?.name.orEmpty(),
+                targets = item.targetCards.orEmpty().map { "c${it.id}" } + item.targetPlayers.orEmpty().map { "p${it.id}" },
             )
         }.orEmpty()
 

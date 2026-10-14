@@ -171,6 +171,7 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                 Modifier
                     .offset(x = step * i)
                     .size(slotWidth, cardHeight)
+                    .trackPosition("c${card.id}")
                     .tapOrHold(card.id, onTap = { actions.onCard(card.id) }, onHold = { h, _ -> held = h }),
                 contentAlignment = Alignment.Center,
             ) {

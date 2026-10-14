@@ -84,7 +84,14 @@ data class PlayerUi(
     val hasLost: Boolean,
 )
 
-data class StackItemUi(val id: Int, val text: String, val source: CardUi?, val controllerName: String)
+data class StackItemUi(
+    val id: Int,
+    val text: String,
+    val source: CardUi?,
+    val controllerName: String,
+    /** What it targets, as BoardPositions keys ("c<cardId>" / "p<playerId>"). */
+    val targets: List<String> = emptyList(),
+)
 
 data class CombatUi(val attackers: Map<Int, Int?>, val blockers: Map<Int, List<Int>>)
 
