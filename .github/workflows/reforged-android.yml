@@ -49,6 +49,11 @@ jobs:
           echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
           echo "head_sha=$(git rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Save the merge to master
+        # Keeps the fork's history identical to what was built, so local builds (after a pull)
+        # get the same build numbers. Pushes with GITHUB_TOKEN don't start new workflow runs.
+        run: git push origin HEAD:master || echo "master moved on; the next run will push the merge"
+
       - name: Skip if nothing changed
         id: check
         env:
