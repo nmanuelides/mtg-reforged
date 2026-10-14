@@ -164,6 +164,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         val log = entries.take(40).map { it.message() }
         val quiet = setOf(GameLogEntryType.PHASE, GameLogEntryType.TURN, GameLogEntryType.MANA, GameLogEntryType.INFORMATION)
         val lastActions = HashMap<String, String>()
+        val lastPlay = entries.firstOrNull { it.type() !in quiet }?.message()
         for (entry in entries.take(200)) {
             if (entry.type() in quiet) continue
             val text = entry.message()
@@ -186,6 +187,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
             canUndo = undoStack.isNotEmpty() && !undoPending,
             lastActions = lastActions,
+            lastPlay = lastPlay,
             undoPending = undoPending,
             selectableIds = selectable,
             highlightedIds = highlighted,

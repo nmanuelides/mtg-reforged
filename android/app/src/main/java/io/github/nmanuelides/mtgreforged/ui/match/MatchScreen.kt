@@ -561,8 +561,8 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
                         ZoneButton(Icons.Default.Block, "Exile", player.exile.size, compact) { actions.onZone("${player.name}'s exile", player.exile) }
                     }
                 }
-                // This player's latest move (spells, attacks, lands…; phase changes left out).
-                state.lastActions[player.name]?.let { action ->
+                // In your own bar: the latest play of the game, by anyone. Opponents' bars: their own latest play.
+                (if (player.isLocal) state.lastPlay else state.lastActions[player.name])?.let { action ->
                     Spacer(Modifier.width(12.dp))
                     Text(
                         action,

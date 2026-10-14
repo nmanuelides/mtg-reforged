@@ -106,6 +106,8 @@ data class MatchUiState(
     val canUndo: Boolean = false,
     /** Each player's latest play from the log (by player name), phase / turn lines left out. */
     val lastActions: Map<String, String> = emptyMap(),
+    /** The latest play of the whole game, whoever made it (phase / turn / mana lines left out). */
+    val lastPlay: String? = null,
     /** Undo was asked while the AI was playing; it happens when the game hands control back. */
     val undoPending: Boolean = false,
     val players: List<PlayerUi> = emptyList(),
