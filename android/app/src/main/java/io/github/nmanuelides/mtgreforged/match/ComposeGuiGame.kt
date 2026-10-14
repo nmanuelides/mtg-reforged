@@ -189,8 +189,16 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     private fun currentInput() = (gameController as? PlayerControllerHuman)?.inputProxy?.input
 
-    private fun choosablePlayerIds(view: GameView): Set<Int> {
+    private fun choosablePlayerIds(view: GameView): Set<Int> = runCatching { choosablePlayerIdsUnsafe(view) }.getOrDefault(emptySet())
+
+    /**
+     * Reads live game objects from the UI thread, so it may only run while the game thread
+     * is parked waiting for this player's choice; during anyone else's thinking (AI turns)
+     * it would race the engine and corrupt its state (ConcurrentModificationException).
+     */
+    private fun choosablePlayerIdsUnsafe(view: GameView): Set<Int> {
         val input = currentInput() ?: return emptySet()
+        if (input !is InputSelectTargets && input !is InputSelectEntitiesFromList<*>) return emptySet()
         val game = view.game ?: return emptySet()
         val ids = HashSet<Int>()
         var type: Class<*>? = input.javaClass
