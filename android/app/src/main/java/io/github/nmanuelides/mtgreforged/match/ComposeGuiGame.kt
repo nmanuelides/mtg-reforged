@@ -360,7 +360,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         requestRefresh()
     }
 
-    override fun setHighlighted(entities: Iterable<GameEntityView>?, b: Boolean) {
+    override fun setHighlighted(entities: Iterable<forge.trackable.TrackableObject>?, b: Boolean) {
         super.setHighlighted(entities, b)
         requestRefresh()
     }
