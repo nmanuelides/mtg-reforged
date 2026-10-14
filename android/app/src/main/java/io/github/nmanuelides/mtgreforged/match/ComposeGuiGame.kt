@@ -557,6 +557,20 @@ class ComposeGuiGame : NetworkGuiGame() {
     override fun <T> getChoices(message: String?, min: Int, max: Int, choices: List<T>, selected: List<T>?, display: FSerializableFunction<T, String>?): List<T> =
         choose(message, min, max, choices, selected, display?.let { f -> { t: T -> f.apply(t) } }) ?: emptyList()
 
+    /**
+     * "Pick some of these" (e.g. Fact or Fiction's first pile, cards to keep). Forge routes it
+     * to the reordering dialog by default, which made every card count as picked; here it's a
+     * real multi-select: the cards you tick are the chosen group, the rest stay behind.
+     */
+    override fun <T> many(title: String?, topCaption: String?, min: Int, max: Int, sourceChoices: List<T>, destChoices: List<T>?, c: CardView?): List<T> {
+        val all = sourceChoices + destChoices.orEmpty()
+        val piles = title.orEmpty().contains("pile", ignoreCase = true)
+        val message = if (piles) {
+            "${title.orEmpty()}: tick the cards for pile 1 — the ones you leave unticked form pile 2."
+        } else title.orEmpty()
+        return choose(message, min.coerceAtLeast(0), if (max < 0) all.size else max, all, destChoices, null) ?: destChoices.orEmpty()
+    }
+
     override fun <T> order(
         title: String?, top: String?, remainingObjectsMin: Int, remainingObjectsMax: Int,
         sourceChoices: List<T>, destChoices: List<T>?, referenceCard: CardView?,
