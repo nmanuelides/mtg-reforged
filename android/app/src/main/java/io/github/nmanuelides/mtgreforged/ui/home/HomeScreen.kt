@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import io.github.nmanuelides.mtgreforged.engine.Profiles
 import androidx.compose.material.icons.filled.Wifi
@@ -137,7 +138,12 @@ fun HomeScreen(
     // Title and bottom bar settle in once the boot window has finished opening.
     val chrome by animateFloatAsState(if (chromeVisible) 1f else 0f, tween(550, easing = FastOutSlowInEasing), label = "chrome")
 
-    BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
+    var lookup by remember { mutableStateOf(false) }
+    var pillBounds by remember { mutableStateOf<Rect?>(null) }
+    // While the card lookup is open, the home screen blurs behind it (Android 12+).
+    val blur by androidx.compose.animation.core.animateDpAsState(if (lookup) 18.dp else 0.dp, label = "blur")
+    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize().blur(blur).parchment()) {
         val wide = maxWidth > maxHeight
         Column(Modifier.fillMaxSize()) {
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
@@ -207,6 +213,15 @@ fun HomeScreen(
                             .padding(horizontal = 36.dp, vertical = 10.dp),
                     ) { Title(accent) }
                 }
+                // Card lookup, on the wallpaper right above Play.
+                if (!lookup) {
+                    CardSearchPill(
+                        { lookup = true },
+                        Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 18.dp)
+                            .onGloballyPositioned { pillBounds = it.boundsInRoot() }
+                            .graphicsLayer { alpha = chrome },
+                    )
+                }
             }
 
             // Bottom bar: a hard rule along its top edge, casting a shadow onto the art.
@@ -273,6 +288,9 @@ fun HomeScreen(
                 )
             }
         }
+    }
+
+    if (lookup) CardLookupOverlay(pillBounds) { lookup = false }
     }
 
     if (showRivals) {
