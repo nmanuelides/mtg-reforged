@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.match
 
+import android.util.Log
+import forge.game.GameSnapshot
 import android.os.Handler
 import android.os.Looper
 import forge.LobbyPlayer
@@ -51,6 +53,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * thread. Player actions are forwarded to the game controller on a game thread, the
  * same way the libGDX frontend does it.
  */
+private const val MAX_UNDO = 8
+
 class ComposeGuiGame : NetworkGuiGame() {
 
     private val main = Handler(Looper.getMainLooper())
@@ -167,6 +171,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             stack = stack,
             combat = combat,
             prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
+            canUndo = undoStack.isNotEmpty() && currentInput() != null,
             selectableIds = selectable,
             highlightedIds = highlighted,
             choosablePlayerIds = choosable,
@@ -218,6 +223,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     fun tapCard(id: Int) {
         val cv = cardsById[id] ?: return
         onGameThread {
+            checkpoint() // only when this tap starts a play (priority held), see checkpoint()
             // On a network guest the controller is Forge's remote one: just send the tap.
             val controller = gameController as? PlayerControllerHuman
                 ?: return@onGameThread run { gameController?.selectCard(cv, null, Tap) }
@@ -263,8 +269,32 @@ class ComposeGuiGame : NetworkGuiGame() {
         onGameThread { gameController?.selectPlayer(pv, Tap) }
     }
 
-    fun pressOk() = onGameThread { gameController?.selectButtonOk() }
-    fun pressCancel() = onGameThread { gameController?.selectButtonCancel() }
+    fun pressOk() = onGameThread { checkpoint(); gameController?.selectButtonOk() }
+    fun pressCancel() = onGameThread { checkpoint(); gameController?.selectButtonCancel() }
+
+    // ---- Undo ---------------------------------------------------------------------
+    // Before each of the player's plays (passing, ending the turn, starting a spell or a
+    // land) while they hold priority, the whole game is copied with Forge's GameSnapshot.
+    // Undo restores the latest copy: board, hands, life, phase and turn.
+    private val undoStack = ArrayDeque<GameSnapshot>()
+
+    private fun checkpoint() {
+        if (currentInput() !is InputPassPriority) return
+        val game = gameView?.game ?: return // network guests don't hold the game
+        runCatching { GameSnapshot(game) }
+            .onSuccess { undoStack.addLast(it); while (undoStack.size > MAX_UNDO) undoStack.removeFirst() }
+            .onFailure { Log.w("Undo", "snapshot failed", it) }
+        requestRefresh()
+    }
+
+    /** Back to before the last play. Only while the game waits for this player. */
+    fun undo() = onGameThread {
+        val game = gameView?.game ?: return@onGameThread
+        if (currentInput() == null) return@onGameThread
+        val snapshot = undoStack.removeLastOrNull() ?: return@onGameThread
+        runCatching { snapshot.restoreGameState(game) }.onFailure { Log.w("Undo", "restore failed", it) }
+        requestRefresh()
+    }
     fun concedeGame() = onGameThread { concede() }
     fun continueAfterGame() = onGameThread { hostedMatch?.continueMatch() }
     fun cardById(id: Int): CardView? = cardsById[id]

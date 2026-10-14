@@ -102,6 +102,8 @@ data class PromptBarUi(
 )
 
 data class MatchUiState(
+    /** An earlier point of the game can be restored right now (see ComposeGuiGame.undo). */
+    val canUndo: Boolean = false,
     val players: List<PlayerUi> = emptyList(),
     val turn: Int = 0,
     val phase: PhaseType? = null,

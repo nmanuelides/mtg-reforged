@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.material.icons.automirrored.filled.Undo
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
@@ -164,6 +173,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             }
         }
 
+        YourTurnGlow(state)
         TurnBanner(state)
         CastSpotlight(state)
 
@@ -251,7 +261,7 @@ private fun PhoneLayout(
     onConcede: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
-        TopBar(state, onLog, onConcede)
+        TopBar(state, onLog, onConcede, game::undo)
         val opponents = state.opponents
         if (opponents.size == 1) {
             PlayerStrip(opponents[0], state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
@@ -324,6 +334,8 @@ private fun SidePanel(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("Undo", game::undo, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.Undo, enabled = state.canUndo,
+                accent = Palette.Ochre, frameColor = Palette.Ochre, height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
             OrnateButton("Log", onLog, Modifier.weight(1f), style = OrnateStyle.Quiet, icon = Icons.AutoMirrored.Filled.List,
                 height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
             OrnateButton("Leave", onConcede, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.ExitToApp,
@@ -440,11 +452,14 @@ private fun StackList(stack: List<StackItemUi>, actions: BoardActions) {
 // ---- Shared pieces -----------------------------------------------------------------
 
 @Composable
-private fun TopBar(state: MatchUiState, onLog: () -> Unit, onConcede: () -> Unit) {
+private fun TopBar(state: MatchUiState, onLog: () -> Unit, onConcede: () -> Unit, onUndo: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("Turn ${state.turn}", style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
         Spacer(Modifier.width(10.dp))
         Spacer(Modifier.weight(1f))
+        IconButton(onClick = onUndo, enabled = state.canUndo) {
+            Icon(Icons.AutoMirrored.Filled.Undo, "Undo", tint = if (state.canUndo) Palette.Ochre else Palette.Line)
+        }
         IconButton(onClick = onLog) { Icon(Icons.AutoMirrored.Filled.List, "Log", tint = Palette.TextSecondary) }
         OrnateButton("Leave", onConcede, icon = Icons.AutoMirrored.Filled.ExitToApp, height = 36.dp,
             textStyle = MaterialTheme.typography.labelSmall)
@@ -775,14 +790,21 @@ private fun LogSheet(log: List<String>, onDismiss: () -> Unit) {
 private fun TurnBanner(state: MatchUiState) {
     val active = state.players.firstOrNull { it.isActive }
     var shown by remember { mutableStateOf<PlayerUi?>(null) }
+    val haptics = LocalHapticFeedback.current
     LaunchedEffect(state.turn, active?.id) {
         if (active == null || state.turn == 0) return@LaunchedEffect
         shown = active
-        kotlinx.coroutines.delay(1700)
+        if (active.isLocal) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        kotlinx.coroutines.delay(if (active.isLocal) 2400 else 1700)
         shown = null
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        AnimatedVisibility(shown != null, enter = fadeIn() + scaleIn(initialScale = 0.85f), exit = fadeOut()) {
+        // The player's own turn arrives big, from in front of the glass; others' turns stay modest.
+        AnimatedVisibility(
+            shown != null,
+            enter = fadeIn(tween(260)) + scaleIn(tween(420, easing = FastOutSlowInEasing), initialScale = if (shown?.isLocal == true) 1.6f else 0.85f),
+            exit = fadeOut(tween(400)),
+        ) {
             val p = shown ?: return@AnimatedVisibility
             Column(
                 Modifier
@@ -794,11 +816,41 @@ private fun TurnBanner(state: MatchUiState) {
                 SectionLabel("Turn ${state.turn}", color = if (p.isLocal) Palette.Terracotta else Palette.Slate)
                 Text(
                     if (p.isLocal) "Your turn" else "${p.name}'s turn",
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = if (p.isLocal) MaterialTheme.typography.displayLarge else MaterialTheme.typography.headlineLarge,
                     color = if (p.isLocal) Palette.Terracotta else Palette.Slate,
                 )
             }
         }
+    }
+}
+
+/**
+ * While it's the local player's turn the screen edges glow in terracotta, breathing slowly;
+ * the turn starts with a stronger flash, so it's always obvious whose turn it is.
+ */
+@Composable
+private fun YourTurnGlow(state: MatchUiState) {
+    val mine = state.players.firstOrNull { it.isActive }?.isLocal == true
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(state.turn, mine) {
+        if (mine && state.turn > 0) {
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(1800, easing = FastOutSlowInEasing))
+        }
+    }
+    val breathe by rememberInfiniteTransition(label = "turn").animateFloat(
+        0.18f, 0.42f, infiniteRepeatable(tween(1600), RepeatMode.Reverse), label = "breathe",
+    )
+    val strength = maxOf(if (mine) breathe else 0f, flash.value)
+    if (strength <= 0.01f) return
+    Canvas(Modifier.fillMaxSize()) {
+        val band = 26.dp.toPx() + 70.dp.toPx() * flash.value
+        val glow = Palette.Terracotta.copy(alpha = strength.coerceAtMost(0.85f))
+        val clear = Color.Transparent
+        drawRect(Brush.verticalGradient(listOf(glow, clear), 0f, band), size = Size(size.width, band))
+        drawRect(Brush.verticalGradient(listOf(clear, glow), size.height - band, size.height), topLeft = Offset(0f, size.height - band), size = Size(size.width, band))
+        drawRect(Brush.horizontalGradient(listOf(glow, clear), 0f, band), size = Size(band, size.height))
+        drawRect(Brush.horizontalGradient(listOf(clear, glow), size.width - band, size.width), topLeft = Offset(size.width - band, 0f), size = Size(band, size.height))
     }
 }
 
