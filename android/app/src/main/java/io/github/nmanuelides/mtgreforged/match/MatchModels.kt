@@ -65,6 +65,8 @@ private fun String.stripHtml() = replace("<br>", "\n").replace(htmlTag, "").repl
 
 data class PlayerUi(
     val id: Int,
+    /** Seat in turn order from the match start: 0 = this device's player; picks the avatar. */
+    val seat: Int = 0,
     val name: String,
     val isAi: Boolean,
     val isLocal: Boolean,

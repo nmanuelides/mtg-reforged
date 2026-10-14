@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.runtime.collectAsState
+import io.github.nmanuelides.mtgreforged.ui.home.AvatarImage
+import io.github.nmanuelides.mtgreforged.engine.Profiles
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Canvas
@@ -527,7 +530,11 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
             Modifier.size(if (compact) 34.dp else 42.dp).trackPosition("p${player.id}").background(ring, CircleShape).padding(2.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (portrait != null) {
+            val avatarVersion by Profiles.version.collectAsState()
+            val avatar = remember(player.seat, avatarVersion) { Profiles.avatar(player.seat) }
+            if (avatar != null) {
+                AvatarImage(player.seat, player.name, Modifier.fillMaxSize())
+            } else if (portrait != null) {
                 ArtImage(portrait, Modifier.fillMaxSize().clip(CircleShape), placeholder = ring, alignment = Alignment.Center)
             } else {
                 Text(player.name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.OnAccent)

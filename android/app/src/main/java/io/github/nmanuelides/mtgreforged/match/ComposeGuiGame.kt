@@ -116,10 +116,11 @@ class ComposeGuiGame : NetworkGuiGame() {
         fun zone(p: PlayerView, z: ZoneType) = p.getCards(z)?.map(::card).orEmpty()
 
         val allCommanders = view.players.flatMap { it.commanders.orEmpty() }
-        val playerUis = view.players.map { p ->
+        val playerUis = view.players.mapIndexed { seat, p ->
             players[p.id] = p
             PlayerUi(
                 id = p.id,
+                seat = seat,
                 name = p.name,
                 isAi = p.isAI,
                 isLocal = isLocalPlayer(p),

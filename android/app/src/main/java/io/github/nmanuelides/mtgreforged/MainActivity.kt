@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.engine.Profiles
 import io.github.nmanuelides.mtgreforged.ui.home.OnlineScreen
 import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import io.github.nmanuelides.mtgreforged.ui.components.PaperTexture
@@ -77,6 +78,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         PaperTexture.load(this)
         Connectivity.watch(this)
+        Profiles.init(this)
         val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         ThemeMode.init(this, systemDark)
         Engine.start(this)

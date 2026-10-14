@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.Profiles
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.CollectionsBookmark
@@ -154,8 +155,11 @@ fun HomeScreen(
                     val context = LocalContext.current
                     var offline by remember { mutableStateOf(false) }
                     var backup by remember { mutableStateOf(false) }
+                    var profile by remember { mutableStateOf(false) }
                     val downloading by ImageDownloader.progress.collectAsState()
                     Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        // Profile: your avatar (or initial) opens name and avatars.
+                        AvatarImage(0, Profiles.name, Modifier.size(44.dp).paperShadow(offsetY = 3.dp, blur = 10.dp).border(2.dp, accent, CircleShape).clickable { profile = true })
                         Box(
                             Modifier
                                 .paperShadow(offsetY = 3.dp, blur = 10.dp)
@@ -194,6 +198,7 @@ fun HomeScreen(
                     }
                     if (offline) OfflineImagesDialog { offline = false }
                     if (backup) BackupDialog { backup = false }
+                    if (profile) ProfileDialog { profile = false }
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
