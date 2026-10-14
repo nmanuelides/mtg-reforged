@@ -334,7 +334,7 @@ private fun SidePanel(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OrnateButton("Undo", game::undo, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.Undo, enabled = state.canUndo,
+            OrnateButton(if (state.undoPending) "Undoing…" else "Undo", game::undo, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.Undo, enabled = state.canUndo,
                 accent = Palette.Ochre, frameColor = Palette.Ochre, height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
             OrnateButton("Log", onLog, Modifier.weight(1f), style = OrnateStyle.Quiet, icon = Icons.AutoMirrored.Filled.List,
                 height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
@@ -386,7 +386,7 @@ private fun SidePanel(
             if (p.cancelLabel.isNotBlank()) {
                 if (p.passesPriority) {
                     // "End Turn" skips even more than a step: same deliberate swipe.
-                    SwipeToConfirm(p.cancelLabel, { NextStep.press(); game.pressCancel() }, Modifier.fillMaxWidth(), enabled = p.cancelEnabled, height = 46.dp)
+                    SwipeToConfirm(p.cancelLabel, { NextStep.press(); game.pressCancel() }, Modifier.fillMaxWidth(), enabled = p.cancelEnabled, height = 46.dp, fill = Palette.Slate)
                 } else {
                     OrnateButton(
                         p.cancelLabel, game::pressCancel, Modifier.fillMaxWidth(),
@@ -677,7 +677,7 @@ private fun PromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Uni
         Spacer(Modifier.width(8.dp))
         if (p.cancelLabel.isNotBlank()) {
             if (p.passesPriority) {
-                SwipeToConfirm(p.cancelLabel, { NextStep.press(); onCancel() }, Modifier.width(170.dp), enabled = p.cancelEnabled, height = 44.dp)
+                SwipeToConfirm(p.cancelLabel, { NextStep.press(); onCancel() }, Modifier.width(170.dp), enabled = p.cancelEnabled, height = 44.dp, fill = Palette.Slate)
             } else {
                 OrnateButton(p.cancelLabel, onCancel, enabled = p.cancelEnabled, accent = Palette.Slate, height = 42.dp)
             }

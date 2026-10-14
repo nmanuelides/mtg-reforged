@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -44,6 +45,8 @@ fun SwipeToConfirm(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     height: Dp = 54.dp,
+    /** Plaque colour: terracotta for Next Step / Resolve, slate for End Turn. */
+    fill: Color = Palette.Terracotta,
 ) {
     val confirm by rememberUpdatedState(onConfirm)
     val scope = rememberCoroutineScope()
@@ -60,8 +63,8 @@ fun SwipeToConfirm(
         modifier
             .height(height)
             .alpha(if (enabled) 1f else 0.45f)
-            .paperShadow(offsetY = 3.dp, blur = 7.dp, cover = Palette.Terracotta, darkness = 120)
-            .paper(Palette.Terracotta)
+            .paperShadow(offsetY = 3.dp, blur = 7.dp, cover = fill, darkness = 120)
+            .paper(fill)
             .ornateFrame(Palette.OnAccent.copy(alpha = 0.75f), inset = 3.dp, corners = false)
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput

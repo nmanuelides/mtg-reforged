@@ -171,7 +171,8 @@ class ComposeGuiGame : NetworkGuiGame() {
             stack = stack,
             combat = combat,
             prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
-            canUndo = undoStack.isNotEmpty() && currentInput() != null,
+            canUndo = undoStack.isNotEmpty() && !undoPending,
+            undoPending = undoPending,
             selectableIds = selectable,
             highlightedIds = highlighted,
             choosablePlayerIds = choosable,
@@ -287,12 +288,30 @@ class ComposeGuiGame : NetworkGuiGame() {
         requestRefresh()
     }
 
-    /** Back to before the last play. Only while the game waits for this player. */
+    /**
+     * Back to before the last play. The game must be waiting for this player to restore
+     * safely; asked while the AI is acting (e.g. right after End Turn), it waits for the
+     * next moment the game hands control back.
+     */
+    @Volatile private var undoPending = false
+
     fun undo() = onGameThread {
-        val game = gameView?.game ?: return@onGameThread
-        if (currentInput() == null) return@onGameThread
-        val snapshot = undoStack.removeLastOrNull() ?: return@onGameThread
+        if (undoStack.isEmpty()) return@onGameThread
+        if (currentInput() == null) {
+            undoPending = true
+            requestRefresh()
+            return@onGameThread
+        }
+        restoreLast()
+    }
+
+    private fun restoreLast() {
+        undoPending = false
+        val game = gameView?.game ?: return
+        val snapshot = undoStack.removeLastOrNull() ?: return
         runCatching { snapshot.restoreGameState(game) }.onFailure { Log.w("Undo", "restore failed", it) }
+        // An undone End Turn must not keep auto-passing the restored turn away.
+        (gameController as? PlayerControllerHuman)?.autoPassCancel()
         requestRefresh()
     }
     fun concedeGame() = onGameThread { concede() }
@@ -340,6 +359,8 @@ class ComposeGuiGame : NetworkGuiGame() {
 
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
         if (autoStart) autoAnswerPregame()
+        // The game is waiting for us again: run an undo asked for while the AI played.
+        if (undoPending) onGameThread { if (currentInput() != null) restoreLast() }
         prompt = prompt.copy(
             okLabel = label1.orEmpty(), cancelLabel = label2.orEmpty(),
             okEnabled = enable1, cancelEnabled = enable2,
