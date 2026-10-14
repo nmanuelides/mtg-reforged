@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.BasicTextField
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -77,6 +80,8 @@ fun CardSearchPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .paperShadow(offsetY = 4.dp, blur = 12.dp, cover = Palette.PaperLight)
             .paper(Palette.PaperLight)
+            // Same corner ornaments as the Play plaque.
+            .ornateFrame(Palette.LineStrong, inset = 3.dp)
             .clickable(onClick = onOpen)
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -128,32 +133,49 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
         val density = LocalDensity.current
         val topY = with(density) { 24.dp.toPx() }
         val startY = from?.top ?: with(density) { maxHeight.toPx() * 0.7f }
-        Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 20.dp)) {
-            // The search box travels from the pill's spot to the top.
+        // The box keeps the pill's size and horizontal place; it only moves up.
+        val boxWidth = with(density) { from?.width?.toDp() } ?: minOf(maxWidth - 48.dp, 520.dp)
+        val boxLeft = with(density) { from?.left?.toDp() } ?: ((maxWidth - boxWidth) / 2)
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
             Row(
                 Modifier
-                    .fillMaxWidth()
-                    .graphicsLayer { translationY = (startY - topY) * (1f - rise.value) }
-                    .padding(top = 12.dp),
+                    .padding(start = boxLeft, top = 12.dp)
+                    .graphicsLayer { translationY = (startY - topY) * (1f - rise.value) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                OutlinedTextField(
-                    query, { query = it; picked = null }, singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
-                    placeholder = { Text("Card name") },
-                    colors = fieldColors(),
-                    modifier = Modifier.weight(1f).focusRequester(focus),
-                )
+                Row(
+                    Modifier
+                        .width(boxWidth)
+                        .paperShadow(offsetY = 4.dp, blur = 12.dp, cover = Palette.PaperLight)
+                        .paper(Palette.PaperLight)
+                        .ornateFrame(Palette.LineStrong, inset = 3.dp)
+                        .padding(horizontal = 18.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Search, null, tint = Palette.InkSoft)
+                    Spacer(Modifier.width(10.dp))
+                    BasicTextField(
+                        query, { query = it; picked = null }, singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Ink),
+                        cursorBrush = SolidColor(Palette.Terracotta),
+                        modifier = Modifier.weight(1f).padding(vertical = 8.dp).focusRequester(focus),
+                        decorationBox = { inner ->
+                            if (query.isEmpty()) Text("Look up a card…", style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft)
+                            inner()
+                        },
+                    )
+                }
                 IconButton(onClick = close, Modifier.background(Palette.PaperLight, RoundedCornerShape(50))) {
                     Icon(Icons.Default.Close, "Close", tint = Palette.Ink)
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = rise.value }) {
+            Box(Modifier.fillMaxSize().padding(horizontal = 20.dp).graphicsLayer { alpha = rise.value }) {
                 val name = picked
                 if (name == null) {
-                    Column {
+                    // Suggestions line up under the search box.
+                    Column(Modifier.padding(start = (boxLeft - 20.dp).coerceAtLeast(0.dp)).width(boxWidth)) {
                         hits.forEach { hit ->
                             Text(
                                 hit,
@@ -186,11 +208,13 @@ private fun CardDetail(name: String) {
     val main = remember(printings, prices) { printings.minByOrNull { CardPrices.of(it)?.takeIf { p -> p.exact }?.retail ?: Float.MAX_VALUE } ?: printings.first() }
     LazyVerticalGrid(GridCells.Adaptive(150.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            // The cheapest printing, big and centred, with its price underneath.
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 CardTile(remember(main) { CardUi.fromPaper(main) }, 300.dp, showTapped = false)
-                Column {
+                Spacer(Modifier.height(12.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(name, style = MaterialTheme.typography.headlineMedium, color = Color.White)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     val price = remember(main, prices) { CardPrices.cheapest(name) }
                     Text(price?.let { CardPrice.usd(it.retail) } ?: "No price", style = MaterialTheme.typography.displayMedium, color = Palette.Ochre)
                     Text("Cheapest printing at Card Kingdom", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
