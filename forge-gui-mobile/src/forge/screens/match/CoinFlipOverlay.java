@@ -94,6 +94,10 @@ public class CoinFlipOverlay extends FOverlay {
         if (done) {
             return;
         }
+        final float fadeStart = FLIP_TIME + HOLD_TIME - 0.4f;
+        final float a = (!waitForTap && elapsed > fadeStart) ? Math.max(0f, (FLIP_TIME + HOLD_TIME - elapsed) / 0.4f) : 1f;
+        final float oldAlpha = g.getfloatAlphaComposite();
+        g.setAlphaComposite(oldAlpha * a);
         elapsed += Math.min(Gdx.graphics.getDeltaTime(), 0.05f);
         final float t = Math.min(1f, elapsed / FLIP_TIME);
         final float settle = Math.max(0f, elapsed - FLIP_TIME);
@@ -124,7 +128,7 @@ public class CoinFlipOverlay extends FOverlay {
                     w, font.getLineHeight() * 3f, true, Align.center, false);
             if (waitForTap) {
                 g.drawText(Forge.getLocalizer().getMessageorUseDefault("lblTapSpaceToContinue", "Tap/Space to continue"), FSkinFont.get(12), text,
-                        0, h - FSkinFont.get(12).getLineHeight() * 3f, w, FSkinFont.get(12).getLineHeight() * 2f,
+                        0, h - FSkinFont.get(12).getLineHeight() * 6f, w, FSkinFont.get(12).getLineHeight() * 2f,
                         false, Align.center, true);
                 if (Gdx.app.getType() == Application.ApplicationType.Desktop
                         && Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
@@ -135,6 +139,7 @@ public class CoinFlipOverlay extends FOverlay {
             }
         }
         Gdx.graphics.requestRendering();
+        g.setAlphaComposite(oldAlpha);
     }
 
     /**
