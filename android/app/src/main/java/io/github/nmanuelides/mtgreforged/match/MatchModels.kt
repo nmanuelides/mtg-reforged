@@ -104,6 +104,8 @@ data class PromptBarUi(
 data class MatchUiState(
     /** An earlier point of the game can be restored right now (see ComposeGuiGame.undo). */
     val canUndo: Boolean = false,
+    /** Each player's latest play from the log (by player name), phase / turn lines left out. */
+    val lastActions: Map<String, String> = emptyMap(),
     /** Undo was asked while the AI was playing; it happens when the game hands control back. */
     val undoPending: Boolean = false,
     val players: List<PlayerUi> = emptyList(),

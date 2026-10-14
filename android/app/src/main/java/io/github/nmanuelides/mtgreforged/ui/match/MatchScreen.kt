@@ -198,7 +198,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             val canSave = remember { Engine.canSave() }
             Text(
                 if (canSave) "Save the match to continue it later, or concede it."
-                else "Leave the match? It will count as a loss. (Saving needs an empty stack.)",
+                else "Leave the match? It will count as a loss.",
                 style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(18.dp))
@@ -332,10 +332,9 @@ private fun SidePanel(
                     style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
+            UndoButton(state, game::undo)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OrnateButton(if (state.undoPending) "Undoing…" else "Undo", game::undo, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.Undo, enabled = state.canUndo,
-                accent = Palette.Ochre, frameColor = Palette.Ochre, height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
             OrnateButton("Log", onLog, Modifier.weight(1f), style = OrnateStyle.Quiet, icon = Icons.AutoMirrored.Filled.List,
                 height = 38.dp, textStyle = MaterialTheme.typography.labelSmall)
             OrnateButton("Leave", onConcede, Modifier.weight(1f), icon = Icons.AutoMirrored.Filled.ExitToApp,
@@ -562,15 +561,17 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
                         ZoneButton(Icons.Default.Block, "Exile", player.exile.size, compact) { actions.onZone("${player.name}'s exile", player.exile) }
                     }
                 }
-            }
-            // This player's latest move, from the game log (newest entry that names them).
-            val lastAction = remember(state.log, player.name) { state.log.firstOrNull { player.name in it } }
-            if (lastAction != null) {
-                Text(
-                    lastAction,
-                    style = MaterialTheme.typography.labelSmall.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
-                    color = Palette.TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+                // This player's latest move (spells, attacks, lands…; phase changes left out).
+                state.lastActions[player.name]?.let { action ->
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        action,
+                        Modifier.weight(1f),
+                        style = (if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium)
+                            .copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                        color = Palette.InkSoft, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
             if (player.commanderDamage.isNotEmpty()) {
                 Text(
@@ -851,6 +852,27 @@ private fun YourTurnGlow(state: MatchUiState) {
         drawRect(Brush.verticalGradient(listOf(clear, glow), size.height - band, size.height), topLeft = Offset(0f, size.height - band), size = Size(size.width, band))
         drawRect(Brush.horizontalGradient(listOf(glow, clear), 0f, band), size = Size(band, size.height))
         drawRect(Brush.horizontalGradient(listOf(clear, glow), size.width - band, size.width), topLeft = Offset(size.width - band, 0f), size = Size(band, size.height))
+    }
+}
+
+/** The classic undo arrow, alone: a round paper button. */
+@Composable
+private fun UndoButton(state: MatchUiState, onUndo: () -> Unit) {
+    Box(
+        Modifier
+            .size(42.dp)
+            .alpha(if (state.canUndo || state.undoPending) 1f else 0.4f)
+            .paperShadow(offsetY = 2.dp, blur = 5.dp, cover = Palette.PaperLight, darkness = 100)
+            .paper(Palette.PaperLight)
+            .ornateFrame(Palette.Ochre, inset = 2.dp, corners = false)
+            .clickable(enabled = state.canUndo, onClick = onUndo),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (state.undoPending) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), color = Palette.Ochre, strokeWidth = 2.dp)
+        } else {
+            Icon(Icons.AutoMirrored.Filled.Undo, "Undo last play", tint = Palette.Ochre)
+        }
     }
 }
 

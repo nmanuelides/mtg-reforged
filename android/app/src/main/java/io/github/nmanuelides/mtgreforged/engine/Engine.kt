@@ -225,10 +225,10 @@ object Engine {
         launch(saved.format, decks, aiNames = saved.seats.drop(1).map { it.name }, resume = saved)
     }
 
-    /** True if the match can be saved right now (Forge can't capture a non-empty stack). */
+    /** True if the match can be saved right now (spells on the stack are saved too, see SavedGames). */
     fun canSave(): Boolean {
-        val game = _match.value?.gameView?.game ?: return false
-        return game.stack.isEmpty && currentFormat != null
+        _match.value?.gameView?.game ?: return false
+        return currentFormat != null
     }
 
     fun saveMatch(): Boolean {

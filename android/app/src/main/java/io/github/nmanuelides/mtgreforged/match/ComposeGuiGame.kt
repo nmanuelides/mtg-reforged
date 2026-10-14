@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.match
 
+import forge.game.GameLogEntryType
 import android.util.Log
 import forge.game.GameSnapshot
 import android.os.Handler
@@ -159,7 +160,15 @@ class ComposeGuiGame : NetworkGuiGame() {
         val selectable = cards.values.filter { isSelectable(it) }.mapTo(HashSet()) { it.id }
         val highlighted = (cards.values + players.values).filter { isHighlighted(it) }.mapTo(HashSet()) { it.id }
 
-        val log = view.gameLog?.getLogEntries(null)?.take(40)?.map { it.message() }.orEmpty()
+        val entries = view.gameLog?.getLogEntries(null).orEmpty()
+        val log = entries.take(40).map { it.message() }
+        val quiet = setOf(GameLogEntryType.PHASE, GameLogEntryType.TURN, GameLogEntryType.MANA, GameLogEntryType.INFORMATION)
+        val lastActions = HashMap<String, String>()
+        for (entry in entries.take(200)) {
+            if (entry.type() in quiet) continue
+            val text = entry.message()
+            view.players?.forEach { p -> if (p.name !in lastActions && p.name in text) lastActions[p.name] = text }
+        }
 
         cardsById = cards
         playersById = players
@@ -176,6 +185,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             combat = combat,
             prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
             canUndo = undoStack.isNotEmpty() && !undoPending,
+            lastActions = lastActions,
             undoPending = undoPending,
             selectableIds = selectable,
             highlightedIds = highlighted,
