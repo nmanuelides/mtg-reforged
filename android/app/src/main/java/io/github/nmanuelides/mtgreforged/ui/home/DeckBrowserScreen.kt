@@ -220,6 +220,14 @@ fun DeckBrowserScreen(
                                 accent = Palette.Plum, frameColor = Palette.Plum, height = 44.dp,
                                 enabled = decks.any { it.custom },
                             )
+                            if (format != null) {
+                                OrnateButton(
+                                    "Favorite", { Favorites.toggle(format, entry) }, Modifier.weight(1f),
+                                    icon = if (favorite) Icons.Default.Star else Icons.Default.StarBorder,
+                                    style = if (favorite) OrnateStyle.Primary else OrnateStyle.Secondary,
+                                    accent = Palette.Ochre, frameColor = Palette.Ochre, height = 44.dp,
+                                )
+                            }
                         }
                     }
                 },
@@ -319,7 +327,6 @@ private fun DeckSheet(
             Box(Modifier.fillMaxWidth().landIn(2)) {
                 Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
                 OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
-                FavoriteStar(Modifier.align(Alignment.TopEnd))
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -344,9 +351,9 @@ private fun DeckSheet(
                     summary?.let { s ->
                         // The key cards stretch to the bottom of the sheet with tall art.
                         var viewing by remember { mutableStateOf<Int?>(null) }
-                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             s.featured.forEachIndexed { i, card ->
-                                FeaturedCard(card, Modifier.weight(1f).fillMaxHeight().landIn(4 + i).clickable { viewing = i }, tall = true, pace = i)
+                                FeaturedCard(card, Modifier.weight(1f).fillMaxWidth().landIn(4 + i).clickable { viewing = i }, tall = true, pace = i)
                             }
                         }
                         viewing?.let { start -> KeyCardsViewer(s.featured, start) { viewing = null } }
@@ -366,7 +373,6 @@ private fun DeckSheet(
             Box(Modifier.fillMaxWidth().landIn(2)) {
                 Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
                 OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
-                FavoriteStar(Modifier.align(Alignment.TopEnd))
             }
             Spacer(Modifier.height(12.dp))
             summary?.let { s ->
@@ -468,8 +474,8 @@ private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false
         Text(
             name.substringBefore(" //"),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.height(30.dp),
+            textAlign = TextAlign.Center, maxLines = if (tall) 1 else 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.height(if (tall) 16.dp else 30.dp),
         )
         Spacer(Modifier.height(6.dp))
         ArtImage(
@@ -477,7 +483,7 @@ private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false
             if (tall) Modifier.fillMaxWidth().weight(1f).border(1.dp, Palette.Line)
             else Modifier.fillMaxWidth(0.8f).aspectRatio(1f).clip(CircleShape).border(1.dp, Palette.Line, CircleShape),
             placeholder = Palette.PaperDeep,
-            alignment = if (tall) BiasAlignment(pan, 0f) else Alignment.Center,
+            alignment = if (tall) BiasAlignment(0f, pan) else Alignment.Center,
         )
         Spacer(Modifier.height(6.dp))
         OrnateDivider(width = 50.dp, color = Palette.Line)
