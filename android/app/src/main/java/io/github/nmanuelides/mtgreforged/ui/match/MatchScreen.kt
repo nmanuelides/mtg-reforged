@@ -388,6 +388,12 @@ private fun SidePanel(
             if (p.passesPriority) {
                 // Passing priority can skip whole phases; make it deliberate.
                 SwipeToConfirm(passLabel(state), { NextStep.press(); game.pressOk() }, Modifier.fillMaxWidth(), enabled = p.okEnabled)
+                if (state.stack.size >= 2) {
+                    OrnateButton(
+                        "Resolve all (${state.stack.size})", { NextStep.press(); game.resolveAllNow() }, Modifier.fillMaxWidth(),
+                        accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 40.dp, enabled = p.okEnabled,
+                    )
+                }
             } else {
                 OrnateButton(
                     p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.fillMaxWidth(),

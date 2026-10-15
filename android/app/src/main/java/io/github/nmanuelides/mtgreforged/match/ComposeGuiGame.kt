@@ -423,13 +423,20 @@ class ComposeGuiGame : NetworkGuiGame() {
 
     fun undo() = onGameThread {
         if (undoStack.isEmpty()) return@onGameThread
-        if (currentInput() == null) {
+        if (!safeToRestore()) {
             undoPending = true
             requestRefresh()
             return@onGameThread
         }
         restoreLast()
     }
+
+    /** Restoring mid-resolution or mid-choice corrupts Forge's state: wait for our priority on an empty stack. */
+    private fun safeToRestore() = currentInput() is InputPassPriority && gameView?.stack?.isEmpty() != false
+
+    @Volatile private var resolveAll = false
+
+    fun resolveAllNow() = onGameThread { resolveAll = true; gameController?.selectButtonOk() }
 
     private fun restoreLast() {
         undoPending = false
@@ -486,7 +493,13 @@ class ComposeGuiGame : NetworkGuiGame() {
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
         if (autoStart) autoAnswerPregame()
         // The game is waiting for us again: run an undo asked for while the AI played.
-        if (undoPending) onGameThread { if (currentInput() != null) restoreLast() }
+        if (undoPending) onGameThread { if (safeToRestore()) restoreLast() }
+        // 3: "Resolve all" keeps passing while things resolve, until the stack is empty.
+        if (resolveAll) onGameThread {
+            val stackEmpty = gameView?.stack?.isEmpty() != false
+            if (stackEmpty) resolveAll = false
+            else if (currentInput() is InputPassPriority) gameController?.selectButtonOk()
+        }
         prompt = prompt.copy(
             okLabel = label1.orEmpty(), cancelLabel = label2.orEmpty(),
             okEnabled = enable1, cancelEnabled = enable2,
@@ -637,7 +650,19 @@ class ComposeGuiGame : NetworkGuiGame() {
     override fun showInputDialog(message: String?, title: String?, icon: FSkinProp?, initialInput: String?, inputOptions: List<String>?, isNumeric: Boolean): String? =
         PromptHost.ask(Prompt.Input(title.orEmpty(), message.orEmpty(), initialInput, inputOptions, isNumeric), null)
 
-    override fun confirm(c: CardView?, question: String?, defaultIsYes: Boolean, options: List<String>): Boolean =
+    override fun confirm(c: CardView?, question: String?, defaultIsYes: Boolean, options: List<String>): Boolean {
+        if (question.orEmpty().contains("may put it into the command zone")) {
+            val zone = when (c?.zone) { ZoneType.Exile -> "Exile"; ZoneType.Graveyard -> "Graveyard"; else -> "Where it is" }
+            val where = if (zone == "Exile") "was exiled" else "went to the graveyard"
+            return PromptHost.ask(
+                Prompt.Options("Your commander", "${c?.name.orEmpty()} $where. Where should it go?", listOf("Command zone", zone), 0, ui(c)),
+                0,
+            ) == 0
+        }
+        return confirmPlain(c, question, defaultIsYes, options)
+    }
+
+    private fun confirmPlain(c: CardView?, question: String?, defaultIsYes: Boolean, options: List<String>): Boolean =
         PromptHost.ask(
             Prompt.Options(c?.name.orEmpty(), question.orEmpty(), options, if (defaultIsYes) 0 else 1, ui(c)),
             if (defaultIsYes) 0 else 1,

@@ -120,7 +120,7 @@ private fun FlightView(flight: Flight, onDone: () -> Unit) {
         // Lift off and hang for a moment (slowing to a stop), then accelerate into the target.
         lift.animateTo(1f, tween(320, easing = LinearOutSlowInEasing))
         delay(140)
-        travel.animateTo(1f, tween(340, easing = CubicBezierEasing(0.55f, 0f, 0.9f, 0.4f)))
+        travel.animateTo(1f, tween(380, easing = CubicBezierEasing(0.7f, 0f, 0.84f, 0f))) // ease-in (expo)
         BoardPositions.hit(flight.targetKey)
         launch { burst.animateTo(1f, tween(450)) }
         if (flight.returns) travel.animateTo(0f, tween(320)) else delay(450)

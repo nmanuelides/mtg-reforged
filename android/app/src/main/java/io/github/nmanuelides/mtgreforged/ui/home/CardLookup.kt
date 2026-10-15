@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.animation.core.CubicBezierEasing
 import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.text.BasicTextField
@@ -108,11 +109,11 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
 
     val close: () -> Unit = {
         keyboard?.hide()
-        scope.launch { rise.animateTo(0f, tween(260, easing = FastOutSlowInEasing)); onClose() }
+        scope.launch { rise.animateTo(0f, tween(420, easing = CubicBezierEasing(0.65f, 0f, 0.35f, 1f))); onClose() }
     }
     BackHandler { if (picked != null) picked = null else close() }
     LaunchedEffect(Unit) {
-        rise.animateTo(1f, tween(380, easing = FastOutSlowInEasing))
+        rise.animateTo(1f, tween(560, easing = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)))
         runCatching { focus.requestFocus() }
         keyboard?.show()
     }

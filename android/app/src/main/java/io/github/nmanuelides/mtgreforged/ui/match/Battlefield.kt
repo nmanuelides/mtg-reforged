@@ -189,7 +189,7 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                         maxLines = 1,
                     )
                 }
-                HoldZoom(card, held)
+                HoldZoom(card, held, caption = zoomInfo(card))
             }
         }
     }
@@ -202,6 +202,15 @@ internal fun MatchUiState.attackTargetName(cardId: Int): String? {
     val defender = combat.attackers[cardId] ?: return "?"
     players.firstOrNull { it.id == defender }?.let { return if (it.isLocal) "You" else it.name }
     return players.firstNotNullOfOrNull { p -> p.battlefield.firstOrNull { it.id == defender }?.name } ?: "?"
+}
+
+/** Counters and current power / toughness, shown under a held card. */
+private fun zoomInfo(card: CardUi): String? {
+    val parts = ArrayList<String>()
+    if (card.power != null && card.toughness != null) parts += "${card.power}/${card.toughness}"
+    card.counters.forEach { (n, c) -> parts += "$c × $n" }
+    if (card.damage > 0) parts += "${card.damage} damage"
+    return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
 }
 
 internal fun MatchUiState.markFor(card: CardUi): CardMark = when {

@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import io.github.nmanuelides.mtgreforged.ui.components.landIn
 import androidx.compose.ui.platform.LocalConfiguration
@@ -168,25 +169,26 @@ fun DeckBrowserScreen(
                                 "Import", onImport, Modifier.weight(1f), icon = Icons.Default.FileDownload,
                                 accent = Palette.Slate, frameColor = Palette.Slate, height = 44.dp,
                             )
-                            OrnateButton(
-                                "My decks", { mineOnly = true; searching = true }, Modifier.weight(1f), icon = Icons.Default.Style,
-                                accent = Palette.Plum, frameColor = Palette.Plum, height = 44.dp,
-                                enabled = decks.any { it.custom },
-                            )
-                        }
-                        // The player's own decks get a second row, so no label gets cut short.
-                        if (entry.custom) {
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OrnateButton(
-                                    "Edit", { onEdit(entry) }, Modifier.weight(1f), icon = Icons.Default.Edit,
-                                    accent = Palette.Ochre, frameColor = Palette.Ochre, height = 44.dp,
-                                )
+                            if (entry.custom) {
                                 OrnateButton(
                                     "Delete", { onDelete(entry) }, Modifier.weight(1f), icon = Icons.Default.Delete,
                                     accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 44.dp,
                                 )
                             }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (entry.custom) {
+                                OrnateButton(
+                                    "Edit", { onEdit(entry) }, Modifier.weight(1f), icon = Icons.Default.Edit,
+                                    accent = Palette.Ochre, frameColor = Palette.Ochre, height = 44.dp,
+                                )
+                            }
+                            OrnateButton(
+                                "My decks", { mineOnly = true; searching = true }, Modifier.weight(1f), icon = Icons.Default.Style,
+                                accent = Palette.Plum, frameColor = Palette.Plum, height = 44.dp,
+                                enabled = decks.any { it.custom },
+                            )
                         }
                     }
                 },
@@ -276,7 +278,10 @@ private fun DeckSheet(
     if (wide) {
         // Tablet: header across the top, stats beside the key cards, and every action on one bottom row.
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.landIn(2)) { SheetHeader(title, summary) }
+            Box(Modifier.fillMaxWidth().landIn(2)) {
+                Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
+                OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+            }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                 Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -302,7 +307,6 @@ private fun DeckSheet(
             Spacer(Modifier.height(14.dp))
             Row(Modifier.landIn(8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 navigation(Modifier.weight(1.4f))
-                OrnateButton("Back", onBack, Modifier.weight(0.8f), accent = Palette.Slate, height = 54.dp)
                 OrnateButton("Select", onSelect, Modifier.weight(1f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
             }
         }
@@ -310,7 +314,10 @@ private fun DeckSheet(
     }
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.landIn(2)) { SheetHeader(title, summary) }
+            Box(Modifier.fillMaxWidth().landIn(2)) {
+                Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
+                OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+            }
             Spacer(Modifier.height(12.dp))
             summary?.let { s ->
                 Box(Modifier.landIn(3)) { SheetStats(s) }
@@ -329,7 +336,6 @@ private fun DeckSheet(
         navigation(Modifier.landIn(9))
         Spacer(Modifier.height(10.dp))
         Row(Modifier.landIn(10), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            OrnateButton("Back", onBack, Modifier.weight(1f), accent = Palette.Slate, height = 54.dp)
             OrnateButton("Select", onSelect, Modifier.weight(1.3f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
         }
     }

@@ -271,7 +271,7 @@ fun DeckBuilderScreen(
     var exporting by remember { mutableStateOf(false) }
     var cheapening by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
-    var filter by remember { mutableStateOf(CardFilter()) }
+    var filter by remember { mutableStateOf(if (collection) CardFilter(within = Within.Collection) else CardFilter()) }
     // The cards get the whole width; filters or the compact list open beside them on demand.
     var panel by remember { mutableStateOf<SidePanel?>(null) }
     var wideLayout by remember { mutableStateOf(true) }
@@ -286,7 +286,9 @@ fun DeckBuilderScreen(
     val dirty = signature() != savedSignature
     var justSaved by remember { mutableStateOf(false) }
     LaunchedEffect(justSaved) { if (justSaved) { delay(1800); justSaved = false } }
-    BackHandler { onDone(saved) }
+    var confirmExit by remember { mutableStateOf(false) }
+    val leave: () -> Unit = { if (dirty && (collection || draft.total > 0)) confirmExit = true else onDone(saved) }
+    BackHandler { leave() }
 
     LaunchedEffect(initial) {
         if (collection) {
@@ -321,6 +323,34 @@ fun DeckBuilderScreen(
         }
     }
     EntranceScope {
+    fun saveNow(after: () -> Unit = {}) {
+        val snapshot = signature()
+        val deck = draft.toDeck(name)
+        scope.launch {
+            if (collection) withContext(Dispatchers.IO) { CardCollection.save(snapshotMain(draft)) }
+            else saved = withContext(Dispatchers.IO) { UserDecks.save(deck, format, saved) }
+            savedSignature = snapshot
+            justSaved = true
+            after()
+        }
+    }
+    if (confirmExit) {
+        OrnateDialog(onDismiss = { confirmExit = false }, maxWidth = 480.dp) {
+            SectionLabel("Unsaved changes")
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (collection) "Your collection has changes that aren't saved." else "This deck has changes that aren't saved.",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+            )
+            Spacer(Modifier.height(14.dp))
+            OrnateButton("Save & leave", { confirmExit = false; saveNow { onDone(saved) } }, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OrnateButton("Stay", { confirmExit = false }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton("Leave without saving", { confirmExit = false; onDone(saved) }, Modifier.weight(1.4f), accent = Palette.Terracotta)
+            }
+        }
+    }
     CompositionLocalProvider(LocalCollectionMode provides collection, LocalClearCollection provides clearCollection) {
     BoxWithConstraints(Modifier.fillMaxSize().parchment()) {
         val wide = maxWidth > maxHeight
@@ -330,22 +360,13 @@ fun DeckBuilderScreen(
             Box(Modifier.landIn(0)) {
             Header(
                 name = name, onName = { name = it }, format = format,
-                onBack = { onDone(saved) },
+                onBack = leave,
                 onImport = { importing = true },
                 onExport = { exporting = true },
                 onCheapest = { cheapening = true },
                 compact = compactHeader,
                 canExport = draft.total > 0,
-                onSave = {
-                    val snapshot = signature()
-                    val deck = draft.toDeck(name)
-                    scope.launch {
-                        if (collection) withContext(Dispatchers.IO) { CardCollection.save(snapshotMain(draft)) }
-                        else saved = withContext(Dispatchers.IO) { UserDecks.save(deck, format, saved) }
-                        savedSignature = snapshot
-                        justSaved = true
-                    }
-                },
+                onSave = { saveNow() },
                 canSave = draft.total > 0 && dirty,
                 saveLabel = when {
                     justSaved -> "Saved ✓"
@@ -507,11 +528,12 @@ private fun CardSearch(
     val prices by CardPrices.version.collectAsState()
 
     val deckNames = (draft.commander.keys + draft.main.keys).map { it.name }.toSet()
-    LaunchedEffect(query, filter, prices, if (filter.within == Within.Deck) deckNames else null) {
+    val collectionMode = LocalCollectionMode.current
+    LaunchedEffect(query, filter, prices, if (filter.within != Within.All) deckNames else null) {
         delay(250) // debounce typing
         searching = true
         val (found, count) = withContext(Dispatchers.Default) {
-            runCatching { filter.search(query, deck = deckNames, collection = CardCollection.names()) }.getOrElse { emptyList<PaperCard>() to 0 }
+            runCatching { filter.search(query, deck = deckNames, collection = if (collectionMode) deckNames else CardCollection.names()) }.getOrElse { emptyList<PaperCard>() to 0 }
         }
         results = found
         total = count
@@ -604,6 +626,7 @@ private fun CardSearch(
         }
         Box(Modifier.fillMaxSize()) {
             val cascade = remember { java.util.concurrent.atomic.AtomicInteger(4) }
+            var flashed by remember { mutableStateOf<String?>(null) }
             LazyVerticalGrid(
                 GridCells.Fixed(columns),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -622,12 +645,21 @@ private fun CardSearch(
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
                             }
                             HoldZoom(ui, held, caption = price?.let(::zoomCaption))
+                            // A short "Added" stamp on the card just added.
+                            if (flashed == "${card.name}|${card.edition}") {
+                                LaunchedEffect(Unit) { delay(900); flashed = null }
+                                Text(
+                                    "Added ✓",
+                                    Modifier.align(Alignment.Center).background(Palette.Sage).padding(horizontal = 10.dp, vertical = 4.dp),
+                                    fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.OnAccent,
+                                )
+                            }
                         }
                         Row(Modifier.width(tile), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
                             Icon(
                                 Icons.Default.Add, "Add to deck",
-                                Modifier.size(32.dp).clickable { onAdd(card) }.padding(4.dp),
+                                Modifier.size(32.dp).clickable { onAdd(card); flashed = "${card.name}|${card.edition}" }.padding(4.dp),
                                 tint = Palette.Sage,
                             )
                         }
