@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.engine.News
 import io.github.nmanuelides.mtgreforged.engine.Favorites
 import io.github.nmanuelides.mtgreforged.engine.Profiles
 import io.github.nmanuelides.mtgreforged.ui.home.OnlineScreen
@@ -233,6 +234,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         // Card Kingdom prices: load the saved list, refresh it daily on Wi-Fi.
         viewModelScope.launch(Dispatchers.IO) { CardPrices.refresh(app) }
+        viewModelScope.launch(Dispatchers.IO) { News.refresh(app) }
     }
 
     private val _decks = MutableStateFlow<Map<Engine.Format, List<Engine.DeckEntry>>>(emptyMap())

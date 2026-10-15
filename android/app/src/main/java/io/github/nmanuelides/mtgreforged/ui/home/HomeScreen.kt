@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.News
 import io.github.nmanuelides.mtgreforged.engine.Favorites
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
@@ -209,6 +210,25 @@ fun HomeScreen(
                     if (offline) OfflineImagesDialog { offline = false }
                     if (backup) BackupDialog { backup = false }
                     if (profile) ProfileDialog { profile = false }
+                    // News from the developer: one message at a time, each shown once.
+                    val news by News.unseen.collectAsState()
+                    if (chromeVisible) news.firstOrNull()?.let { item ->
+                        val uri = androidx.compose.ui.platform.LocalUriHandler.current
+                        OrnateDialog(onDismiss = { News.markSeen(context, item) }, maxWidth = 560.dp) {
+                            SectionLabel("News")
+                            Spacer(Modifier.height(8.dp))
+                            if (item.title.isNotBlank()) Text(item.title, style = MaterialTheme.typography.headlineSmall, color = Palette.Ink, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(8.dp))
+                            Text(item.body, style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(16.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                item.link?.let { link ->
+                                    OrnateButton("Open link", { runCatching { uri.openUri(link) } }, Modifier.weight(1f), accent = Palette.Slate)
+                                }
+                                OrnateButton("OK", { News.markSeen(context, item) }, Modifier.weight(1f), style = OrnateStyle.Primary)
+                            }
+                        }
+                    }
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
