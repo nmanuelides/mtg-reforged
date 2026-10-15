@@ -555,7 +555,6 @@ class ComposeGuiGame : NetworkGuiGame() {
         requestRefresh()
     }
 
-    override fun getGamestate() = null
     override fun setPanelSelection(hostCard: CardView?) {}
     override fun setCard(card: CardView?) {}
     override fun setPlayerAvatar(player: LobbyPlayer?, ihi: IHasIcon?) {}
