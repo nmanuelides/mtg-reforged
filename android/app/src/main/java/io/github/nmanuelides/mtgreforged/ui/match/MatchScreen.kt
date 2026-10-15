@@ -200,12 +200,12 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
     if (showLog) LogSheet(state.log) { showLog = false }
     if (confirmLeave) {
         OrnateDialog(onDismiss = { confirmLeave = false }) {
-            SectionLabel("Concede")
+            SectionLabel("Leave the match")
             Spacer(Modifier.height(12.dp))
             val canSave = remember { Engine.canSave() }
             Text(
-                if (canSave) "Save the match to continue it later, or concede it."
-                else "Leave the match? It will count as a loss.",
+                if (canSave) "Save it to continue later, or just end it here."
+                else "End the match here?",
                 style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(18.dp))
@@ -216,7 +216,8 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OrnateButton("Keep playing", { confirmLeave = false }, Modifier.weight(1f), accent = Palette.Slate)
-                    OrnateButton("Concede", { confirmLeave = false; game.concedeGame(); onLeave() }, Modifier.weight(1f))
+                    // Just stops the game: no concession, no loss, nothing saved.
+                    OrnateButton("End match", { confirmLeave = false; onLeave() }, Modifier.weight(1f))
                 }
             }
         }
