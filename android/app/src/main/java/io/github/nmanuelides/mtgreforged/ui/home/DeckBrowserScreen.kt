@@ -361,8 +361,8 @@ private fun DeckSheet(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Row(Modifier.landIn(8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                navigation(Modifier.weight(1.4f))
+            Row(Modifier.landIn(8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                navigation(Modifier.weight(1.6f))
                 OrnateButton("Select", onSelect, Modifier.weight(1f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
             }
         }
@@ -485,8 +485,10 @@ private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false
             placeholder = Palette.PaperDeep,
             alignment = if (tall) BiasAlignment(0f, pan) else Alignment.Center,
         )
-        Spacer(Modifier.height(6.dp))
-        OrnateDivider(width = 50.dp, color = Palette.Line)
+        if (!tall) {
+            Spacer(Modifier.height(6.dp))
+            OrnateDivider(width = 50.dp, color = Palette.Line)
+        }
     }
 }
 
