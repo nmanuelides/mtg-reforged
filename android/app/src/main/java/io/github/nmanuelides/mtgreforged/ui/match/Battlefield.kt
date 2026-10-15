@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -165,14 +166,23 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
         }
         // Identical permanents fan out so each copy can be tapped (or picked) on its own.
         // Holding any copy zooms it in place until the finger lifts.
+        // Holding any copy zooms it; sliding the finger sideways zooms the neighbouring copies.
+        var focus by remember(item.cards.size) { mutableStateOf<Int?>(null) }
+        val stepPx = with(LocalDensity.current) { step.toPx() }
         item.cards.forEachIndexed { i, card ->
-            var held by remember(card.id) { mutableStateOf(false) }
             Box(
                 Modifier
                     .offset(x = step * i)
                     .size(slotWidth, cardHeight)
                     .trackPosition("c${card.id}")
-                    .tapOrHold(card.id, onTap = { actions.onCard(card.id) }, onHold = { h, _ -> held = h }),
+                    .tapOrHold(
+                        card.id,
+                        onTap = { actions.onCard(card.id) },
+                        onHold = { h, _ -> focus = if (h) i else null },
+                        onHoldMove = { pos ->
+                            if (stepPx > 0f) focus = ((stepPx * i + pos.x) / stepPx).toInt().coerceIn(0, item.cards.lastIndex)
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 CardTile(card, cardWidth, mark = state.markFor(card))
@@ -189,7 +199,7 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                         maxLines = 1,
                     )
                 }
-                HoldZoom(card, held, caption = zoomInfo(card))
+                HoldZoom(card, focus == i, caption = zoomInfo(card))
             }
         }
     }

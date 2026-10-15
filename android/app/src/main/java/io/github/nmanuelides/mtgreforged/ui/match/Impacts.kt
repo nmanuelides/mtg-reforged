@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.runtime.key
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Animatable
@@ -104,9 +106,56 @@ fun ImpactAnimations(state: MatchUiState) {
     }
 
     Box(Modifier.fillMaxSize()) {
+        if (combat != null && !damageStep) CombatArrows(combat)
         flights.toList().forEach { flight ->
             FlightView(flight) { flights.remove(flight) }
         }
+    }
+}
+
+/**
+ * While attackers and blockers are declared: an arrow from each attacker to whom it attacks
+ * (terracotta) and from each blocker to the attacker it blocks (slate), drawn in as they
+ * appear; they give way to the strike animations at combat damage.
+ */
+@Composable
+private fun CombatArrows(combat: io.github.nmanuelides.mtgreforged.match.CombatUi) {
+    val pairs = buildList {
+        combat.attackers.keys.forEach { a -> combat.defenderKeys[a]?.let { add(Triple("c$a", it, true)) } }
+        combat.blockers.forEach { (a, bs) -> bs.forEach { b -> add(Triple("c$b", "c$a", false)) } }
+    }
+    pairs.forEach { (from, to, attack) -> key(from, to) { Arrow(from, to, attack) } }
+}
+
+@Composable
+private fun Arrow(fromKey: String, toKey: String, attack: Boolean) {
+    val grow = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { grow.animateTo(1f, tween(420, easing = FastOutSlowInEasing)) }
+    val from = BoardPositions.rects[fromKey]?.center ?: return
+    val to = BoardPositions.rects[toKey] ?: return
+    val color = if (attack) Palette.Terracotta else Palette.Slate
+    Canvas(Modifier.fillMaxSize()) {
+        // Stop at the target's edge so the head stays visible.
+        val dx = to.center.x - from.x
+        val dy = to.center.y - from.y
+        val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+        val ux = dx / len
+        val uy = dy / len
+        val stopShort = minOf(to.width, to.height) * 0.45f
+        val end = Offset(from.x + ux * (len - stopShort) * grow.value, from.y + uy * (len - stopShort) * grow.value)
+        val w = 5.dp.toPx()
+        drawLine(color.copy(alpha = 0.9f), from, end, strokeWidth = w, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        val head = 16.dp.toPx()
+        val px = -uy
+        val py = ux
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(end.x + ux * head * 0.6f, end.y + uy * head * 0.6f)
+            lineTo(end.x - ux * head * 0.6f + px * head * 0.55f, end.y - uy * head * 0.6f + py * head * 0.55f)
+            lineTo(end.x - ux * head * 0.6f - px * head * 0.55f, end.y - uy * head * 0.6f - py * head * 0.55f)
+            close()
+        }
+        drawPath(path, color)
+        drawCircle(color, radius = w * 1.2f, center = from)
     }
 }
 
