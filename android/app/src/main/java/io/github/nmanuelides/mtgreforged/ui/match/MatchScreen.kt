@@ -548,50 +548,51 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
             }
         }
         Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            // 1: who (always readable) and, beside it, the latest play.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (player.isActive) {
                     Text(
                         "TURN",
                         Modifier.background(Palette.Terracotta).padding(horizontal = 6.dp, vertical = 1.dp),
-                        style = MaterialTheme.typography.labelSmall, color = Palette.OnAccent,
+                        style = MaterialTheme.typography.labelSmall, color = Palette.OnAccent, maxLines = 1,
                     )
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(
                     player.name + if (player.hasLost) " (out)" else "",
                     Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                     color = if (player.isActive) Palette.Terracotta else Palette.Ink,
                 )
-                // Zones sit right next to the name, as proper buttons.
-                Spacer(Modifier.width(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ZoneButton(Icons.Default.PanTool, "Hand", player.handSize, compact) {}
-                    ZoneButton(Icons.Default.Layers, "Library", player.librarySize, compact) {}
-                    ZoneButton(Icons.Default.Delete, "Grave", player.graveyard.size, compact) {
-                        actions.onZone("${player.name}'s graveyard", player.graveyard)
-                    }
-                    if (player.exile.isNotEmpty()) {
-                        ZoneButton(Icons.Default.Block, "Exile", player.exile.size, compact) { actions.onZone("${player.name}'s exile", player.exile) }
-                    }
-                }
-                // In your own bar: the latest play of the game, by anyone. Opponents' bars: their own latest play.
+                // Your bar: the latest play of the game, by anyone. Opponents: their own latest play.
                 (if (player.isLocal) state.lastPlay else state.lastActions[player.name])?.let { action ->
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
                     Text(
                         action,
                         Modifier.weight(1f),
-                        style = (if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium)
-                            .copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
-                        color = Palette.InkSoft, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall.copy(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic),
+                        color = Palette.InkSoft, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
+            // 2: zones as compact chips; they slide sideways rather than squeeze when space runs out.
+            val labels = player.isLocal && !compact
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                ZoneButton(Icons.Default.PanTool, "Hand", player.handSize, !labels) {}
+                ZoneButton(Icons.Default.Layers, "Library", player.librarySize, !labels) {}
+                ZoneButton(Icons.Default.Delete, "Grave", player.graveyard.size, !labels) {
+                    actions.onZone("${player.name}'s graveyard", player.graveyard)
+                }
+                if (player.exile.isNotEmpty()) {
+                    ZoneButton(Icons.Default.Block, "Exile", player.exile.size, !labels) { actions.onZone("${player.name}'s exile", player.exile) }
+                }
+            }
+            // 3: commander damage taken, when there is any.
             if (player.commanderDamage.isNotEmpty()) {
                 Text(
                     player.commanderDamage.joinToString("  ") { (name, dmg) -> "⚔ ${name.substringBefore(',')} $dmg" },
-                    style = MaterialTheme.typography.labelSmall, color = Palette.Life, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall, color = Palette.Life, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -623,10 +624,10 @@ private fun ZoneButton(icon: androidx.compose.ui.graphics.vector.ImageVector, la
     ) {
         Icon(icon, null, Modifier.size(if (compact) 13.dp else 16.dp), tint = Palette.InkSoft)
         Spacer(Modifier.width(4.dp))
-        Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 14.sp, color = Palette.Ink)
+        Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = if (compact) 12.sp else 14.sp, color = Palette.Ink, maxLines = 1, softWrap = false)
         if (!compact) {
             Spacer(Modifier.width(4.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Palette.TextSecondary, maxLines = 1, softWrap = false)
         }
     }
 }
