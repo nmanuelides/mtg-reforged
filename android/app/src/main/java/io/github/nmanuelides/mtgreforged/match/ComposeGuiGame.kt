@@ -169,6 +169,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         }
 
         val selectable = cards.values.filter { isSelectable(it) }.mapTo(HashSet()) { it.id }
+        val boardChoice = boardChoice(view, selectable, ::card)
         val highlighted = (cards.values + players.values).filter { isHighlighted(it) }.mapTo(HashSet()) { it.id }
 
         val entries = view.gameLog?.getLogEntries(null).orEmpty()
@@ -198,6 +199,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
             blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
             canUndo = undoStack.isNotEmpty() && !undoPending,
+            boardChoice = boardChoice,
             lastActions = lastActions,
             lastPlay = lastPlay,
             undoPending = undoPending,
@@ -362,7 +364,38 @@ class ComposeGuiGame : NetworkGuiGame() {
         onGameThread { gameController?.selectPlayer(pv, Tap) }
     }
 
-    fun pressOk() = onGameThread { checkpoint(); gameController?.selectButtonOk() }
+    fun pressOk() = onGameThread { checkpoint(); rememberChoice(); gameController?.selectButtonOk() }
+
+    // ---- Choosing permanents ----------------------------------------------------------
+    // Forge asks to pick cards on the board by highlighting them, which is easy to miss and
+    // never says whose cards they are. While such a pick is pending the UI shows the options
+    // in a dialog, grouped by controller, plus what was already picked for the same spell.
+    private val choiceHistory = ArrayList<String>()
+    private var choiceStackId: Int? = null
+
+    private fun selectedInInput(): List<CardView> {
+        val input = currentInput() as? InputSelectEntitiesFromList<*> ?: return emptyList()
+        val chosen = runCatching { fieldValue(input, "selected") as? Iterable<*> }.getOrNull() ?: return emptyList()
+        return chosen.mapNotNull { (it as? Card)?.view }
+    }
+
+    private fun rememberChoice() {
+        if (currentInput() !is InputSelectEntitiesFromList<*>) return
+        selectedInInput().forEach { cv ->
+            choiceHistory += cv.name + (cv.controller?.name?.let { " ($it)" } ?: "")
+        }
+    }
+
+    private fun boardChoice(view: GameView, selectable: Set<Int>, toUi: (CardView) -> CardUi): BoardChoiceUi? {
+        val top = view.stack?.firstOrNull()?.id
+        if (top != choiceStackId) { choiceStackId = top; choiceHistory.clear() }
+        if (currentInput() !is InputSelectEntitiesFromList<*> || selectable.isEmpty()) return null
+        val options = selectable.mapNotNull { cardsById[it] }
+        val groups = options.groupBy { it.controller?.name ?: "" }
+            .map { (owner, cs) -> (if (owner.isEmpty()) "Cards" else "$owner's") to cs.map(toUi) }
+        val selected = runCatching { selectedInInput().mapTo(HashSet()) { it.id } }.getOrDefault(emptySet())
+        return BoardChoiceUi(groups, selected, choiceHistory.toList())
+    }
     fun pressCancel() = onGameThread { checkpoint(); gameController?.selectButtonCancel() }
 
     // ---- Undo ---------------------------------------------------------------------

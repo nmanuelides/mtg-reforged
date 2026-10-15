@@ -115,9 +115,18 @@ data class PromptBarUi(
     val passesPriority: Boolean = false,
 )
 
+/** Choosing permanents on the board (e.g. Tragic Arrogance): the options, by whose they are. */
+data class BoardChoiceUi(
+    val groups: List<Pair<String, List<CardUi>>>,
+    val selectedIds: Set<Int>,
+    /** What was already chosen while this spell resolves, oldest first. */
+    val history: List<String>,
+)
+
 data class MatchUiState(
     /** An earlier point of the game can be restored right now (see ComposeGuiGame.undo). */
     val canUndo: Boolean = false,
+    val boardChoice: BoardChoiceUi? = null,
     /** While declaring blockers: the creature or attacker picked first (highlighted). */
     val blockFocusId: Int? = null,
     /** Each player's latest play from the log (by player name), phase / turn lines left out. */

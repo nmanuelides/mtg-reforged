@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.foundation.horizontalScroll
+import io.github.nmanuelides.mtgreforged.match.BoardChoiceUi
 import androidx.compose.runtime.collectAsState
 import io.github.nmanuelides.mtgreforged.ui.home.AvatarImage
 import io.github.nmanuelides.mtgreforged.engine.Profiles
@@ -179,6 +181,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
         YourTurnGlow(state)
         TurnBanner(state)
         ImpactAnimations(state)
+        state.boardChoice?.let { BoardChoiceDialog(state, it, game) }
         CastSpotlight(state)
 
         AnimatedVisibility(state.gameOver != null, enter = fadeIn(), exit = fadeOut()) {
@@ -864,6 +867,44 @@ private fun YourTurnGlow(state: MatchUiState) {
         drawRect(Brush.verticalGradient(listOf(clear, glow), size.height - band, size.height), topLeft = Offset(0f, size.height - band), size = Size(size.width, band))
         drawRect(Brush.horizontalGradient(listOf(glow, clear), 0f, band), size = Size(band, size.height))
         drawRect(Brush.horizontalGradient(listOf(clear, glow), size.width - band, size.width), topLeft = Offset(size.width - band, 0f), size = Size(band, size.height))
+    }
+}
+
+/** Picking permanents (whose they are, big enough to see), with what was picked before. */
+@Composable
+private fun BoardChoiceDialog(state: MatchUiState, choice: BoardChoiceUi, game: ComposeGuiGame) {
+    val p = state.prompt
+    OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 760.dp) {
+        Text(p.message, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, textAlign = TextAlign.Center)
+        if (choice.history.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Chosen so far: " + choice.history.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall, color = Palette.Sage, textAlign = TextAlign.Center,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            choice.groups.forEach { (owner, cards) ->
+                SectionLabel(owner + " cards", color = Palette.InkSoft)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cards.forEach { card ->
+                        CardTile(
+                            card, 110.dp, showTapped = false,
+                            mark = if (card.id in choice.selectedIds) CardMark.Highlighted else CardMark.Selectable,
+                            onClick = { game.tapCard(card.id) },
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (p.cancelLabel.isNotBlank()) {
+                OrnateButton(p.cancelLabel, game::pressCancel, Modifier.weight(1f), accent = Palette.Slate, enabled = p.cancelEnabled)
+            }
+            OrnateButton(p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.weight(1f), style = OrnateStyle.Primary, enabled = p.okEnabled)
+        }
     }
 }
 
