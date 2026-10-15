@@ -171,8 +171,10 @@ fun DeckBrowserScreen(
     BoxWithConstraints(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp)) {
         val wide = maxWidth > maxHeight
         val content: @Composable (Modifier, Modifier) -> Unit = { artModifier, sheetModifier ->
-            ArtPanel(summary, artModifier, onOpen = { carousel = index })
+            // Tablet: the sheet places the card itself, in a grid with the stats.
+            if (!wide) ArtPanel(summary, artModifier, onOpen = { carousel = index })
             DeckSheet(
+                art = { m -> ArtPanel(summary, m, onOpen = { carousel = index }, top = true) },
                 title = title,
                 summary = summary,
                 position = "${index + 1} / ${decks.size}",
@@ -226,10 +228,7 @@ fun DeckBrowserScreen(
         if (wide) {
             Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
                 // A narrow portrait of the deck's art; the sheet gets the rest of the width.
-                content(
-                    Modifier.weight(0.3f).fillMaxHeight().landIn(0),
-                    Modifier.weight(0.7f).fillMaxHeight().padding(start = 24.dp),
-                )
+                content(Modifier, Modifier.fillMaxSize())
             }
         } else {
             Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
@@ -264,10 +263,10 @@ fun DeckBrowserScreen(
 }
 
 @Composable
-private fun ArtPanel(summary: DeckSummary?, modifier: Modifier, onOpen: () -> Unit) {
+private fun ArtPanel(summary: DeckSummary?, modifier: Modifier, onOpen: () -> Unit, top: Boolean = false) {
     // The commander (or signature card) as the whole card, at a size it looks sharp at,
     // standing on a framed paper mount.
-    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier, contentAlignment = if (top) Alignment.TopCenter else Alignment.Center) {
         val cardWidth = minOf(maxWidth - 40.dp, (maxHeight - 40.dp) * (63f / 88f), 320.dp)
         Box(
             Modifier
@@ -305,6 +304,7 @@ private fun DeckSheet(
     wide: Boolean,
     modifier: Modifier,
     manage: @Composable () -> Unit = {},
+    art: @Composable (Modifier) -> Unit = {},
 ) {
     val navigation: @Composable (Modifier) -> Unit = { m ->
         Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -323,13 +323,19 @@ private fun DeckSheet(
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    summary?.let {
-                        Box(Modifier.landIn(3)) { SheetStats(it) }
-                        Spacer(Modifier.height(14.dp))
-                        Box(Modifier.landIn(5)) { DeckFacts(it) }
+                // Commander card beside the stats (tops aligned); Manage decks spans under both.
+                Column(Modifier.weight(1.6f).fillMaxHeight()) {
+                    Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        art(Modifier.weight(0.42f).fillMaxHeight().landIn(1))
+                        Column(Modifier.weight(0.58f).fillMaxHeight()) {
+                            summary?.let {
+                                Box(Modifier.landIn(3)) { SheetStats(it) }
+                                Spacer(Modifier.height(14.dp))
+                                Box(Modifier.landIn(5)) { DeckFacts(it) }
+                            }
+                        }
                     }
-                    Spacer(Modifier.weight(1f).height(18.dp))
+                    Spacer(Modifier.height(14.dp))
                     Box(Modifier.landIn(7)) { manage() }
                 }
                 Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
