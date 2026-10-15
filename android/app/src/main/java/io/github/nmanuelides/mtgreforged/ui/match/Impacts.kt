@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -92,15 +94,10 @@ fun ImpactAnimations(state: MatchUiState) {
     LaunchedEffect(state.turn, state.phase) {
         if (!damageStep || combat == null) return@LaunchedEffect
         val cards = state.players.flatMap { it.battlefield }.associateBy { it.id }
-        combat.attackers.forEach { (attacker, defender) ->
+        combat.attackers.keys.forEach { attacker ->
             val from = BoardPositions.rects["c$attacker"] ?: return@forEach
             val blocker = combat.blockers[attacker].orEmpty().firstOrNull()
-            val key = when {
-                blocker != null -> "c$blocker"
-                defender == null -> return@forEach
-                BoardPositions.rects.containsKey("c$defender") -> "c$defender"
-                else -> "p$defender"
-            }
+            val key = if (blocker != null) "c$blocker" else combat.defenderKeys[attacker] ?: return@forEach
             val to = BoardPositions.rects[key] ?: return@forEach
             flights += Flight(cards[attacker], from.center, to, key, returns = true)
         }
@@ -116,10 +113,14 @@ fun ImpactAnimations(state: MatchUiState) {
 @Composable
 private fun FlightView(flight: Flight, onDone: () -> Unit) {
     val travel = remember { Animatable(0f) }
+    val lift = remember { Animatable(0f) }
     val burst = remember { Animatable(0f) }
     val density = LocalDensity.current
     LaunchedEffect(flight) {
-        travel.animateTo(1f, tween(380, easing = FastOutLinearInEasing))
+        // Lift off and hang for a moment (slowing to a stop), then accelerate into the target.
+        lift.animateTo(1f, tween(320, easing = LinearOutSlowInEasing))
+        delay(140)
+        travel.animateTo(1f, tween(340, easing = CubicBezierEasing(0.55f, 0f, 0.9f, 0.4f)))
         BoardPositions.hit(flight.targetKey)
         launch { burst.animateTo(1f, tween(450)) }
         if (flight.returns) travel.animateTo(0f, tween(320)) else delay(450)
@@ -127,8 +128,9 @@ private fun FlightView(flight: Flight, onDone: () -> Unit) {
     }
     val t = travel.value
     val target = flight.to.center
+    val raised = with(density) { 22.dp.toPx() } * lift.value * (1f - t)
     val x = flight.from.x + (target.x - flight.from.x) * t
-    val y = flight.from.y + (target.y - flight.from.y) * t
+    val y = flight.from.y + (target.y - flight.from.y) * t - raised
     val width = 64.dp
     val half = with(density) { Offset(width.toPx() / 2, width.toPx() / 0.716f / 2) }
 
@@ -150,7 +152,7 @@ private fun FlightView(flight: Flight, onDone: () -> Unit) {
                 .offset { IntOffset((x - half.x).toInt(), (y - half.y).toInt()) }
                 .graphicsLayer {
                     // Spells shrink as they arrive; attackers lunge with a slight tilt.
-                    val s = if (flight.returns) 1f + 0.15f * t else 1.2f - 0.4f * t
+                    val s = if (flight.returns) 1f + 0.18f * lift.value - 0.05f * t else 1.2f - 0.4f * t
                     scaleX = s; scaleY = s
                     rotationZ = if (flight.returns) 8f * t else 0f
                     shadowElevation = 12f

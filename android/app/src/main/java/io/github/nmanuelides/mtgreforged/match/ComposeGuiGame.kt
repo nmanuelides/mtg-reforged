@@ -156,6 +156,14 @@ class ComposeGuiGame : NetworkGuiGame() {
             CombatUi(
                 attackers = c.attackers.associate { a -> a.id to c.getDefender(a)?.id },
                 blockers = c.attackers.associate { a -> a.id to c.getBlockers(a).orEmpty().map { it.id } },
+                // Player and card ids can share numbers: keep the kind with the id.
+                defenderKeys = c.attackers.mapNotNull { a ->
+                    when (val d = c.getDefender(a)) {
+                        is PlayerView -> a.id to "p${d.id}"
+                        null -> null
+                        else -> a.id to "c${d.id}"
+                    }
+                }.toMap(),
             )
         }
 

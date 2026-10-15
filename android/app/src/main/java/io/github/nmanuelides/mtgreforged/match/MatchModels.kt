@@ -95,7 +95,12 @@ data class StackItemUi(
     val targets: List<String> = emptyList(),
 )
 
-data class CombatUi(val attackers: Map<Int, Int?>, val blockers: Map<Int, List<Int>>)
+data class CombatUi(
+    val attackers: Map<Int, Int?>,
+    val blockers: Map<Int, List<Int>>,
+    /** What each attacker attacks, as a BoardPositions key ("p<playerId>" or "c<planeswalker/battle id>"). */
+    val defenderKeys: Map<Int, String> = emptyMap(),
+)
 
 data class GameOverUi(val title: String, val youWon: Boolean, val matchOver: Boolean)
 
