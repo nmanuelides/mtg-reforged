@@ -118,6 +118,8 @@ data class PromptBarUi(
 data class MatchUiState(
     /** An earlier point of the game can be restored right now (see ComposeGuiGame.undo). */
     val canUndo: Boolean = false,
+    /** While declaring blockers: the creature or attacker picked first (highlighted). */
+    val blockFocusId: Int? = null,
     /** Each player's latest play from the log (by player name), phase / turn lines left out. */
     val lastActions: Map<String, String> = emptyMap(),
     /** The latest play of the whole game, whoever made it (phase / turn / mana lines left out). */

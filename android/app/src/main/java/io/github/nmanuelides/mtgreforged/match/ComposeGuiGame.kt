@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.match
 
+import forge.gamemodes.match.input.InputBlock
 import forge.game.GameLogEntryType
 import android.util.Log
 import forge.game.GameSnapshot
@@ -194,7 +195,8 @@ class ComposeGuiGame : NetworkGuiGame() {
             activePlayerId = view.playerTurn?.id,
             stack = stack,
             combat = combat,
-            prompt = prompt.copy(passesPriority = currentInput() is InputPassPriority),
+            prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
+            blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
             canUndo = undoStack.isNotEmpty() && !undoPending,
             lastActions = lastActions,
             lastPlay = lastPlay,
@@ -213,6 +215,20 @@ class ComposeGuiGame : NetworkGuiGame() {
      * GUI, so read the waiting input: its list of valid choices, or the spell being
      * targeted. Lets the UI offer one button per player instead of "tap the portrait".
      */
+    /** Plain instructions while declaring blockers, instead of Forge's terse line. */
+    private fun blockPrompt(p: PromptBarUi): PromptBarUi {
+        if (currentInput() !is InputBlock) { blockFocus = null; return p }
+        val focused = blockFocus?.let { cardsById[it] }
+        val text = when {
+            focused == null -> "Blockers: tap one of your creatures, then the attacker it should block (or the other way round). Tap a blocker again to take it out. Press OK when done."
+            combatAttacking(focused.id) -> "Now tap your creatures that will block ${focused.name}. Tap another attacker to switch."
+            else -> "Now tap the attacker that ${focused.name} should block."
+        }
+        return p.copy(message = text)
+    }
+
+    private fun combatAttacking(id: Int) = gameView?.combat?.attackers?.any { it.id == id } == true
+
     private fun currentInput() = (gameController as? PlayerControllerHuman)?.inputProxy?.input
 
     private fun choosablePlayerIds(view: GameView): Set<Int> = runCatching { choosablePlayerIdsUnsafe(view) }.getOrDefault(emptySet())
@@ -263,8 +279,49 @@ class ComposeGuiGame : NetworkGuiGame() {
             // On a network guest the controller is Forge's remote one: just send the tap.
             val controller = gameController as? PlayerControllerHuman
                 ?: return@onGameThread run { gameController?.selectCard(cv, null, Tap) }
+            if (currentInput() is InputBlock) { tapWhileBlocking(controller, cv); return@onGameThread }
             if (!undeclareElsewhereAttacker(controller, cv)) controller.selectCard(cv, null, Tap)
         }
+    }
+
+    // ---- Blocking ---------------------------------------------------------------------
+    // Natural order, either way round: tap one of your creatures and then the attacker it
+    // blocks, or an attacker and then any number of your creatures. Tapping a creature that
+    // already blocks takes it out of combat. The current pick is highlighted.
+    @Volatile private var blockFocus: Int? = null
+
+    private fun tapWhileBlocking(controller: PlayerControllerHuman, cv: CardView) {
+        val card = controller.getCard(cv) ?: return
+        val combat = controller.game.combat ?: return
+        val focus = blockFocus?.let { id -> controller.game.findById(id) }
+        when {
+            combat.isAttacking(card) -> {
+                controller.selectCard(cv, null, Tap) // Forge's "current attacker"
+                if (focus != null && !combat.isAttacking(focus)) {
+                    controller.selectCard(focus.view, null, Tap) // the creature picked first blocks it
+                    blockFocus = null
+                } else {
+                    blockFocus = card.id
+                }
+            }
+            card.controller == controller.player && card.isCreature -> {
+                when {
+                    combat.isBlocking(card) -> {
+                        controller.selectCard(cv, null, RemoveFromCombat)
+                        blockFocus = null
+                    }
+                    focus != null && combat.isAttacking(focus) -> controller.selectCard(cv, null, Tap)
+                    else -> blockFocus = if (blockFocus == card.id) null else card.id
+                }
+            }
+        }
+        requestRefresh()
+    }
+
+    private object RemoveFromCombat : ITriggerEvent {
+        override fun getButton() = 3
+        override fun getX() = 0
+        override fun getY() = 0
     }
 
     /**

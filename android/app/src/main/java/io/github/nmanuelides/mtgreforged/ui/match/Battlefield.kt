@@ -205,6 +205,7 @@ internal fun MatchUiState.attackTargetName(cardId: Int): String? {
 }
 
 internal fun MatchUiState.markFor(card: CardUi): CardMark = when {
+    card.id == blockFocusId -> CardMark.Highlighted
     card.id in selectableIds -> CardMark.Selectable
     card.id in highlightedIds -> CardMark.Highlighted
     combat?.attackers?.containsKey(card.id) == true -> CardMark.Attacking
