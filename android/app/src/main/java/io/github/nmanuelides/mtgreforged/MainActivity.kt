@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.engine.Favorites
 import io.github.nmanuelides.mtgreforged.engine.Profiles
 import io.github.nmanuelides.mtgreforged.ui.home.OnlineScreen
 import io.github.nmanuelides.mtgreforged.engine.Connectivity
@@ -79,6 +80,7 @@ class MainActivity : ComponentActivity() {
         PaperTexture.load(this)
         Connectivity.watch(this)
         Profiles.init(this)
+        Favorites.init(this)
         val systemDark = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         ThemeMode.init(this, systemDark)
         Engine.start(this)
@@ -147,7 +149,8 @@ class MainActivity : ComponentActivity() {
                         DeckBrowserScreen(
                             title = if (slot < 0) "Your deck" else "Opponent ${slot + 1}",
                             decks = decks[fmt].orEmpty(),
-                            initial = selections[slot],
+                            format = fmt,
+                            initial = selections[slot] ?: Favorites.of(fmt, decks[fmt].orEmpty()).takeIf { slot < 0 },
                             onSelect = { selections = selections + (slot to it); browsing = null; nextLanding() },
                             onBack = { browsing = null; nextLanding() },
                             onNew = { editing = Triple(fmt, null, false) },

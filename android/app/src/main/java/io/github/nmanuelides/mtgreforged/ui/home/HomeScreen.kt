@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.Favorites
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.shadow
 import io.github.nmanuelides.mtgreforged.engine.Profiles
@@ -131,7 +132,9 @@ fun HomeScreen(
     var opponentCount by rememberSaveable { mutableStateOf(3) }
     var showRivals by remember { mutableStateOf(false) }
     val decks = decksFor(format)
-    val mine = selections[-1]
+    val favoriteVersion by Favorites.version.collectAsState()
+    // Your favourite deck is the default pick until you choose another.
+    val mine = selections[-1] ?: remember(format, decks, favoriteVersion) { Favorites.of(format, decks) }
 
     // Title and Play take their colour from the artwork on show.
     val accent = rememberArtAccent(art)

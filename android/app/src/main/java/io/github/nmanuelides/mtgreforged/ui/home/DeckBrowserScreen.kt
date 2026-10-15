@@ -1,5 +1,22 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.ui.BiasAlignment
+import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
+import io.github.nmanuelides.mtgreforged.ui.decks.fromPaper
+import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.match.CardUi
+import forge.StaticData
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.CompositionLocalProvider
+import io.github.nmanuelides.mtgreforged.engine.Favorites
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import io.github.nmanuelides.mtgreforged.ui.components.landIn
@@ -118,6 +135,7 @@ private fun wallpaperFor(color: Byte?): LocalArt = when (color) {
 fun DeckBrowserScreen(
     title: String,
     decks: List<DeckEntry>,
+    format: io.github.nmanuelides.mtgreforged.engine.Engine.Format? = null,
     initial: DeckEntry?,
     onSelect: (DeckEntry) -> Unit,
     onBack: () -> Unit,
@@ -132,6 +150,17 @@ fun DeckBrowserScreen(
     var carousel by remember { mutableStateOf<Int?>(null) }
     BackHandler(onBack = onBack)
     val entry = decks.getOrNull(index) ?: return
+    val favVersion by Favorites.version.collectAsState()
+    val favorite = remember(entry, favVersion) { format != null && Favorites.isFavorite(format, entry) }
+    val favoriteStar: @Composable (Modifier) -> Unit = { m ->
+        if (format != null) {
+            OrnateButton(
+                "", { Favorites.toggle(format, entry) }, m.width(52.dp),
+                icon = if (favorite) Icons.Default.Star else Icons.Default.StarBorder, accent = Palette.Ochre, frameColor = Palette.Ochre,
+            )
+        }
+    }
+    CompositionLocalProvider(LocalFavoriteStar provides favoriteStar) {
 
     val prices by CardPrices.version.collectAsState()
     val summary by produceState<DeckSummary?>(null, entry, prices) {
@@ -142,7 +171,7 @@ fun DeckBrowserScreen(
     BoxWithConstraints(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp)) {
         val wide = maxWidth > maxHeight
         val content: @Composable (Modifier, Modifier) -> Unit = { artModifier, sheetModifier ->
-            ArtPanel(summary, artModifier.clickable { carousel = index })
+            ArtPanel(summary, artModifier, onOpen = { carousel = index })
             DeckSheet(
                 title = title,
                 summary = summary,
@@ -223,6 +252,7 @@ fun DeckBrowserScreen(
             onDismiss = { searching = false },
         )
     }
+    }
     carousel?.let { start ->
         DeckCarousel(
             decks, start,
@@ -234,25 +264,33 @@ fun DeckBrowserScreen(
 }
 
 @Composable
-private fun ArtPanel(summary: DeckSummary?, modifier: Modifier) {
-    val accent = summary?.colors?.firstOrNull()?.let(::colorOf) ?: Palette.Sage
-    Box(modifier) {
+private fun ArtPanel(summary: DeckSummary?, modifier: Modifier, onOpen: () -> Unit) {
+    // The commander (or signature card) as the whole card, at a size it looks sharp at,
+    // standing on a framed paper mount.
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val cardWidth = minOf(maxWidth - 40.dp, (maxHeight - 40.dp) * (63f / 88f), 320.dp)
         Box(
             Modifier
-                .fillMaxSize()
-                .border(2.dp, Palette.LineStrong)
-                .padding(6.dp)
-                .clip(androidx.compose.ui.graphics.RectangleShape),
+                .paperShadow(offsetY = 4.dp, blur = 14.dp, cover = Palette.PaperLight)
+                .paper(Palette.PaperLight)
+                .ornateFrame(Palette.LineStrong, inset = 4.dp, topGem = true)
+                .clickable(onClick = onOpen)
+                .padding(16.dp),
         ) {
-            // One of the bundled wallpapers in the deck's colour shows until the card art arrives.
-            val backdrop = remember(summary?.colors?.firstOrNull()) { wallpaperFor(summary?.colors?.firstOrNull()) }
-            LocalArtImage(backdrop, Modifier.fillMaxSize())
-            AnimatedContent(summary?.artCard, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "art") { card ->
-                ArtImage(card, Modifier.fillMaxSize())
+            AnimatedContent(summary?.artCard, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "card") { name ->
+                val card = remember(name) { name?.let { runCatching { StaticData.instance().commonCards.getCard(it) }.getOrNull() } }
+                if (card != null) CardTile(remember(card) { CardUi.fromPaper(card) }, cardWidth, showTapped = false)
+                else Box(Modifier.width(cardWidth).aspectRatio(63f / 88f).background(Palette.PaperDeep))
             }
         }
     }
 }
+
+/** The favourite-deck star, provided by the browser for the sheet header. */
+private val LocalFavoriteStar = androidx.compose.runtime.staticCompositionLocalOf<@Composable (Modifier) -> Unit> { {} }
+
+@Composable
+private fun FavoriteStar(modifier: Modifier) = LocalFavoriteStar.current(modifier)
 
 @Composable
 private fun DeckSheet(
@@ -281,6 +319,7 @@ private fun DeckSheet(
             Box(Modifier.fillMaxWidth().landIn(2)) {
                 Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
                 OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+                FavoriteStar(Modifier.align(Alignment.TopEnd))
             }
             Spacer(Modifier.height(16.dp))
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -298,9 +337,13 @@ private fun DeckSheet(
                     Spacer(Modifier.height(8.dp))
                     summary?.let { s ->
                         // The key cards stretch to the bottom of the sheet with tall art.
+                        var viewing by remember { mutableStateOf<Int?>(null) }
                         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            s.featured.forEachIndexed { i, card -> FeaturedCard(card, Modifier.weight(1f).fillMaxHeight().landIn(4 + i), tall = true) }
+                            s.featured.forEachIndexed { i, card ->
+                                FeaturedCard(card, Modifier.weight(1f).fillMaxHeight().landIn(4 + i).clickable { viewing = i }, tall = true, pace = i)
+                            }
                         }
+                        viewing?.let { start -> KeyCardsViewer(s.featured, start) { viewing = null } }
                     }
                 }
             }
@@ -317,6 +360,7 @@ private fun DeckSheet(
             Box(Modifier.fillMaxWidth().landIn(2)) {
                 Box(Modifier.align(Alignment.Center)) { SheetHeader(title, summary) }
                 OrnateButton("", onBack, Modifier.align(Alignment.TopStart).width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+                FavoriteStar(Modifier.align(Alignment.TopEnd))
             }
             Spacer(Modifier.height(12.dp))
             summary?.let { s ->
@@ -400,7 +444,14 @@ private fun SheetStats(s: DeckSummary) {
 }
 
 @Composable
-private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false) {
+private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false, pace: Int = 0) {
+    // Tall art slides slowly from one side to the other and back, so all of it gets seen;
+    // each card at its own speed and starting point so they never move in step.
+    val pan by rememberInfiniteTransition(label = "pan").animateFloat(
+        -1f, 1f,
+        infiniteRepeatable(tween(9000 + pace * 2300, easing = FastOutSlowInEasing), RepeatMode.Reverse, StartOffset(pace * 1700)),
+        label = "pan",
+    )
     Column(
         modifier
             .paper(Palette.PaperLight)
@@ -420,7 +471,7 @@ private fun FeaturedCard(name: String, modifier: Modifier, tall: Boolean = false
             if (tall) Modifier.fillMaxWidth().weight(1f).border(1.dp, Palette.Line)
             else Modifier.fillMaxWidth(0.8f).aspectRatio(1f).clip(CircleShape).border(1.dp, Palette.Line, CircleShape),
             placeholder = Palette.PaperDeep,
-            alignment = Alignment.Center,
+            alignment = if (tall) BiasAlignment(pan, 0f) else Alignment.Center,
         )
         Spacer(Modifier.height(6.dp))
         OrnateDivider(width = 50.dp, color = Palette.Line)
@@ -488,5 +539,28 @@ private fun DeckCard(deck: DeckEntry, onPick: () -> Unit, onPreview: () -> Unit)
             summary?.value?.takeIf { it > 0 }?.let { CardPrice.usd(it) } ?: "",
             Modifier.width(64.dp), style = MaterialTheme.typography.titleSmall, color = Palette.Slate, textAlign = TextAlign.End,
         )
+    }
+}
+
+/** The key cards shown whole, swiping between them. */
+@Composable
+private fun KeyCardsViewer(names: List<String>, start: Int, onDismiss: () -> Unit) {
+    val pager = androidx.compose.foundation.pager.rememberPagerState(start) { names.size }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        BoxWithConstraints(
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f))
+                .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            val cardWidth = minOf((maxHeight - 80.dp) * (63f / 88f), maxWidth * 0.8f, 440.dp)
+            androidx.compose.foundation.pager.HorizontalPager(
+                pager, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = (maxWidth - cardWidth) / 2), pageSpacing = 28.dp,
+            ) { page ->
+                val card = remember(page) { runCatching { StaticData.instance().commonCards.getCard(names[page]) }.getOrNull() }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    if (card != null) CardTile(remember(card) { CardUi.fromPaper(card) }, cardWidth, showTapped = false)
+                }
+            }
+        }
     }
 }
