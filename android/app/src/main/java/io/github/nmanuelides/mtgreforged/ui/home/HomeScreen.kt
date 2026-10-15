@@ -267,7 +267,7 @@ fun HomeScreen(
                 val buttons: List<@Composable (Modifier) -> Unit> = listOf(
                     { m -> OrnateButton(format.label, { onFormat(Format.entries[(format.ordinal + 1) % Format.entries.size]) }, m, icon = Icons.Default.Style) },
                     { m -> OrnateButton("${opponentCount} opponent${if (opponentCount > 1) "s" else ""}", { opponentCount = opponentCount % 3 + 1 }, m, icon = Icons.Default.Groups, accent = Palette.Slate) },
-                    { m -> OrnateButton("Your deck", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
+                    { m -> OrnateButton("Decks", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
                     { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
                     { m -> OrnateButton("Collection", onCollection, m, icon = Icons.Default.CollectionsBookmark, accent = Palette.Plum) },
                     { m -> OrnateButton("Friends", onFriends, m, icon = Icons.Default.Wifi, accent = Palette.Sage) },
