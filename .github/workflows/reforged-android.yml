@@ -90,6 +90,25 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "RELEASE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
+      - name: Version letter for engine-only builds
+        if: steps.check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # version.properties is raised with every APK of app changes. When the latest release
+          # already carries that version, this build only brings a newer Forge engine: keep the
+          # version and add the next letter (0.10.0 -> 0.10.0a -> 0.10.0b ...).
+          base=$(grep '^version=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          title=$(gh release view --json name --jq .name 2>/dev/null || true)
+          latest=${title#MTG Reforged v}; latest=${latest%% *}
+          suffix=""
+          if [ "${latest%%[a-z]*}" = "$base" ]; then
+            letter=${latest#"$base"}
+            if [ -z "$letter" ]; then suffix=a; else suffix=$(echo "$letter" | tr 'a-y' 'b-z'); fi
+          fi
+          echo "APP_VERSION_SUFFIX=$suffix" >> "$GITHUB_ENV"
+          echo "Building v$base$suffix (latest release: ${title:-none})"
+
       - name: Build release APK
         if: steps.check.outputs.skip != 'true'
         working-directory: android
@@ -100,12 +119,12 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
-          # Gradle names it mtg-reforged-v<version>-b<build>.apk (see app/build.gradle.kts).
+          # Gradle names it mtg-reforged-v<version>.apk (see app/build.gradle.kts).
           apk=$(ls dist/mtg-reforged-v*.apk | head -1)
           cp "$apk" "$RUNNER_TEMP/"
           echo "APK_FILE=$(basename "$apk")" >> "$GITHUB_ENV"
           label=$(basename "$apk" .apk); label=${label#mtg-reforged-}
-          echo "APP_LABEL=${label/-b/ (build }" >> "$GITHUB_ENV"
+          echo "APP_LABEL=$label" >> "$GITHUB_ENV"
 
       - name: Publish release
         if: steps.check.outputs.skip != 'true'
@@ -116,7 +135,7 @@ jobs:
           # The tag stays build-<code>: installed apps read the build number from it to update.
           gh release create "build-$code" "$RUNNER_TEMP/$APK_FILE" \
             --target "${{ github.sha }}" \
-            --title "MTG Reforged $APP_LABEL)" \
+            --title "MTG Reforged $APP_LABEL" \
             --notes "Forge upstream ${{ steps.merge.outputs.upstream_sha }} merged into the fork.
 
           ${{ steps.check.outputs.marker }}" \

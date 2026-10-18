@@ -983,7 +983,8 @@ private fun UndoButton(state: MatchUiState, onUndo: () -> Unit) {
             .paperShadow(offsetY = 2.dp, blur = 5.dp, cover = Palette.PaperLight, darkness = 100)
             .paper(Palette.PaperLight)
             .ornateFrame(Palette.Ochre, inset = 2.dp, corners = false)
-            .clickable(enabled = state.canUndo, onClick = onUndo),
+            // While an undo waits for the opponent, a tap calls it off.
+            .clickable(enabled = state.canUndo || state.undoPending, onClick = onUndo),
         contentAlignment = Alignment.Center,
     ) {
         if (state.undoPending) {

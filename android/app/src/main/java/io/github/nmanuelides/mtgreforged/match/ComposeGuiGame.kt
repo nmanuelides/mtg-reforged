@@ -55,7 +55,7 @@ import kotlinx.coroutines.flow.asStateFlow
  * thread. Player actions are forwarded to the game controller on a game thread, the
  * same way the libGDX frontend does it.
  */
-private const val MAX_UNDO = 8
+private const val MAX_UNDO = 20
 
 class ComposeGuiGame : NetworkGuiGame() {
 
@@ -105,6 +105,9 @@ class ComposeGuiGame : NetworkGuiGame() {
             return
         }
         _state.value = snapshot
+        // An undo asked for while the opponent played runs as soon as the game waits for us
+        // with an empty stack; checked on every refresh, whichever callback brought us here.
+        if (undoPending && safeToRestore()) onGameThread { if (undoPending && safeToRestore()) restoreLast() }
     }
 
     private fun buildSnapshot(view: GameView): MatchUiState {
@@ -199,7 +202,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             combat = combat,
             prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
             blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
-            canUndo = undoStack.isNotEmpty() && !undoPending,
+            canUndo = undoStack.isNotEmpty(),
             boardChoice = boardChoice,
             lastActions = lastActions,
             lastPlay = lastPlay,
@@ -457,6 +460,8 @@ class ComposeGuiGame : NetworkGuiGame() {
     @Volatile private var undoPending = false
 
     fun undo() = onGameThread {
+        // Tapping again while it waits for its moment calls the undo off.
+        if (undoPending) { undoPending = false; requestRefresh(); return@onGameThread }
         if (undoStack.isEmpty()) return@onGameThread
         if (!safeToRestore()) {
             undoPending = true
