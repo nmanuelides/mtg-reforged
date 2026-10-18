@@ -40,6 +40,8 @@ object CardPrices {
     private class Index(
         val bySku: HashMap<String, Int>,
         val cheapestByName: HashMap<String, Int>,
+        val foilBySku: HashMap<String, Int>,
+        val cheapestFoilByName: HashMap<String, Int>,
         val retail: FloatArray,
         val buylist: FloatArray,
         val stock: IntArray,
@@ -65,7 +67,7 @@ object CardPrices {
     fun deckValue(cards: Iterable<Map.Entry<PaperCard, Int>>): Double =
         cards.filterNot { it.key.rules.type.isBasicLand }.sumOf { (c, n) -> (of(c)?.retail ?: 0f).toDouble() * n }
 
-    private fun file(context: Context) = File(context.filesDir, "ck-prices.tsv")
+    private fun file(context: Context) = File(context.filesDir, "ck-prices-v2.tsv")
 
     /** Loads the saved list, then downloads a fresh one if it's a day old and we're on Wi-Fi. */
     fun refresh(context: Context) {
@@ -87,10 +89,19 @@ object CardPrices {
         }.onFailure { Log.w(TAG, "download failed", it) }
     }
 
+    /** The price for [card]'s printing and finish (foil prices for foil cards). */
     fun of(card: PaperCard): CardPrice? {
         val idx = index ?: return null
-        skuOf(card)?.let { sku -> idx.bySku[sku]?.let { return idx.price(it, exact = true) } }
-        return idx.cheapestByName[nameKey(card.name)]?.let { idx.price(it, exact = false) }
+        val skus = if (card.isFoil) idx.foilBySku else idx.bySku
+        val cheapestMap = if (card.isFoil) idx.cheapestFoilByName else idx.cheapestByName
+        skuOf(card)?.let { sku -> skus[sku]?.let { return idx.price(it, exact = true) } }
+        return cheapestMap[nameKey(card.name)]?.let { idx.price(it, exact = false) }
+    }
+
+    /** Card Kingdom sells this printing in foil. */
+    fun hasFoil(card: PaperCard): Boolean {
+        val idx = index ?: return false
+        return skuOf(card)?.let { idx.foilBySku.containsKey(it) } ?: false
     }
 
     /** Cheapest printing of a card name. */
@@ -145,9 +156,10 @@ object CardPrices {
                                 }
                             }
                             json.endObject()
-                            if (foil || retail <= 0f || name.isBlank()) continue
+                            if (retail <= 0f || name.isBlank()) continue
                             out.append(sku).append('\t').append(name).append('\t').append(retail.toString()).append('\t')
-                                .append(buy.toString()).append('\t').append(qty.toString()).append('\t').append(url).append('\n')
+                                .append(buy.toString()).append('\t').append(qty.toString()).append('\t').append(url)
+                                .append('\t').append(if (foil) "1" else "0").append('\n')
                             kept++
                         }
                         json.endArray()
@@ -171,6 +183,8 @@ object CardPrices {
         val urls = arrayOfNulls<String>(n)
         val bySku = HashMap<String, Int>(n * 2)
         val cheapest = HashMap<String, Int>(n)
+        val foilBySku = HashMap<String, Int>(n)
+        val cheapestFoil = HashMap<String, Int>(n)
         var i = 0
         for (line in lines) {
             val f = line.split('\t')
@@ -179,15 +193,18 @@ object CardPrices {
             buy[i] = f[3].toFloatOrNull() ?: 0f
             stock[i] = f[4].toIntOrNull() ?: 0
             urls[i] = f[5]
+            val foil = f.getOrNull(6) == "1"
+            val skus = if (foil) foilBySku else bySku
+            val names = if (foil) cheapestFoil else cheapest
             val dash = f[0].indexOf('-')
-            if (dash > 0) bySku.putIfAbsent(skuKey(f[0].substring(0, dash), f[0].substring(dash + 1)), i)
+            if (dash > 0) skus.putIfAbsent(skuKey(f[0].substring(0, dash), f[0].substring(dash + 1)), i)
             val key = nameKey(f[1])
-            val best = cheapest[key]
-            if (best == null || retail[i] < retail[best]) cheapest[key] = i
+            val best = names[key]
+            if (best == null || retail[i] < retail[best]) names[key] = i
             i++
         }
         @Suppress("UNCHECKED_CAST")
-        index = Index(bySku, cheapest, retail, buy, stock, (urls as Array<String?>).map { it.orEmpty() }.toTypedArray())
+        index = Index(bySku, cheapest, foilBySku, cheapestFoil, retail, buy, stock, (urls as Array<String?>).map { it.orEmpty() }.toTypedArray())
         _version.value++
         Log.i(TAG, "loaded $i prices")
     }

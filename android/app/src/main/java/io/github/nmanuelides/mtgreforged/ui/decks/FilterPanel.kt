@@ -96,6 +96,10 @@ fun FilterPanel(
                     }
                 }
             }
+            FilterRow("Finish", "Foil shows foil printings with foil prices", filter.finish.label.takeIf { filter.finish != Finish.Any },
+                section("finish"), { toggle("finish") }, onClear = { onChange(filter.copy(finish = Finish.Any)) }) {
+                ChipFlow { Finish.entries.forEach { f -> Chip(f.label, filter.finish == f) { onChange(filter.copy(finish = f)) } } }
+            }
             ToggleRow("Include Alchemy cards", "Arena-only rebalanced versions (A-…). Not legal in paper.", filter.includeAlchemy) {
                 onChange(filter.copy(includeAlchemy = it))
             }

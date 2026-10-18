@@ -173,7 +173,10 @@ internal fun CardViewer(
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss)
+                ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss) { other ->
+                    picked[pager.currentPage] = other
+                    draft.usePrintingIfInDeck(other)
+                }
             }
         }
     }
@@ -206,6 +209,7 @@ private fun ViewerBar(
     commanderFormat: Boolean,
     price: io.github.nmanuelides.mtgreforged.engine.CardPrice?,
     onClose: () -> Unit,
+    onFinish: (PaperCard) -> Unit = {},
 ) {
     val isCommander = draft.commander.keys.any { it.name == card.name }
     val count = draft.countOf(card.name)
@@ -234,13 +238,22 @@ private fun ViewerBar(
             )
         }
         PriceTag(price)
+        // Finish: the printing on screen, regular or foil (the deck follows the choice when the card is in it).
+        if (card.isFoil || CardPrices.hasFoil(card)) {
+            Chip(if (card.isFoil) "✦ Foil" else "Regular", card.isFoil, fontSize = 12) { onFinish(if (card.isFoil) card.unFoiled else card.foiled) }
+        }
         // Building a deck: one tap adds a card you don't own yet to your collection.
         if (!LocalCollectionMode.current) {
             val owned by CardCollection.version.collectAsState()
             val has = remember(card.name, owned) { CardCollection.owns(card.name) }
             val scope = rememberCoroutineScope()
             if (has) {
+                val (regular, foil) = remember(card.name, owned) { CardCollection.countByFinish(card.name) }
                 Icon(Icons.Default.Check, "In your collection", tint = Palette.Sage)
+                Text(
+                    listOfNotNull(regular.takeIf { it > 0 }?.let { "$it" }, foil.takeIf { it > 0 }?.let { "$it foil" }).joinToString(" + "),
+                    style = MaterialTheme.typography.labelMedium, color = Palette.Sage,
+                )
             } else {
                 OrnateButton(
                     "Collection", {

@@ -5,6 +5,8 @@ import forge.game.phase.PhaseType
 
 /** Immutable snapshot of a card, safe to hand to Compose. */
 data class CardUi(
+    /** A foil printing: tiles get a rainbow sheen. */
+    val foil: Boolean = false,
     val id: Int,
     val name: String,
     val imageKey: String?,

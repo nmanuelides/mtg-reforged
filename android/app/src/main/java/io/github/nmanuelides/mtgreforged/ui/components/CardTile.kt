@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.runtime.collectAsState
 import io.github.nmanuelides.mtgreforged.engine.Connectivity
 import androidx.compose.animation.core.animateFloatAsState
@@ -92,7 +101,29 @@ fun CardTile(
         } else {
             CardFallback(card, width)
         }
+        if (card.foil) FoilSheen()
         CardBadges(card, width)
+    }
+}
+
+/** A soft diagonal rainbow over foil cards, drifting slowly like light on the foil. */
+@Composable
+private fun FoilSheen() {
+    val drift by rememberInfiniteTransition(label = "foil").animateFloat(
+        0f, 1f, infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Reverse), label = "foil",
+    )
+    Canvas(Modifier.fillMaxSize()) {
+        val shift = size.width * (drift - 0.5f)
+        drawRect(
+            Brush.linearGradient(
+                listOf(
+                    Color(0x00FFFFFF), Color(0x40FF6EC7), Color(0x40FFE66E), Color(0x406EFFB4),
+                    Color(0x406EB4FF), Color(0x40C46EFF), Color(0x00FFFFFF),
+                ),
+                start = Offset(shift, 0f), end = Offset(size.width + shift, size.height),
+            ),
+            blendMode = BlendMode.Screen,
+        )
     }
 }
 

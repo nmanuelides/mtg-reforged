@@ -31,6 +31,9 @@ enum class GroupMode(val label: String) { Any("Any of"), All("All of"), Not("Non
 /** Where to search: the whole card pool, or only cards already in the deck / collection. */
 enum class Within(val label: String) { All("All cards"), Deck("This deck"), Collection("My collection") }
 
+/** Regular or foil printings; "Foil" turns results into foil printings Card Kingdom sells. */
+enum class Finish(val label: String) { Any("Any"), Foil("Foil"), Regular("Non-foil") }
+
 enum class ColorMode(val label: String) { Including("Including"), Exactly("Exactly"), AtMost("At most") }
 
 enum class SortBy(val label: String) {
@@ -62,6 +65,7 @@ data class CardFilter(
     /** Arena-only rebalanced cards ("A-Name"): not legal in paper and without images. */
     val includeAlchemy: Boolean = false,
     val within: Within = Within.All,
+    val finish: Finish = Finish.Any,
     val sort: SortBy = SortBy.Name,
     val descending: Boolean = false,
     val colors: Set<Byte> = emptySet(),
@@ -91,7 +95,7 @@ data class CardFilter(
             colors.isNotEmpty() || colorless, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
             legality != null, manaCost.isNotBlank(), manaValue != null, text.active, types.active,
             supertypes.active, subtypes.active, power != null, toughness != null, rarities.isNotEmpty(), artist.isNotBlank(),
-            price != null, within != Within.All,
+            price != null, within != Within.All, finish != Finish.Any,
         ).count { it }
 
     /** Filters that depend on the printing rather than the card itself. */
@@ -137,6 +141,7 @@ data class CardFilter(
         // One printing per card: the first one that matched, so a set or artist filter shows that art.
         if (hideDuplicates && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }
 
+        if (finish == Finish.Foil) matches = matches.filter { CardPrices.hasFoil(it) }.map { it.foiled }
         val all = matches.sortedWith(comparator()).toList()
         return all.take(limit) to all.size
     }

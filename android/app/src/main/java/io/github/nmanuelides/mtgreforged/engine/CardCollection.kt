@@ -47,6 +47,12 @@ object CardCollection {
 
     fun count(name: String) = cards().entries.filter { it.key.name == name }.sumOf { it.value }
 
+    /** Owned copies of [name], regular and foil. */
+    fun countByFinish(name: String): Pair<Int, Int> {
+        val owned = cards().entries.filter { it.key.name == name }
+        return owned.filterNot { it.key.isFoil }.sumOf { it.value } to owned.filter { it.key.isFoil }.sumOf { it.value }
+    }
+
     @Synchronized
     fun save(cards: Map<PaperCard, Int>) = set(cards.filterValues { it > 0 }, write = true)
 

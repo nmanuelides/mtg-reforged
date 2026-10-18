@@ -236,6 +236,7 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
 fun CardUi.Companion.fromPaper(card: PaperCard): CardUi {
     val rules = card.rules
     return CardUi(
+        foil = card.isFoil,
         id = System.identityHashCode(card),
         name = card.name,
         imageKey = card.getImageKey(false),
@@ -802,6 +803,7 @@ private fun deckText(draft: DeckDraft): String = buildString {
     fun line(card: PaperCard, n: Int) {
         append(n).append(' ').append(card.name).append(" (").append(card.edition).append(')')
         card.collectorNumber?.takeIf { it.isNotBlank() && it != "0" }?.let { append(' ').append(it) }
+        if (card.isFoil) append(" *F*")
         append('\n')
     }
     if (draft.commander.isNotEmpty()) {

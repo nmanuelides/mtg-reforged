@@ -20,6 +20,7 @@ object DeckImport {
         val section: DeckSection,
         /** Probably the commander (a short last block with no header); used only if it can lead. */
         val maybeCommander: Boolean = false,
+        val foil: Boolean = false,
     )
 
     data class Result(val deck: Deck, val unknown: List<String>)
@@ -43,7 +44,7 @@ object DeckImport {
     )
 
     // "1 Sol Ring", "1x Sol Ring (C21) 263", "4 Lightning Bolt *F*"
-    private val cardLine = Regex("""^(\d+)\s*x?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+([A-Za-z0-9★-]+))?)?(?:\s+\*[A-Z]+\*)?\s*$""")
+    private val cardLine = Regex("""^(\d+)\s*x?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+([A-Za-z0-9★-]+))?)?(?:\s+\*([A-Z]+)\*)?\s*$""")
 
     fun parseList(text: String, commanderFormat: Boolean = false): List<Line> {
         var section = DeckSection.Main
@@ -62,8 +63,9 @@ object DeckImport {
                 if (line.any(Char::isLetter)) lines += Line(1, line, null, null, section)
                 continue
             }
-            val (qty, name, set, number) = match.destructured
-            lines += Line(qty.toInt(), name.trim(), set.ifBlank { null }, number.ifBlank { null }, section)
+            val (qty, name, set, number, finish) = match.destructured
+            // *F* (foil) and *E* (etched) mark foil finishes in Moxfield / Archidekt / Arena lists.
+            lines += Line(qty.toInt(), name.trim(), set.ifBlank { null }, number.ifBlank { null }, section, foil = finish == "F" || finish == "E")
         }
         // Moxfield / Archidekt / Arena exports put the commander(s) alone after a blank line.
         val tail = lines.size - lastBlock
@@ -85,7 +87,8 @@ object DeckImport {
             cards.keys().forEach { key ->
                 val entry = cards.getJSONObject(key)
                 val card = entry.getJSONObject("card")
-                lines += Line(entry.optInt("quantity", 1), card.getString("name"), card.optString("set").ifBlank { null }, card.optString("cn").ifBlank { null }, section)
+                val foil = entry.optBoolean("isFoil") || entry.optString("finish").let { it == "foil" || it == "etched" }
+                lines += Line(entry.optInt("quantity", 1), card.getString("name"), card.optString("set").ifBlank { null }, card.optString("cn").ifBlank { null }, section, foil = foil)
             }
         }
         board("commanders", DeckSection.Commander)
@@ -131,7 +134,7 @@ object DeckImport {
                 continue
             }
             val section = if (line.maybeCommander && card.rules.canBeCommander()) DeckSection.Commander else line.section
-            deck.getOrCreate(section).add(card, line.quantity)
+            deck.getOrCreate(section).add(if (line.foil) card.foiled else card, line.quantity)
         }
         return Result(deck, unknown)
     }
