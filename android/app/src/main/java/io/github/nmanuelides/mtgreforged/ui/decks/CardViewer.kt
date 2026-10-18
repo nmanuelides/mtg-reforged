@@ -1,5 +1,11 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.filled.Check
+import io.github.nmanuelides.mtgreforged.engine.CardCollection
 import forge.StaticData
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
@@ -228,6 +234,26 @@ private fun ViewerBar(
             )
         }
         PriceTag(price)
+        // Building a deck: one tap adds a card you don't own yet to your collection.
+        if (!LocalCollectionMode.current) {
+            val owned by CardCollection.version.collectAsState()
+            val has = remember(card.name, owned) { CardCollection.owns(card.name) }
+            val scope = rememberCoroutineScope()
+            if (has) {
+                Icon(Icons.Default.Check, "In your collection", tint = Palette.Sage)
+            } else {
+                OrnateButton(
+                    "Collection", {
+                        scope.launch(Dispatchers.IO) {
+                            val cards = CardCollection.cards().toMutableMap()
+                            cards[card] = (cards[card] ?: 0) + 1
+                            CardCollection.save(cards)
+                        }
+                    },
+                    icon = Icons.Default.Add, accent = Palette.Sage, frameColor = Palette.Sage, height = 40.dp,
+                )
+            }
+        }
         if (commanderFormat && canLead(card)) {
             IconButton(onClick = { draft.usePrinting(card); if (isCommander) draft.toggleCommander(card) else draft.makeCommander(card) }) {
                 Icon(if (isCommander) Icons.Default.Star else Icons.Default.StarBorder, "Commander", tint = Palette.Ochre)
