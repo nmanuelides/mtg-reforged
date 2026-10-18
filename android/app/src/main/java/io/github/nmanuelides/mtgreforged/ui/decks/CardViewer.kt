@@ -239,7 +239,8 @@ private fun ViewerBar(
         }
         PriceTag(price)
         // Finish: the printing on screen, regular or foil (the deck follows the choice when the card is in it).
-        if (card.isFoil || CardPrices.hasFoil(card)) {
+        // Always offered: Forge allows any printing as foil; the price just shows "—" if Card Kingdom has none.
+        run {
             Chip(if (card.isFoil) "✦ Foil" else "Regular", card.isFoil, fontSize = 12) { onFinish(if (card.isFoil) card.unFoiled else card.foiled) }
         }
         // Building a deck: one tap adds a card you don't own yet to your collection.
