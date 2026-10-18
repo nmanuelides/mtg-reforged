@@ -14,7 +14,7 @@ on:
         default: false
   push:
     branches: [master]
-    paths: ["android/**", "!android/news.json", ".github/workflows/reforged-android.yml"]
+    paths: ["android/**", "!android/news.json", "!android/PRIVACY.md", ".github/workflows/reforged-android.yml"]
 
 permissions:
   contents: write
