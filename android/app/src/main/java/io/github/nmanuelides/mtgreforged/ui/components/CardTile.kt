@@ -1,5 +1,21 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import kotlin.math.sqrt
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.asAndroidBitmap
+import io.github.nmanuelides.mtgreforged.R
+import androidx.compose.ui.res.imageResource
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.BlendMode
@@ -109,42 +125,128 @@ fun CardTile(
 }
 
 /**
- * Foil, after keldon-market's look: the art stays vivid; over it run fine, closely spaced
- * diagonal metallic lines, and a narrow rainbow streak sweeps slowly across the card.
+ * Foil: a port of keldon-market's "holo-rare-ultra" shine. Two stacks of the same four layers
+ * (the illusion texture, a vertical rainbow, fine 133° metallic stripes and a soft radial shade),
+ * blended into each other like the CSS background-blend-mode, filtered (brightness / contrast /
+ * saturate) and laid on the art: the first with colour-dodge, the second inside it with exclusion.
+ * keldon follows the pointer; here the light point drifts slowly around keldon's resting spot.
  */
 @Composable
 private fun FoilSheen() {
-    val sweep by rememberInfiniteTransition(label = "foil").animateFloat(
-        -0.6f, 1.6f, infiniteRepeatable(tween(4600, easing = LinearEasing)), label = "sweep",
-    )
+    val texture = ImageBitmap.imageResource(R.drawable.foil_illusion)
+    val drift = rememberInfiniteTransition(label = "foil")
+    val a by drift.animateFloat(0f, 2f * PI.toFloat(), infiniteRepeatable(tween(14000, easing = LinearEasing)), label = "a")
     Canvas(Modifier.fillMaxSize()) {
-        val w = size.width
-        val h = size.height
-        // Fine metallic lines at about -45°: thin bright ridges every few dp, light on the art.
-        val period = 5.dp.toPx()
-        drawRect(
-            Brush.linearGradient(
-                0f to Color(0x00FFFFFF), 0.42f to Color(0x00FFFFFF), 0.5f to Color(0x8CFFFFFF), 0.58f to Color(0x00FFFFFF), 1f to Color(0x00FFFFFF),
-                start = Offset(0f, 0f), end = Offset(period, period), tileMode = TileMode.Repeated,
-            ),
-            alpha = 0.35f,
-            blendMode = BlendMode.Overlay,
-        )
-        // A narrow rainbow streak crossing diagonally, like light catching the foil.
-        val cx = sweep * (w + h)
-        val band = (w + h) * 0.16f
-        drawRect(
-            Brush.linearGradient(
-                0f to Color(0x00FFFFFF),
-                0.2f to Color(0x99FF7773), 0.35f to Color(0x99FFED5F), 0.5f to Color(0x99A8FF5F),
-                0.65f to Color(0x9983FFF7), 0.8f to Color(0x997894FF), 0.9f to Color(0x99D875FF),
-                1f to Color(0x00FFFFFF),
-                start = Offset(cx - band, 0f), end = Offset(cx, band),
-            ),
-            alpha = 0.55f,
-            blendMode = BlendMode.Screen,
-        )
+        // Pointer position as fractions of the card (keldon's --mx/--my = --posx/--posy).
+        val px = 0.52f + 0.14f * sin(a)
+        val py = 0.48f + 0.10f * sin(2f * a + 0.6f)
+        val dx = px - 0.5f
+        val dy = py - 0.5f
+        val hyp = maxOf(0.28f, minOf(1f, sqrt(dx * dx + dy * dy) * 2f))
+        val bounds = Rect(Offset.Zero, size)
+        val bitmap = texture.asAndroidBitmap()
+        drawIntoCanvas {
+            it.saveLayer(bounds, Paint().apply {
+                blendMode = BlendMode.ColorDodge
+                colorFilter = cssFilter(brightness = hyp * 0.3f + 0.5f, contrast = 2f, saturate = 1f)
+            })
+        }
+        holoStack(bitmap, px, py, rainbowHeight = 7f, stripesWidth = 3f, stripesX = px)
+        drawIntoCanvas {
+            it.saveLayer(bounds, Paint().apply {
+                blendMode = BlendMode.Exclusion
+                colorFilter = cssFilter(brightness = hyp * 0.5f + 0.8f, contrast = 1.6f, saturate = 0.9f)
+            })
+        }
+        holoStack(bitmap, px, py, rainbowHeight = 4f, stripesWidth = 1.95f, stripesX = -px)
+        drawIntoCanvas { it.restore(); it.restore() }
     }
+}
+
+private val RAINBOW = listOf(
+    Color(0xFFFF7773), Color(0xFFFFED5F), Color(0xFFA8FF5F), Color(0xFF83FFF7), Color(0xFF7894FF), Color(0xFFD875FF), Color(0xFFFF7773),
+)
+private val NAVY = Color(0xFF0E152E)
+private val STEEL = Color(0xFF8FA3A3) // hsl(180, 10%, 60%)
+private val TEAL = Color(0xFF8FC1C1) // hsl(180, 29%, 66%)
+
+/**
+ * One CSS background stack, bottom layer first. Sizes are multiples of the card
+ * ([rainbowHeight] for the 200% × N00% rainbow, [stripesWidth] for the N% × 100% stripes) and
+ * placed the way CSS background-position percentages place an oversized image.
+ */
+private fun DrawScope.holoStack(texture: android.graphics.Bitmap, px: Float, py: Float, rainbowHeight: Float, stripesWidth: Float, stripesX: Float) {
+    val w = size.width
+    val h = size.height
+
+    // 4. radial-gradient(farthest-corner circle at mx my), 200% × 200% at posx posy.
+    val imgX = (w - 2f * w) * px
+    val imgY = (h - 2f * h) * py
+    val center = Offset(imgX + 2f * w * px, imgY + 2f * h * py)
+    val far = listOf(Offset(imgX, imgY), Offset(imgX + 2 * w, imgY), Offset(imgX, imgY + 2 * h), Offset(imgX + 2 * w, imgY + 2 * h))
+        .maxOf { (it - center).getDistance() }
+    drawRect(
+        Brush.radialGradient(
+            0.1f to Color.Black.copy(alpha = 0.1f), 0.1667f to Color.Black.copy(alpha = 0.15f), 1f to Color.Black.copy(alpha = 0.25f),
+            center = center, radius = far * 1.2f,
+        ),
+    )
+
+    // 3. repeating-linear-gradient(133deg, navy / steel / teal stripes), hard-light, tiled sideways.
+    val sw = stripesWidth * w
+    val theta = Math.toRadians(133.0)
+    val dir = Offset(sin(theta).toFloat(), -cos(theta).toFloat())
+    val length = (sw * abs(sin(theta)) + h * abs(cos(theta))).toFloat()
+    val period = 0.12f * length
+    var left = (w - sw) * stripesX
+    while (left > 0f) left -= sw
+    while (left < w) {
+        val start = Offset(left + sw / 2f, h / 2f) - dir * (length / 2f)
+        clipRect(left, 0f, left + sw, h) {
+            drawRect(
+                Brush.linearGradient(
+                    0f to NAVY, (0.038f / 0.12f) to STEEL, (0.045f / 0.12f) to TEAL, (0.052f / 0.12f) to STEEL,
+                    (0.10f / 0.12f) to NAVY, 1f to NAVY,
+                    start = start, end = start + dir * period, tileMode = TileMode.Repeated,
+                ),
+                blendMode = BlendMode.Hardlight,
+            )
+        }
+        left += sw
+    }
+
+    // 2. repeating-linear-gradient(0deg, rainbow every 5%), 200% × N00% at 0% posy, hue.
+    val rh = rainbowHeight * h
+    val bottom = (h - rh) * py + rh
+    drawRect(
+        Brush.linearGradient(
+            *RAINBOW.mapIndexed { i, c -> i / 6f to c }.toTypedArray(),
+            start = Offset(0f, bottom - 0.05f * rh), end = Offset(0f, bottom - 0.35f * rh), tileMode = TileMode.Repeated,
+        ),
+        blendMode = BlendMode.Hue,
+    )
+
+    // 1. The illusion texture at 50% × 50%, centred and repeated, soft-light.
+    val shader = android.graphics.BitmapShader(texture, android.graphics.Shader.TileMode.REPEAT, android.graphics.Shader.TileMode.REPEAT)
+    shader.setLocalMatrix(android.graphics.Matrix().apply {
+        setScale(0.5f * w / texture.width, 0.5f * h / texture.height)
+        postTranslate(0.25f * w, 0.25f * h)
+    })
+    drawRect(ShaderBrush(shader), blendMode = BlendMode.Softlight)
+}
+
+/** CSS brightness() contrast() saturate(), in that order, as one colour matrix. */
+private fun cssFilter(brightness: Float, contrast: Float, saturate: Float): ColorFilter {
+    val k = brightness * contrast
+    val offset = 255f * 0.5f * (1f - contrast)
+    val s = saturate
+    val m = floatArrayOf(
+        (0.213f + 0.787f * s) * k, (0.715f - 0.715f * s) * k, (0.072f - 0.072f * s) * k, 0f, offset,
+        (0.213f - 0.213f * s) * k, (0.715f + 0.285f * s) * k, (0.072f - 0.072f * s) * k, 0f, offset,
+        (0.213f - 0.213f * s) * k, (0.715f - 0.715f * s) * k, (0.072f + 0.928f * s) * k, 0f, offset,
+        0f, 0f, 0f, 1f, 0f,
+    )
+    return ColorFilter.colorMatrix(ColorMatrix(m))
 }
 
 /** Text frame shown until (or instead of) the card image. */
