@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.runtime.CompositionLocalProvider
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +86,8 @@ internal fun CardViewer(
     start: Int,
     draft: DeckDraft,
     commanderFormat: Boolean,
+    /** Editing the collection: a new printing replaces only the copies of the one on screen. */
+    collection: Boolean = false,
     onDismiss: () -> Unit,
 ) {
     if (cards.isEmpty()) return
@@ -93,8 +96,14 @@ internal fun CardViewer(
     // Printing picked per page with a vertical swipe; until then, the card as listed.
     val picked = remember { mutableStateMapOf<Int, PaperCard>() }
     fun shown(page: Int) = picked[page] ?: cards[page]
+    fun swap(page: Int, next: PaperCard) {
+        val old = shown(page)
+        picked[page] = next
+        if (collection) draft.replacePrinting(old, next) else draft.usePrintingIfInDeck(next)
+    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        CompositionLocalProvider(LocalCollectionMode provides collection) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -152,8 +161,7 @@ internal fun CardViewer(
                                             val now = pagePrintings.indexOf(shown(page)).coerceAtLeast(0)
                                             val next = pagePrintings[(now + step + pagePrintings.size) % pagePrintings.size]
                                             direction = step
-                                            picked[page] = next
-                                            draft.usePrintingIfInDeck(next)
+                                            swap(page, next)
                                         }
                                     },
                                 )
@@ -174,10 +182,10 @@ internal fun CardViewer(
                 }
                 Spacer(Modifier.height(14.dp))
                 ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss) { other ->
-                    picked[pager.currentPage] = other
-                    draft.usePrintingIfInDeck(other)
+                    swap(pager.currentPage, other)
                 }
             }
+        }
         }
     }
 }
@@ -187,6 +195,7 @@ private fun printingsOf(card: PaperCard): List<PaperCard> {
     val db = StaticData.instance()
     val all = runCatching { db.commonCards.getAllCards(card.name) }.getOrNull().orEmpty()
     return all.ifEmpty { listOf(card) }
+        .map { if (card.isFoil) it.foiled else it }
         .sortedByDescending { db.getCardEdition(it.edition)?.date?.time ?: 0L }
         .let { if (card in it) it else listOf(card) + it }
 }
@@ -211,8 +220,11 @@ private fun ViewerBar(
     onClose: () -> Unit,
     onFinish: (PaperCard) -> Unit = {},
 ) {
+    val collectionMode = LocalCollectionMode.current
     val isCommander = draft.commander.keys.any { it.name == card.name }
-    val count = draft.countOf(card.name)
+    // The collection counts this exact printing; a deck counts the card whatever the printing.
+    val count = if (collectionMode) draft.main[card] ?: 0 else draft.countOf(card.name)
+    val total = draft.countOf(card.name)
     Row(
         Modifier
             .widthIn(max = 720.dp)
@@ -230,6 +242,7 @@ private fun ViewerBar(
             Text(card.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 when {
+                    collectionMode -> "$count of this printing" + if (total > count) " · $total in all" else ""
                     count == 0 -> "not in deck"
                     draft.main.containsKey(card) || draft.commander.containsKey(card) -> "$count in deck · this printing"
                     else -> "$count in deck · another printing (+ / − switch to this one)"
@@ -273,13 +286,16 @@ private fun ViewerBar(
                 Icon(if (isCommander) Icons.Default.Star else Icons.Default.StarBorder, "Commander", tint = Palette.Ochre)
             }
         }
-        IconButton(onClick = { draft.usePrinting(card); draft.remove(card, fromCommander = isCommander && (draft.main[card] ?: 0) == 0) }, enabled = count > 0) {
+        IconButton(onClick = {
+            if (!collectionMode) draft.usePrinting(card)
+            draft.remove(card, fromCommander = isCommander && (draft.main[card] ?: 0) == 0)
+        }, enabled = count > 0) {
             Icon(Icons.Default.Remove, "Remove one", tint = if (count > 0) Palette.Terracotta else Palette.Line)
         }
         Box(Modifier.size(30.dp).background(Palette.Paper, CircleShape), contentAlignment = Alignment.Center) {
             Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Palette.Ink)
         }
-        IconButton(onClick = { draft.usePrinting(card); draft.add(card) }, enabled = !isCommander) {
+        IconButton(onClick = { if (!collectionMode) draft.usePrinting(card); draft.add(card) }, enabled = !isCommander) {
             Icon(Icons.Default.Add, "Add one", tint = if (!isCommander) Palette.Sage else Palette.Line)
         }
         Spacer(Modifier.width(4.dp))

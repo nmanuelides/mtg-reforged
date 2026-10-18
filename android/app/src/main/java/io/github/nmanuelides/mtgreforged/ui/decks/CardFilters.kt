@@ -102,11 +102,23 @@ data class CardFilter(
     private val perPrinting get() = sets.isNotEmpty() || rarities.isNotEmpty() || artist.isNotBlank()
 
     /** [deck] / [collection]: card names for the "This deck" / "My collection" scopes. */
-    fun search(query: String, deck: Set<String> = emptySet(), collection: Set<String> = emptySet(), limit: Int = 240): Pair<List<PaperCard>, Int> {
+    /** [owned]: the owned printings; with the "My collection" scope those are listed, each one on its own. */
+    fun search(
+        query: String,
+        deck: Set<String> = emptySet(),
+        collection: Set<String> = emptySet(),
+        owned: Collection<PaperCard>? = null,
+        limit: Int = 240,
+    ): Pair<List<PaperCard>, Int> {
         val q = query.trim().lowercase()
         if (q.length < 2 && activeCount == 0) return emptyList<PaperCard>() to 0
         val db = StaticData.instance().commonCards
-        val pool = if (perPrinting || !hideDuplicates) db.allCards else db.uniqueCards
+        val ownedPool = within == Within.Collection && owned != null
+        val pool: Collection<PaperCard> = when {
+            ownedPool -> owned!!
+            perPrinting || !hideDuplicates -> db.allCards
+            else -> db.uniqueCards
+        }
         val format = legality?.let(::formatNamed)
         val cost = normalizeCost(manaCost)
         val terms = text.values.map { it.lowercase() }
@@ -139,9 +151,14 @@ data class CardFilter(
                 (price == null || price.matches(priceOf(card)))
         }
         // One printing per card: the first one that matched, so a set or artist filter shows that art.
-        if (hideDuplicates && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }
+        if (hideDuplicates && !ownedPool && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }
 
-        if (finish == Finish.Foil) matches = matches.filter { CardPrices.hasFoil(it) }.map { it.foiled }
+        matches = when {
+            ownedPool && finish == Finish.Foil -> matches.filter { it.isFoil }
+            ownedPool && finish == Finish.Regular -> matches.filter { !it.isFoil }
+            finish == Finish.Foil -> matches.filter { CardPrices.hasFoil(it) }.map { it.foiled }
+            else -> matches
+        }
         val all = matches.sortedWith(comparator()).toList()
         return all.take(limit) to all.size
     }
@@ -182,7 +199,11 @@ data class CardFilter(
             }
             SortBy.Set -> compareBy { StaticData.instance().getCardEdition(it.edition)?.name ?: it.edition }
         }
-        return (if (descending) primary.reversed() else primary).then(byName)
+        // Same name: newest printing first, regular before foil, so owned printings keep their places.
+        val byPrinting = compareBy<PaperCard>(
+            { -(StaticData.instance().getCardEdition(it.edition)?.date?.time ?: 0L) }, { it.edition }, { it.collectorNumber }, { it.isFoil },
+        )
+        return (if (descending) primary.reversed() else primary).then(byName).then(byPrinting)
     }
 
     companion object {

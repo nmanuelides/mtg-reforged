@@ -216,6 +216,15 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
         }
     }
 
+    /** Moves the copies of exactly [old] to [new] (another printing or finish), leaving other printings alone. */
+    fun replacePrinting(old: PaperCard, new: PaperCard) {
+        if (old == new) return
+        for (pool in listOf(commander, main)) {
+            val n = pool.remove(old) ?: continue
+            pool[new] = (pool[new] ?: 0) + n
+        }
+    }
+
     /** Puts [card] in the command zone, taking a copy out of the main deck if it's there. */
     fun makeCommander(card: PaperCard) {
         if (commander.containsKey(card)) return
@@ -435,7 +444,7 @@ fun DeckBuilderScreen(
     }
 
     viewing?.let { (cards, index) ->
-        CardViewer(cards, index, draft, format == Engine.Format.Commander) { viewing = null }
+        CardViewer(cards, index, draft, format == Engine.Format.Commander, collection) { viewing = null }
     }
 
     if (exporting) ExportDialog(name, draft) { exporting = false }
@@ -531,11 +540,17 @@ private fun CardSearch(
 
     val deckNames = (draft.commander.keys + draft.main.keys).map { it.name }.toSet()
     val collectionMode = LocalCollectionMode.current
-    LaunchedEffect(query, filter, prices, if (filter.within != Within.All) deckNames else null) {
+    val deckPrintings = if (filter.within != Within.All) (draft.commander.keys + draft.main.keys).toSet() else null
+    LaunchedEffect(query, filter, prices, deckPrintings) {
         delay(250) // debounce typing
         searching = true
         val (found, count) = withContext(Dispatchers.Default) {
-            runCatching { filter.search(query, deck = deckNames, collection = if (collectionMode) deckNames else CardCollection.names()) }.getOrElse { emptyList<PaperCard>() to 0 }
+            runCatching {
+                filter.search(
+                    query, deck = deckNames, collection = if (collectionMode) deckNames else CardCollection.names(),
+                    owned = if (collectionMode) deckPrintings.orEmpty() else CardCollection.cards().keys,
+                )
+            }.getOrElse { emptyList<PaperCard>() to 0 }
         }
         results = found
         total = count
@@ -546,7 +561,8 @@ private fun CardSearch(
     // picking another printing in the viewer shows up here too, not the search's default one.
     val shown by remember(results, filter) {
         derivedStateOf {
-            val perPrinting = !filter.hideDuplicates || filter.sets.isNotEmpty() || filter.rarities.isNotEmpty() || filter.artist.isNotBlank()
+            val perPrinting = filter.within == Within.Collection || !filter.hideDuplicates ||
+                filter.sets.isNotEmpty() || filter.rarities.isNotEmpty() || filter.artist.isNotBlank()
             if (perPrinting) results else {
                 val owned = (draft.commander.keys + draft.main.keys).groupBy { it.name }
                 results.map { r ->
@@ -647,7 +663,7 @@ private fun CardSearch(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed(shown, key = { _, it -> "${it.name}|${it.edition}|${it.artIndex}" }) { index, card ->
+                itemsIndexed(shown, key = { _, it -> printingKey(it) }) { index, card ->
                     val order = remember { cascade.getAndIncrement() }
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
@@ -769,6 +785,9 @@ private fun ClearCollectionButton() {
         }
     }
 }
+
+/** One grid / list entry per printing and finish. */
+internal fun printingKey(card: PaperCard) = "${card.name}|${card.edition}|${card.collectorNumber}|${card.artIndex}|${card.isFoil}"
 
 private fun snapshotMain(draft: DeckDraft): Map<PaperCard, Int> = draft.main.toMap()
 
@@ -1023,7 +1042,7 @@ private fun DeckGallery(
         }
         groups.forEach { (label, cards) ->
             item(span = { GridItemSpan(maxLineSpan) }) { SectionLabel("$label · ${cards.sumOf { it.second }}") }
-            items(cards.sortedBy { it.first.rules.manaCost.cmc * 1000 + it.first.name.first().code }, key = { label + it.first.name + it.first.edition }) { (card, n) ->
+            items(cards.sortedBy { it.first.rules.manaCost.cmc * 1000 + it.first.name.first().code }, key = { label + printingKey(it.first) }) { (card, n) ->
                 val order = remember { cascade.getAndIncrement() }
                 val commander = label == "Commander"
                 val ui = remember(card) { CardUi.fromPaper(card) }
@@ -1200,7 +1219,7 @@ private fun DeckList(
                 if (draft.commander.isEmpty()) {
                     item { CommanderPicker(draft) }
                 }
-                items(draft.commander.entries.toList(), key = { "c" + it.key.name }) { (card, n) ->
+                items(draft.commander.entries.toList(), key = { "c" + printingKey(it.key) }) { (card, n) ->
                     DeckRow(card, n, isCommander = true, showStar = true, onOpen = { openCard(card) },
                         onAdd = {}, onRemove = { draft.remove(card, fromCommander = true) }, onStar = { draft.toggleCommander(card) })
                 }
@@ -1208,7 +1227,7 @@ private fun DeckList(
             groups.forEach { (label, cards) ->
                 if (cards.isEmpty()) return@forEach
                 item { Spacer(Modifier.height(6.dp)); SectionLabel("$label · ${cards.sumOf { it.value }}") }
-                items(cards.sortedBy { it.key.rules.manaCost.cmc * 1000 + it.key.name.first().code }, key = { "m" + it.key.name + it.key.edition }) { (card, n) ->
+                items(cards.sortedBy { it.key.rules.manaCost.cmc * 1000 + it.key.name.first().code }, key = { "m" + printingKey(it.key) }) { (card, n) ->
                     DeckRow(card, n, isCommander = false, showStar = commander && canLead(card), onOpen = { openCard(card) },
                         onAdd = { draft.add(card) }, onRemove = { draft.remove(card, fromCommander = false) }, onStar = { draft.toggleCommander(card) })
                 }
@@ -1242,6 +1261,11 @@ private fun DeckRow(
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f)) {
             Text(card.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // Which printing: copies of one name in different printings are separate rows.
+            Text(
+                "${card.edition} #${card.collectorNumber}" + if (card.isFoil) " · ✦ Foil" else "",
+                style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft, maxLines = 1,
+            )
             Spacer(Modifier.height(3.dp))
             ManaCost(ui.manaCost, 17.dp)
         }
