@@ -18,13 +18,12 @@ val commitCount = git("rev-list", "--count", "HEAD").toIntOrNull() ?: 1
 val commitSha = git("rev-parse", "--short=10", "HEAD").ifEmpty { "unknown" }
 val upstreamVersion: String = Regex("<versionCode>(.+)</versionCode>")
     .find(repoRoot.resolve("pom.xml").readText())?.groupValues?.get(1) ?: "0"
-// Our own version (android/version.properties), raised with every APK of app changes. Builds
-// that only bring a newer Forge engine keep it and get a letter: 0.10.0, 0.10.0a, 0.10.0b…
-// (CI passes the letter in APP_VERSION_SUFFIX.) versionCode stays the commit count, which
-// only goes up, so installed apps keep updating.
-val appVersion: String = (Regex("(?m)^version=(.+)$")
-    .find(rootProject.file("version.properties").readText())?.groupValues?.get(1)?.trim() ?: "0.0.0") +
-    System.getenv("APP_VERSION_SUFFIX").orEmpty().trim()
+// Our version counts the APKs we have made (android/version.properties): APK 58 is 0.58.0,
+// APK 105 is 1.05.0. Builds that only bring a newer Forge engine keep it and get a letter:
+// 0.58.0a, 0.58.0b… (CI passes the letter in APP_VERSION_SUFFIX). versionCode stays the
+// commit count, which only goes up, so installed apps keep updating.
+val apkCount: Int = Regex("""(?m)^apk=(\d+)""").find(rootProject.file("version.properties").readText())?.groupValues?.get(1)?.toInt() ?: 0
+val appVersion: String = "${apkCount / 100}.${"%02d".format(apkCount % 100)}.0" + System.getenv("APP_VERSION_SUFFIX").orEmpty().trim()
 val apkName = "mtg-reforged-v$appVersion.apk"
 
 android {

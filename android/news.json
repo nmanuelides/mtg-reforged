@@ -17,6 +17,12 @@
       "title": "New in v0.10.0",
       "body": "• Spells that target a card in a graveyard, exile or library now show those cards in a carousel to choose from.\n• Collection: keep several printings of the same card (and foil copies) as separate entries; search \"All cards\" to add any printing.\n• Foil cards get keldon-market's holo shine.\n• Undo: up to 20 steps, no more endless waiting when used during the opponent's turn (tap again to call it off).\n• New app icon.\n• Version numbers now go up with every app update; engine-only updates add a letter (0.10.0a).",
       "link": null
+    },
+    {
+      "id": "v0.58.0",
+      "title": "New in v0.58.0",
+      "body": "• The version number now counts our releases: this is the 58th, so v0.58.0 (the 105th will be v1.05.0). Updates that only bring a newer Forge rules engine keep the number and add a letter: v0.58.0a.",
+      "link": null
     }
   ]
 }

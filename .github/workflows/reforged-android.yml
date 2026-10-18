@@ -95,10 +95,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # version.properties is raised with every APK of app changes. When the latest release
-          # already carries that version, this build only brings a newer Forge engine: keep the
-          # version and add the next letter (0.10.0 -> 0.10.0a -> 0.10.0b ...).
-          base=$(grep '^version=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          # The version counts our APKs (apk= in version.properties, 58 -> 0.58.0, see
+          # app/build.gradle.kts). When the latest release already carries it, this build only
+          # brings a newer Forge engine: keep it and add the next letter (0.58.0a, 0.58.0b ...).
+          n=$(grep '^apk=' android/version.properties | cut -d= -f2 | tr -d '[:space:]')
+          base="$((n / 100)).$(printf '%02d' $((n % 100))).0"
           title=$(gh release view --json name --jq .name 2>/dev/null || true)
           latest=${title#MTG Reforged v}; latest=${latest%% *}
           suffix=""
