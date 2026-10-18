@@ -148,6 +148,8 @@ private fun FoilSheen() {
         drawIntoCanvas {
             it.saveLayer(bounds, Paint().apply {
                 blendMode = BlendMode.ColorDodge
+                // Softer than keldon's full strength so the card stays easy to read.
+                alpha = FOIL_STRENGTH
                 colorFilter = cssFilter(brightness = hyp * 0.3f + 0.5f, contrast = 2f, saturate = 1f)
             })
         }
@@ -162,6 +164,10 @@ private fun FoilSheen() {
         drawIntoCanvas { it.restore(); it.restore() }
     }
 }
+
+/** How much of the shine reaches the card, and how much the illusion texture shows within it. */
+private const val FOIL_STRENGTH = 0.6f
+private const val TEXTURE_STRENGTH = 0.55f
 
 private val RAINBOW = listOf(
     Color(0xFFFF7773), Color(0xFFFFED5F), Color(0xFFA8FF5F), Color(0xFF83FFF7), Color(0xFF7894FF), Color(0xFFD875FF), Color(0xFFFF7773),
@@ -232,7 +238,7 @@ private fun DrawScope.holoStack(texture: android.graphics.Bitmap, px: Float, py:
         setScale(0.5f * w / texture.width, 0.5f * h / texture.height)
         postTranslate(0.25f * w, 0.25f * h)
     })
-    drawRect(ShaderBrush(shader), blendMode = BlendMode.Softlight)
+    drawRect(ShaderBrush(shader), alpha = TEXTURE_STRENGTH, blendMode = BlendMode.Softlight)
 }
 
 /** CSS brightness() contrast() saturate(), in that order, as one colour matrix. */
