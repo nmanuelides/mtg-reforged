@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -208,7 +210,7 @@ fun OrnateButton(
             .paper(fill)
             .ornateFrame(frame, inset = 3.dp, corners = style != OrnateStyle.Primary)
             .combinedClickable(interaction, indication = null, enabled = enabled, onLongClick = onLongClick, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -217,13 +219,14 @@ fun OrnateButton(
                 Spacer(Modifier.width(6.dp))
                 Icon(icon, null, tint = if (style == OrnateStyle.Primary) ink else accent, modifier = Modifier.size(18.dp))
             }
-            Text(
+            // Long labels shrink to fit the button instead of being cut ("OPPONE…").
+            BasicText(
                 text.uppercase(),
-                Modifier.padding(horizontal = 8.dp),
-                style = textStyle,
-                color = ink,
-                textAlign = TextAlign.Center,
+                Modifier.padding(horizontal = 6.dp).weight(1f, fill = false),
+                style = textStyle.copy(color = ink, textAlign = TextAlign.Center),
                 maxLines = 1,
+                softWrap = false,
+                autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = textStyle.fontSize, stepSize = 0.5.sp),
             )
             if (style == OrnateStyle.Primary) Text("✦", color = ink.copy(alpha = 0.7f), fontSize = 10.sp)
         }
