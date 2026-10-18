@@ -109,73 +109,40 @@ fun CardTile(
 }
 
 /**
- * Holographic foil, after keldon-market's "holo rare ultra": a rainbow of thin horizontal
- * bands and dark-and-teal metallic stripes at 133°, both color-dodged onto the art (plus an
- * exclusion pass), with a soft shade around the light. There is no mouse on a phone, so the
- * light drifts on its own in a slow loop and the bands slide with it.
+ * Foil, after keldon-market's look: the art stays vivid; over it run fine, closely spaced
+ * diagonal metallic lines, and a narrow rainbow streak sweeps slowly across the card.
  */
 @Composable
 private fun FoilSheen() {
-    val t = rememberInfiniteTransition(label = "foil")
-    val px by t.animateFloat(0.15f, 0.85f, infiniteRepeatable(tween(5200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "px")
-    val py by t.animateFloat(0.2f, 0.8f, infiniteRepeatable(tween(3700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "py")
+    val sweep by rememberInfiniteTransition(label = "foil").animateFloat(
+        -0.6f, 1.6f, infiniteRepeatable(tween(4600, easing = LinearEasing)), label = "sweep",
+    )
     Canvas(Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
-        val cx = px - 0.5f
-        val cy = py - 0.5f
-        // Brighter toward the edges, like --hyp; never below the idle baseline.
-        val hyp = maxOf(0.28f, minOf(1f, kotlin.math.sqrt(cx * cx + cy * cy) * 2f))
-
-        // 1. Rainbow bands (repeating every ~6 x 5% of the height), sliding with the light.
-        val band = h * 0.35f
-        val rainbowY = py * h * 2f
+        // Fine metallic lines at about -45°: thin bright ridges every few dp, light on the art.
+        val period = 5.dp.toPx()
         drawRect(
             Brush.linearGradient(
-                listOf(
-                    Color(0xFFFF7773), Color(0xFFFFED5F), Color(0xFFA8FF5F), Color(0xFF83FFF7),
-                    Color(0xFF7894FF), Color(0xFFD875FF), Color(0xFFFF7773),
-                ),
-                start = Offset(0f, rainbowY), end = Offset(0f, rainbowY + band), tileMode = TileMode.Repeated,
+                0f to Color(0x00FFFFFF), 0.42f to Color(0x00FFFFFF), 0.5f to Color(0x8CFFFFFF), 0.58f to Color(0x00FFFFFF), 1f to Color(0x00FFFFFF),
+                start = Offset(0f, 0f), end = Offset(period, period), tileMode = TileMode.Repeated,
             ),
-            alpha = 0.22f + 0.18f * hyp,
-            blendMode = BlendMode.ColorDodge,
+            alpha = 0.35f,
+            blendMode = BlendMode.Overlay,
         )
-
-        // 2. Metallic stripes at 133°: dark navy with a thin teal sheen, repeating.
-        val rad = Math.toRadians(133.0)
-        val dx = kotlin.math.cos(rad).toFloat()
-        val dy = kotlin.math.sin(rad).toFloat()
-        val period = (w + h) * 0.12f
-        val shift = px * w * 3f
-        val origin = Offset(shift, py * h)
-        val navy = Color(0xFF0E152E)
+        // A narrow rainbow streak crossing diagonally, like light catching the foil.
+        val cx = sweep * (w + h)
+        val band = (w + h) * 0.16f
         drawRect(
             Brush.linearGradient(
-                0f to navy, 0.38f to Color(0xFF8C9999), 0.45f to Color(0xFF93BDBD), 0.52f to Color(0xFF8C9999), 1f to navy,
-                start = origin, end = Offset(origin.x + dx * period, origin.y + dy * period), tileMode = TileMode.Repeated,
+                0f to Color(0x00FFFFFF),
+                0.2f to Color(0x99FF7773), 0.35f to Color(0x99FFED5F), 0.5f to Color(0x99A8FF5F),
+                0.65f to Color(0x9983FFF7), 0.8f to Color(0x997894FF), 0.9f to Color(0x99D875FF),
+                1f to Color(0x00FFFFFF),
+                start = Offset(cx - band, 0f), end = Offset(cx, band),
             ),
-            alpha = 0.18f + 0.12f * hyp,
-            blendMode = BlendMode.ColorDodge,
-        )
-        // Second pass in exclusion (the CSS ::after), offset the other way.
-        drawRect(
-            Brush.linearGradient(
-                0f to navy, 0.45f to Color(0xFF93BDBD), 1f to navy,
-                start = Offset(-shift, h - py * h), end = Offset(-shift + dx * period * 1.3f, h - py * h + dy * period * 1.3f),
-                tileMode = TileMode.Repeated,
-            ),
-            alpha = 0.10f + 0.08f * hyp,
-            blendMode = BlendMode.Exclusion,
-        )
-
-        // 3. Soft shade around where the light falls.
-        drawRect(
-            Brush.radialGradient(
-                0.12f to Color(0x1A000000), 0.2f to Color(0x26000000), 1f to Color(0x40000000),
-                center = Offset(px * w, py * h), radius = maxOf(w, h),
-            ),
-            alpha = 0.6f,
+            alpha = 0.55f,
+            blendMode = BlendMode.Screen,
         )
     }
 }
