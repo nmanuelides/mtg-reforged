@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.horizontalScroll
 import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import androidx.compose.foundation.verticalScroll
@@ -541,6 +542,19 @@ private fun CardSearch(
         onCount(count)
         searching = false
     }
+    // One card per name: show the printing (and finish) the deck / collection actually has, so
+    // picking another printing in the viewer shows up here too, not the search's default one.
+    val shown by remember(results, filter) {
+        derivedStateOf {
+            val perPrinting = !filter.hideDuplicates || filter.sets.isNotEmpty() || filter.rarities.isNotEmpty() || filter.artist.isNotBlank()
+            if (perPrinting) results else {
+                val owned = (draft.commander.keys + draft.main.keys).groupBy { it.name }
+                results.map { r ->
+                    owned[r.name]?.firstOrNull { filter.finish == Finish.Any || it.isFoil == r.isFoil } ?: r
+                }
+            }
+        }
+    }
 
     Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
         Box(Modifier.landIn(1)) { DeckStatus(draft, format, problem, listOpen, onOpenList) }
@@ -633,13 +647,13 @@ private fun CardSearch(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed(results, key = { _, it -> "${it.name}|${it.edition}|${it.artIndex}" }) { index, card ->
+                itemsIndexed(shown, key = { _, it -> "${it.name}|${it.edition}|${it.artIndex}" }) { index, card ->
                     val order = remember { cascade.getAndIncrement() }
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
                     val price = remember(card, prices) { CardPrices.of(card) }
                     Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.tapOrHold(card.name, onTap = { onOpen(results, index) }, onHold = { h, _ -> held = h })) {
+                        Box(Modifier.tapOrHold(card.name, onTap = { onOpen(shown, index) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, tile, showTapped = false)
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                             if (commanderFormat && canLead(card)) {
