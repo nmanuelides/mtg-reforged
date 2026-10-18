@@ -976,6 +976,8 @@ private fun ZoneChoiceDialog(state: MatchUiState, choice: ZoneChoiceUi, game: Co
 /** The classic undo arrow, alone: a round paper button. */
 @Composable
 private fun UndoButton(state: MatchUiState, onUndo: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val explain = !state.canUndo && !state.undoPending && state.undoError != null
     Box(
         Modifier
             .size(42.dp)
@@ -984,7 +986,11 @@ private fun UndoButton(state: MatchUiState, onUndo: () -> Unit) {
             .paper(Palette.PaperLight)
             .ornateFrame(Palette.Ochre, inset = 2.dp, corners = false)
             // While an undo waits for the opponent, a tap calls it off.
-            .clickable(enabled = state.canUndo || state.undoPending, onClick = onUndo),
+            .clickable(enabled = state.canUndo || state.undoPending || explain) {
+                // Disabled because the game couldn't be copied: say why instead of doing nothing.
+                if (explain) android.widget.Toast.makeText(context, "Undo isn't available: ${state.undoError}", android.widget.Toast.LENGTH_LONG).show()
+                else onUndo()
+            },
         contentAlignment = Alignment.Center,
     ) {
         if (state.undoPending) {

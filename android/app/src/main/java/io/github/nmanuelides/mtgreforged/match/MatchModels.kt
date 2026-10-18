@@ -146,6 +146,8 @@ data class MatchUiState(
     val lastPlay: String? = null,
     /** Undo was asked while the AI was playing; it happens when the game hands control back. */
     val undoPending: Boolean = false,
+    /** Why undo isn't available (the game couldn't be copied), if that's the reason. */
+    val undoError: String? = null,
     val players: List<PlayerUi> = emptyList(),
     val turn: Int = 0,
     val phase: PhaseType? = null,

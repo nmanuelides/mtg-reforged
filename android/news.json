@@ -23,6 +23,12 @@
       "title": "New in v0.58.0",
       "body": "• The version number now counts our releases: this is the 58th, so v0.58.0 (the 105th will be v1.05.0). Updates that only bring a newer Forge rules engine keep the number and add a letter: v0.58.0a.",
       "link": null
+    },
+    {
+      "id": "v0.59.0",
+      "title": "New in v0.59.0",
+      "body": "• Undo works with a spell on the stack: the spell goes back to your hand.\n• Undo while choosing attackers or targets backs out and undoes, instead of loading forever.\n• Undo is available from the start of a game, including resumed games.",
+      "link": null
     }
   ]
 }

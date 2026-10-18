@@ -108,6 +108,10 @@ class ComposeGuiGame : NetworkGuiGame() {
         // An undo asked for while the opponent played runs as soon as the game waits for us
         // with an empty stack; checked on every refresh, whichever callback brought us here.
         if (undoPending && safeToRestore()) onGameThread { if (undoPending && safeToRestore()) restoreLast() }
+        if (!basePointTried && !autoStart && undoStack.isEmpty() && currentInput() is InputPassPriority && gameView?.game != null) {
+            basePointTried = true
+            onGameThread { if (undoStack.isEmpty()) checkpoint() }
+        }
     }
 
     private fun buildSnapshot(view: GameView): MatchUiState {
@@ -203,6 +207,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
             blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
             canUndo = undoStack.isNotEmpty(),
+            undoError = undoError,
             boardChoice = boardChoice,
             lastActions = lastActions,
             lastPlay = lastPlay,
@@ -440,15 +445,28 @@ class ComposeGuiGame : NetworkGuiGame() {
     // Before each of the player's plays (passing, ending the turn, starting a spell or a
     // land) while they hold priority, the whole game is copied with Forge's GameSnapshot.
     // Undo restores the latest copy: board, hands, life, phase and turn.
-    private val undoStack = ArrayDeque<GameSnapshot>()
+    /** A saved point plus the spells that were on the stack then (see restoreLast). */
+    private class UndoPoint(val snapshot: GameSnapshot, val stackIds: Set<Int>)
+
+    private val undoStack = ArrayDeque<UndoPoint>()
+
+    /** Why the last copy failed, shown when the player taps a disabled undo. */
+    @Volatile private var undoError: String? = null
+
+    /** A first point as soon as the game waits for us, so a fresh or resumed game can undo its first play too. */
+    @Volatile private var basePointTried = false
 
     private fun checkpoint() {
         if (currentInput() !is InputPassPriority) return
         val game = gameView?.game ?: return // network guests don't hold the game
         // GameSnapshot only copies the game when makeCopy() is called.
-        runCatching { GameSnapshot(game).also { it.makeCopy() } }
-            .onSuccess { undoStack.addLast(it); while (undoStack.size > MAX_UNDO) undoStack.removeFirst() }
-            .onFailure { Log.w("Undo", "snapshot failed", it) }
+        runCatching {
+            val snapshot = GameSnapshot(game)
+            val copy = snapshot.makeCopy()
+            UndoPoint(snapshot, copy.stack.mapTo(HashSet()) { it.id })
+        }
+            .onSuccess { undoError = null; undoStack.addLast(it); while (undoStack.size > MAX_UNDO) undoStack.removeFirst() }
+            .onFailure { Log.w("Undo", "snapshot failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
     }
 
@@ -463,16 +481,28 @@ class ComposeGuiGame : NetworkGuiGame() {
         // Tapping again while it waits for its moment calls the undo off.
         if (undoPending) { undoPending = false; requestRefresh(); return@onGameThread }
         if (undoStack.isEmpty()) return@onGameThread
-        if (!safeToRestore()) {
-            undoPending = true
-            requestRefresh()
-            return@onGameThread
+        when (currentInput()) {
+            // Waiting for our play, with or without spells on the stack: restore right away.
+            is InputPassPriority -> restoreLast()
+            // Choosing targets: back out of the spell first; the restore follows at our priority.
+            is InputSelectTargets -> { undoPending = true; gameController?.selectButtonCancel() }
+            // Declaring attackers: call them all back and skip the attack, then restore.
+            is InputAttack -> { undoPending = true; leaveAttack() }
+            // Anything else (the opponent is playing, a question is open): restore at our next priority.
+            else -> { undoPending = true; requestRefresh() }
         }
-        restoreLast()
     }
 
-    /** Restoring mid-resolution or mid-choice corrupts Forge's state: wait for our priority on an empty stack. */
-    private fun safeToRestore() = currentInput() is InputPassPriority && gameView?.stack?.isEmpty() != false
+    private fun leaveAttack() {
+        val controller = gameController ?: return
+        // Cancel undeclares attackers when there are some (and attacks with everything when there
+        // are none), so only cancel with attackers declared; OK then declares no attack.
+        if (gameView?.combat?.attackers?.any() == true) controller.selectButtonCancel()
+        if (currentInput() is InputAttack) controller.selectButtonOk()
+    }
+
+    /** Restoring mid-resolution or mid-choice corrupts Forge's state: only while the game waits for our play. */
+    private fun safeToRestore() = currentInput() is InputPassPriority
 
     @Volatile private var resolveAll = false
 
@@ -481,8 +511,12 @@ class ComposeGuiGame : NetworkGuiGame() {
     private fun restoreLast() {
         undoPending = false
         val game = gameView?.game ?: return
-        val snapshot = undoStack.removeLastOrNull() ?: return
-        runCatching { snapshot.restoreGameState(game) }.onFailure { Log.w("Undo", "restore failed", it) }
+        val point = undoStack.removeLastOrNull() ?: return
+        runCatching {
+            // Forge's restore puts the saved stack back but never takes newer spells off it: do that first.
+            game.stack.toList().filter { it.id !in point.stackIds }.forEach { game.stack.remove(it) }
+            point.snapshot.restoreGameState(game)
+        }.onFailure { Log.w("Undo", "restore failed", it) }
         // An undone End Turn must not keep auto-passing the restored turn away.
         (gameController as? PlayerControllerHuman)?.autoPassCancel()
         requestRefresh()
