@@ -146,6 +146,8 @@ tasks.named("preBuild") { dependsOn(packageEngineData) }
 
 dependencies {
     implementation(project(":engine:forge-gui"))
+    // Google sign-in / authorization for Drive backups (drive.appdata scope only).
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

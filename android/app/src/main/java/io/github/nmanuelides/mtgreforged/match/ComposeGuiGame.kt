@@ -540,18 +540,9 @@ class ComposeGuiGame : NetworkGuiGame() {
         requestRefresh()
     }
 
-    override fun setSelectables(cards: Iterable<CardView>?, min: Int, max: Int) {
-        super.setSelectables(cards, min, max)
-        requestRefresh()
-    }
-
-    override fun clearSelectables() {
-        super.clearSelectables()
-        requestRefresh()
-    }
-
-    override fun setHighlighted(entities: Iterable<forge.trackable.TrackableObject>?, b: Boolean) {
-        super.setHighlighted(entities, b)
+    // Forge now reports what the prompt marks (selectable / highlighted) as one Selection.
+    override fun setSelection(selection: forge.gamemodes.match.Selection?) {
+        super.setSelection(selection)
         requestRefresh()
     }
 
