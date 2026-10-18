@@ -63,13 +63,15 @@ fun BackupDialog(onDismiss: () -> Unit) {
     var backups by remember { mutableStateOf<List<DriveBackup.Entry>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    var failed by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<((String) -> Unit)?>(null) }
     var confirmRestore by remember { mutableStateOf<DriveBackup.Entry?>(null) }
 
     fun driveJob(work: suspend (String) -> Unit): (String) -> Unit = { t ->
         scope.launch {
             busy = true
-            runCatching { work(t) }.onFailure { status = it.message ?: "Something went wrong" }
+            failed = false
+            runCatching { work(t) }.onFailure { failed = true; status = it.message ?: "Something went wrong" }
             busy = false
         }
     }
@@ -77,16 +79,29 @@ fun BackupDialog(onDismiss: () -> Unit) {
     val refresh = driveJob { t -> backups = DriveBackup.list(t) }
 
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        val t = activity?.let { DriveBackup.tokenFrom(it, result.data) }
-        if (t == null) status = "Google Drive access wasn't granted."
-        else { token = t; pendingAction?.invoke(t); pendingAction = null }
+        val a = activity ?: return@rememberLauncherForActivityResult
+        val action = pendingAction
+        pendingAction = null
+        DriveBackup.tokenFrom(a, result.data)
+            .onSuccess { t -> token = t; action?.invoke(t) }
+            .onFailure { first ->
+                // The account / consent was given but the token didn't come back with it: ask once more.
+                scope.launch {
+                    runCatching { DriveBackup.authorize(a) }
+                        .onSuccess { auth ->
+                            if (auth is DriveBackup.Auth.Token) { token = auth.value; action?.invoke(auth.value) }
+                            else { failed = true; status = "Google Drive access wasn't granted (${first.message}, result ${result.resultCode})." }
+                        }
+                        .onFailure { failed = true; status = "Google Drive access wasn't granted: ${first.message}; then ${it.message}" }
+                }
+            }
     }
 
     /** Runs [action] with a Drive token, asking the user for access the first time. */
     fun withDrive(action: (String) -> Unit) {
         token?.let { action(it); return }
         val a = activity
-        if (a == null) { status = "Can't reach Google from here."; return }
+        if (a == null) { failed = true; status = "Can't reach Google from here."; return }
         scope.launch {
             busy = true
             runCatching { DriveBackup.authorize(a) }
@@ -99,7 +114,7 @@ fun BackupDialog(onDismiss: () -> Unit) {
                         }
                     }
                 }
-                .onFailure { status = "Couldn't connect to Google: ${it.message}" }
+                .onFailure { failed = true; status = "Couldn't connect to Google: ${it.message}" }
             busy = false
         }
     }
@@ -171,7 +186,8 @@ fun BackupDialog(onDismiss: () -> Unit) {
         }
         status?.let {
             Spacer(Modifier.height(10.dp))
-            Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Sage)
+            // Problems in red, good news in green.
+            Text(it, style = MaterialTheme.typography.bodySmall, color = if (failed) Palette.Terracotta else Palette.Sage)
         }
         Spacer(Modifier.height(14.dp))
         Text("Without Google Drive", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)

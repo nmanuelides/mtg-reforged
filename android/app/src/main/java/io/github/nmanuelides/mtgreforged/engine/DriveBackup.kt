@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.engine
 
+import com.google.android.gms.common.api.CommonStatusCodes
+import com.google.android.gms.common.api.ApiException
 import android.app.Activity
 import android.app.PendingIntent
 import android.content.Intent
@@ -53,9 +55,14 @@ object DriveBackup {
             .addOnFailureListener { cont.resumeWithException(it) }
     }
 
-    /** The token after the user went through the consent screen. */
-    fun tokenFrom(activity: Activity, data: Intent?): String? =
-        runCatching { Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(data).accessToken }.getOrNull()
+    /** The token after the consent screen, or the reason there is none (Google's status code included). */
+    fun tokenFrom(activity: Activity, data: Intent?): Result<String> = runCatching {
+        val result = Identity.getAuthorizationClient(activity).getAuthorizationResultFromIntent(data)
+        result.accessToken ?: throw IllegalStateException("Google returned no access token")
+    }.recoverCatching { e ->
+        if (e is ApiException) throw IllegalStateException("Google error ${e.statusCode}: ${CommonStatusCodes.getStatusCodeString(e.statusCode)}")
+        throw e
+    }
 
     suspend fun upload(token: String): Entry = withContext(Dispatchers.IO) {
         val body = Backup.export()
