@@ -287,8 +287,14 @@ fun DeckBuilderScreen(
     var panel by remember { mutableStateOf<SidePanel?>(null) }
     var wideLayout by remember { mutableStateOf(true) }
     var matches by remember { mutableIntStateOf(0) }
-    var viewing by remember { mutableStateOf<Pair<List<PaperCard>, Int>?>(null) }
-    val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = cards to index }
+    // The cards, where to start, and whether swiping changes the owned copy (collection only).
+    var viewing by remember { mutableStateOf<Triple<List<PaperCard>, Int, Boolean>?>(null) }
+    val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = Triple(cards, index, collection) }
+    // Search results: in the collection, from "All cards" they're a catalogue to add from, so
+    // swiping just browses printings; from "My collection" they're your own copies.
+    val openResults: (List<PaperCard>, Int) -> Unit = { cards, index ->
+        viewing = Triple(cards, index, collection && filter.within == Within.Collection)
+    }
     val scope = rememberCoroutineScope()
     // Saving keeps the editor open; leaving hands back the last saved deck (if any).
     var saved by remember { mutableStateOf(initial) }
@@ -394,7 +400,7 @@ fun DeckBuilderScreen(
                     onOpenFilters = { toggle(SidePanel.Filters) },
                     onOpenList = { toggle(SidePanel.List) },
                     listOpen = panel == SidePanel.List,
-                    onCount = { matches = it }, onOpen = open,
+                    onCount = { matches = it }, onOpen = open, onOpenResults = openResults,
                 ) { draft.add(it) }
             }
             if (wide) {
@@ -443,8 +449,8 @@ fun DeckBuilderScreen(
         }
     }
 
-    viewing?.let { (cards, index) ->
-        CardViewer(cards, index, draft, format == Engine.Format.Commander, collection) { viewing = null }
+    viewing?.let { (cards, index, replaceOwned) ->
+        CardViewer(cards, index, draft, format == Engine.Format.Commander, collection, replaceOwned) { viewing = null }
     }
 
     if (exporting) ExportDialog(name, draft) { exporting = false }
@@ -526,6 +532,7 @@ private fun CardSearch(
     listOpen: Boolean,
     onCount: (Int) -> Unit,
     onOpen: (List<PaperCard>, Int) -> Unit,
+    onOpenResults: (List<PaperCard>, Int) -> Unit,
     onAdd: (PaperCard) -> Unit,
 ) {
     val commanderFormat = format == Engine.Format.Commander
@@ -561,7 +568,7 @@ private fun CardSearch(
     // picking another printing in the viewer shows up here too, not the search's default one.
     val shown by remember(results, filter) {
         derivedStateOf {
-            val perPrinting = filter.within == Within.Collection || !filter.hideDuplicates ||
+            val perPrinting = collectionMode || filter.within == Within.Collection || !filter.hideDuplicates ||
                 filter.sets.isNotEmpty() || filter.rarities.isNotEmpty() || filter.artist.isNotBlank()
             if (perPrinting) results else {
                 val owned = (draft.commander.keys + draft.main.keys).groupBy { it.name }
@@ -669,7 +676,7 @@ private fun CardSearch(
                     var held by remember { mutableStateOf(false) }
                     val price = remember(card, prices) { CardPrices.of(card) }
                     Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.tapOrHold(card.name, onTap = { onOpen(shown, index) }, onHold = { h, _ -> held = h })) {
+                        Box(Modifier.tapOrHold(card.name, onTap = { onOpenResults(shown, index) }, onHold = { h, _ -> held = h })) {
                             CardTile(ui, tile, showTapped = false)
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                             if (commanderFormat && canLead(card)) {

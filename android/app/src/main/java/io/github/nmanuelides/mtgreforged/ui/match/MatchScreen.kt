@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.match.ZoneChoiceUi
 import androidx.compose.foundation.horizontalScroll
 import io.github.nmanuelides.mtgreforged.match.BoardChoiceUi
 import androidx.compose.runtime.collectAsState
@@ -182,6 +183,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
         TurnBanner(state)
         ImpactAnimations(state)
         state.boardChoice?.let { BoardChoiceDialog(state, it, game) }
+        state.zoneChoice?.let { ZoneChoiceDialog(state, it, game) }
         CastSpotlight(state)
 
         AnimatedVisibility(state.gameOver != null, enter = fadeIn(), exit = fadeOut()) {
@@ -912,6 +914,61 @@ private fun BoardChoiceDialog(state: MatchUiState, choice: BoardChoiceUi, game: 
                 OrnateButton(p.cancelLabel, game::pressCancel, Modifier.weight(1f), accent = Palette.Slate, enabled = p.cancelEnabled)
             }
             OrnateButton(p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.weight(1f), style = OrnateStyle.Primary, enabled = p.okEnabled)
+        }
+    }
+}
+
+/** Picking cards from a graveyard, exile or library: the cards big, swiping between them. */
+@Composable
+private fun ZoneChoiceDialog(state: MatchUiState, choice: ZoneChoiceUi, game: ComposeGuiGame) {
+    val p = state.prompt
+    // "Choose on the battlefield" hides the carousel until this prompt changes.
+    var hiddenFor by remember { mutableStateOf<String?>(null) }
+    if (hiddenFor == p.message) return
+    val pager = androidx.compose.foundation.pager.rememberPagerState { choice.cards.size }
+    OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 760.dp) {
+        Text(p.message, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Swipe to look through them, tap one to choose it." + if (choice.cards.size > 1) "  ·  ${pager.currentPage + 1} / ${choice.cards.size}" else "",
+            style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft, textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(10.dp))
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val cardWidth = minOf(maxWidth * 0.62f, 240.dp)
+            androidx.compose.foundation.pager.HorizontalPager(
+                pager,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = (maxWidth - cardWidth) / 2),
+                pageSpacing = 16.dp,
+            ) { page ->
+                val (card, where) = choice.cards[page]
+                val picked = card.id in choice.selectedIds
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CardTile(
+                        card, cardWidth, showTapped = false,
+                        mark = if (picked) CardMark.Highlighted else CardMark.Selectable,
+                        onClick = { game.tapCard(card.id) },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (picked) "$where  ·  chosen ✓" else where,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (picked) Palette.Sage else Palette.InkSoft,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (p.cancelLabel.isNotBlank()) {
+                OrnateButton(p.cancelLabel, game::pressCancel, Modifier.weight(1f), accent = Palette.Slate, enabled = p.cancelEnabled)
+            }
+            if (choice.alsoOnBoard) {
+                OrnateButton("On the battlefield", { hiddenFor = p.message }, Modifier.weight(1f), accent = Palette.Slate)
+            }
+            if (p.okEnabled) {
+                OrnateButton(p.okLabel.ifBlank { "OK" }, game::pressOk, Modifier.weight(1f), style = OrnateStyle.Primary)
+            }
         }
     }
 }

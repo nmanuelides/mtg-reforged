@@ -171,6 +171,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         val selectable = cards.values.filter { isSelectable(it) }.mapTo(HashSet()) { it.id }
         val boardChoice = boardChoice(view, selectable, ::card)
         val highlighted = (cards.values + players.values).filter { isHighlighted(it) }.mapTo(HashSet()) { it.id }
+        val zoneChoice = if (boardChoice != null) null else zoneChoice(selectable, highlighted, cards, ::card)
 
         val entries = view.gameLog?.getLogEntries(null).orEmpty()
         val log = entries.take(40).map { it.message() }
@@ -204,6 +205,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             lastPlay = lastPlay,
             undoPending = undoPending,
             selectableIds = selectable,
+            zoneChoice = zoneChoice,
             highlightedIds = highlighted,
             choosablePlayerIds = choosable,
             attackTargetId = attackTarget,
@@ -384,6 +386,39 @@ class ComposeGuiGame : NetworkGuiGame() {
         selectedInInput().forEach { cv ->
             choiceHistory += cv.name + (cv.controller?.name?.let { " ($it)" } ?: "")
         }
+    }
+
+    /**
+     * Targets in zones the table doesn't show (e.g. "return target card from your graveyard"):
+     * those can only be picked from a carousel of the cards themselves.
+     */
+    private fun zoneChoice(
+        selectable: Set<Int>, highlighted: Set<Int>, cards: Map<Int, CardView>, toUi: (CardView) -> CardUi,
+    ): ZoneChoiceUi? {
+        // Only while choosing (targets and the like): with priority, cards you could cast from
+        // a graveyard are marked too, and those are played from the zone viewer instead.
+        val input = currentInput()
+        if (input is InputPassPriority || input is InputAttack || input is InputBlock) return null
+        val onTable = setOf(ZoneType.Battlefield, ZoneType.Hand)
+        val candidates = selectable.mapNotNull { cards[it] }
+        val hidden = candidates.filter { it.zone != null && it.zone !in onTable }
+        if (hidden.isEmpty()) return null
+        val me = gameView?.players?.firstOrNull { isLocalPlayer(it) }?.id
+        return ZoneChoiceUi(
+            cards = hidden.sortedWith(compareBy({ it.zone?.ordinal }, { it.name })).map { cv ->
+                val whose = if (cv.owner?.id == me) "Your" else "${cv.owner?.name ?: "Their"}'s"
+                val zone = when (cv.zone) {
+                    ZoneType.Graveyard -> "graveyard"
+                    ZoneType.Exile -> "exile"
+                    ZoneType.Library -> "library"
+                    ZoneType.Command -> "command zone"
+                    else -> cv.zone?.name?.lowercase() ?: ""
+                }
+                toUi(cv) to "$whose $zone"
+            },
+            selectedIds = highlighted,
+            alsoOnBoard = candidates.any { it.zone in onTable },
+        )
     }
 
     private fun boardChoice(view: GameView, selectable: Set<Int>, toUi: (CardView) -> CardUi): BoardChoiceUi? {

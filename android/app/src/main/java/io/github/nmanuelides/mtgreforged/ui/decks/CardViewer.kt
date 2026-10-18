@@ -88,6 +88,8 @@ internal fun CardViewer(
     commanderFormat: Boolean,
     /** Editing the collection: a new printing replaces only the copies of the one on screen. */
     collection: Boolean = false,
+    /** Collection only: swiping changes the owned copy on screen; otherwise it just browses printings to add. */
+    replaceOwned: Boolean = collection,
     onDismiss: () -> Unit,
 ) {
     if (cards.isEmpty()) return
@@ -99,7 +101,10 @@ internal fun CardViewer(
     fun swap(page: Int, next: PaperCard) {
         val old = shown(page)
         picked[page] = next
-        if (collection) draft.replacePrinting(old, next) else draft.usePrintingIfInDeck(next)
+        when {
+            !collection -> draft.usePrintingIfInDeck(next)
+            replaceOwned -> draft.replacePrinting(old, next)
+        }
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {

@@ -125,6 +125,15 @@ data class BoardChoiceUi(
     val history: List<String>,
 )
 
+/** Cards to pick that aren't on the table (graveyard, exile, library…), shown in a carousel. */
+data class ZoneChoiceUi(
+    /** Each card with where it is, e.g. "Your graveyard". */
+    val cards: List<Pair<CardUi, String>>,
+    val selectedIds: Set<Int>,
+    /** Some valid picks are also on the battlefield, so the carousel can step aside. */
+    val alsoOnBoard: Boolean,
+)
+
 data class MatchUiState(
     /** An earlier point of the game can be restored right now (see ComposeGuiGame.undo). */
     val canUndo: Boolean = false,
@@ -145,6 +154,7 @@ data class MatchUiState(
     val combat: CombatUi? = null,
     val prompt: PromptBarUi = PromptBarUi(),
     val selectableIds: Set<Int> = emptySet(),
+    val zoneChoice: ZoneChoiceUi? = null,
     val highlightedIds: Set<Int> = emptySet(),
     /** Players the engine is currently asking us to pick from (start player, targets...). */
     val choosablePlayerIds: Set<Int> = emptySet(),
