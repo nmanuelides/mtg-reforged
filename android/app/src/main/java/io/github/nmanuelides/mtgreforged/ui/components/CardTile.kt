@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.Canvas
@@ -106,23 +108,74 @@ fun CardTile(
     }
 }
 
-/** A soft diagonal rainbow over foil cards, drifting slowly like light on the foil. */
+/**
+ * Holographic foil, after keldon-market's "holo rare ultra": a rainbow of thin horizontal
+ * bands and dark-and-teal metallic stripes at 133°, both color-dodged onto the art (plus an
+ * exclusion pass), with a soft shade around the light. There is no mouse on a phone, so the
+ * light drifts on its own in a slow loop and the bands slide with it.
+ */
 @Composable
 private fun FoilSheen() {
-    val drift by rememberInfiniteTransition(label = "foil").animateFloat(
-        0f, 1f, infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Reverse), label = "foil",
-    )
+    val t = rememberInfiniteTransition(label = "foil")
+    val px by t.animateFloat(0.15f, 0.85f, infiniteRepeatable(tween(5200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "px")
+    val py by t.animateFloat(0.2f, 0.8f, infiniteRepeatable(tween(3700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "py")
     Canvas(Modifier.fillMaxSize()) {
-        val shift = size.width * (drift - 0.5f)
+        val w = size.width
+        val h = size.height
+        val cx = px - 0.5f
+        val cy = py - 0.5f
+        // Brighter toward the edges, like --hyp; never below the idle baseline.
+        val hyp = maxOf(0.28f, minOf(1f, kotlin.math.sqrt(cx * cx + cy * cy) * 2f))
+
+        // 1. Rainbow bands (repeating every ~6 x 5% of the height), sliding with the light.
+        val band = h * 0.35f
+        val rainbowY = py * h * 2f
         drawRect(
             Brush.linearGradient(
                 listOf(
-                    Color(0x00FFFFFF), Color(0x40FF6EC7), Color(0x40FFE66E), Color(0x406EFFB4),
-                    Color(0x406EB4FF), Color(0x40C46EFF), Color(0x00FFFFFF),
+                    Color(0xFFFF7773), Color(0xFFFFED5F), Color(0xFFA8FF5F), Color(0xFF83FFF7),
+                    Color(0xFF7894FF), Color(0xFFD875FF), Color(0xFFFF7773),
                 ),
-                start = Offset(shift, 0f), end = Offset(size.width + shift, size.height),
+                start = Offset(0f, rainbowY), end = Offset(0f, rainbowY + band), tileMode = TileMode.Repeated,
             ),
-            blendMode = BlendMode.Screen,
+            alpha = 0.22f + 0.18f * hyp,
+            blendMode = BlendMode.ColorDodge,
+        )
+
+        // 2. Metallic stripes at 133°: dark navy with a thin teal sheen, repeating.
+        val rad = Math.toRadians(133.0)
+        val dx = kotlin.math.cos(rad).toFloat()
+        val dy = kotlin.math.sin(rad).toFloat()
+        val period = (w + h) * 0.12f
+        val shift = px * w * 3f
+        val origin = Offset(shift, py * h)
+        val navy = Color(0xFF0E152E)
+        drawRect(
+            Brush.linearGradient(
+                0f to navy, 0.38f to Color(0xFF8C9999), 0.45f to Color(0xFF93BDBD), 0.52f to Color(0xFF8C9999), 1f to navy,
+                start = origin, end = Offset(origin.x + dx * period, origin.y + dy * period), tileMode = TileMode.Repeated,
+            ),
+            alpha = 0.18f + 0.12f * hyp,
+            blendMode = BlendMode.ColorDodge,
+        )
+        // Second pass in exclusion (the CSS ::after), offset the other way.
+        drawRect(
+            Brush.linearGradient(
+                0f to navy, 0.45f to Color(0xFF93BDBD), 1f to navy,
+                start = Offset(-shift, h - py * h), end = Offset(-shift + dx * period * 1.3f, h - py * h + dy * period * 1.3f),
+                tileMode = TileMode.Repeated,
+            ),
+            alpha = 0.10f + 0.08f * hyp,
+            blendMode = BlendMode.Exclusion,
+        )
+
+        // 3. Soft shade around where the light falls.
+        drawRect(
+            Brush.radialGradient(
+                0.12f to Color(0x1A000000), 0.2f to Color(0x26000000), 1f to Color(0x40000000),
+                center = Offset(px * w, py * h), radius = maxOf(w, h),
+            ),
+            alpha = 0.6f,
         )
     }
 }
