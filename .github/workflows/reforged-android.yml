@@ -1,6 +1,7 @@
 # MTG Reforged: merges the latest upstream Forge engine into the fork, builds the
-# native Android app and publishes it as a GitHub Release. The app checks the latest
-# release on startup and offers to install it, so the rules engine stays current.
+# native Android app and publishes it as a GitHub Release, then adds the Windows installer
+# to the same release. Both apps check the latest release on startup and offer to install
+# it, so the rules engine stays current.
 name: Reforged Android
 
 on:
@@ -31,6 +32,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+      upstream_full: ${{ steps.merge.outputs.upstream_full }}
+      version_code: ${{ steps.merge.outputs.version_code }}
+      version_suffix: ${{ steps.letter.outputs.suffix }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +52,7 @@ jobs:
           # Our changes live in android/ and this workflow, so upstream merges cleanly.
           git merge --no-edit upstream/master
           echo "upstream_sha=$(git rev-parse --short=10 upstream/master)" >> "$GITHUB_OUTPUT"
+          echo "upstream_full=$(git rev-parse upstream/master)" >> "$GITHUB_OUTPUT"
           echo "version_code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
           echo "head_sha=$(git rev-parse --short=10 HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -91,6 +98,7 @@ jobs:
           echo "RELEASE_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Version letter for engine-only builds
+        id: letter
         if: steps.check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,6 +116,7 @@ jobs:
             if [ -z "$letter" ]; then suffix=a; else suffix=$(echo "$letter" | tr 'a-y' 'b-z'); fi
           fi
           echo "APP_VERSION_SUFFIX=$suffix" >> "$GITHUB_ENV"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
           echo "Building v$base$suffix (latest release: ${title:-none})"
 
       - name: Build release APK
@@ -141,3 +150,53 @@ jobs:
 
           ${{ steps.check.outputs.marker }}" \
             --latest
+
+  # The Windows app (android/desktop): same shared code and engine, packaged as an installer
+  # and added to the release the build job just published.
+  windows:
+    needs: build
+    if: needs.build.outputs.skip != 'true'
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge the same upstream Forge
+        run: |
+          git config user.name "reforged-bot"
+          git config user.email "reforged-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/Card-Forge/forge.git
+          git fetch --quiet upstream "${{ needs.build.outputs.upstream_full }}"
+          git merge --no-edit FETCH_HEAD
+          # Same build number as the APK, so the updater sees one release for both.
+          test "$(git rev-list --count HEAD)" = "${{ needs.build.outputs.version_code }}"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the installer
+        working-directory: android
+        env:
+          APP_VERSION_SUFFIX: ${{ needs.build.outputs.version_suffix }}
+          GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.GOOGLE_DESKTOP_CLIENT_ID }}
+          GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: ./gradlew :desktop:createReleaseDistributable :desktop:packageReleaseExe --no-daemon --stacktrace
+
+      - name: Smoke test (boots the engine without a window)
+        working-directory: "android/desktop/build/compose/binaries/main-release/app/MTG Reforged"
+        run: |
+          ./"MTG Reforged.exe" --smoke-test || { cat "$LOCALAPPDATA/MTG Reforged/log.txt"; exit 1; }
+          tail -n 1 "$LOCALAPPDATA/MTG Reforged/log.txt"
+
+      - name: Add the installer to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "build-${{ needs.build.outputs.version_code }}" android/dist/mtg-reforged-v*-windows.exe --clobber

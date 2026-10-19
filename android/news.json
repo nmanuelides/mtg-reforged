@@ -77,6 +77,12 @@
       "title": "New in v0.67.0",
       "body": "• Saved games can be repaired from a computer (support tool).",
       "link": null
+    },
+    {
+      "id": "v0.68.0",
+      "title": "MTG Reforged for Windows",
+      "body": "• MTG Reforged now runs on Windows 10 and 11: the same game, screens and decks, with its own installer that keeps itself up to date.\n• On a PC: Esc goes back, right-click shows a card, drag with the mouse to flip through cards, F11 for full screen.",
+      "link": "https://github.com/nmanuelides/mtg-reforged/releases/latest"
     }
   ]
 }

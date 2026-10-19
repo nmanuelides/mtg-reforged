@@ -1,18 +1,27 @@
 # MTG Reforged — traspaso de contexto
 
 Resumen para seguir el trabajo desde otra sesión o cuenta de Claude. Leelo entero antes de empezar.
-Estado al 2026-10-18, última versión publicada: **v0.67.0**.
+Estado al 2026-10-19, última versión: **v0.68.0** (primera con versión de Windows).
 
 ## Qué es
 
-App Android nativa (Kotlin + Jetpack Compose) de Magic: The Gathering sobre el motor de reglas de
-Forge. El repo es un fork de Card-Forge/forge (`nmanuelides/mtg-reforged`, remoto `upstream` =
+App nativa de Magic: The Gathering sobre el motor de reglas de Forge, para Android (Kotlin + Jetpack
+Compose) y, desde v0.68, Windows 10/11 (Kotlin + Compose for Desktop, mismo código). El repo es un fork de Card-Forge/forge (`nmanuelides/mtg-reforged`, remoto `upstream` =
 Card-Forge/forge). Todo lo nuestro vive en `android/` (y el workflow de CI); el resto es Forge sin
 tocar, compilado tal cual.
 
 - Estilo visual: libro de cuentos / pergamino (`ui/theme/Palette`, `ui/components/Ornaments.kt`),
   pensado primero para tablet, con layout de teléfono en vertical.
-- Código: `android/app/src/main/java/io/github/nmanuelides/mtgreforged/`
+- Código compartido (UI + lógica, el 95 %): `android/shared/src/main/kotlin/io/github/nmanuelides/mtgreforged/`.
+  Se compila dentro de `android/app` (Android) y de `android/desktop` (Windows). Lo que depende del
+  sistema va por el paquete `platform` (preferencias, imágenes, archivos, Drive, sonido, back, toasts…),
+  que `app/.../platform/` y `desktop/.../platform/` definen **con los mismos nombres** (sin KMP:
+  typealias `AppContext`/`Prefs`/`ResId`). `desktop/.../R.kt` imita el `R` de Android. Si se agrega una
+  llamada nueva al sistema en `shared/`, hay que agregarla en las dos capas.
+- Solo Android en `app/`: `MainActivity`, `AppUpdater` (APK), `ImageDownloadService` (servicio con
+  notificación), `Connectivity`, `AndroidAudioClip`, `platform/`. Solo Windows en `desktop/`: `Main.kt`
+  (ventana, Esc = back, F11, toasts), su `AppUpdater` (baja el .exe del release y lo ejecuta), etc.
+- Código (rutas dentro de shared/):
   - `engine/`: arranque de Forge, mazos, colección (`CardCollection`), precios de Card Kingdom
     (`CardPrices`, con foil), backups (`Backup`, `DriveBackup`), noticias (`News`), favoritos, perfiles.
   - `match/ComposeGuiGame.kt`: el puente con Forge (implementa la GUI de Forge, arma el estado de la
@@ -30,7 +39,7 @@ tocar, compilado tal cual.
   `HD-Adb -P 5038 -s 127.0.0.1:5555`.
 - Pedir permiso antes de descargar archivos.
 
-## Cada APK nuevo (obligatorio)
+## Cada versión nueva (obligatorio; sale APK y .exe)
 
 1. **Versión**: subir `apk=` en `android/version.properties` en 1. La versión sale de ahí:
    APK 59 → v0.59.0, APK 105 → v1.05.0 (ver `android/app/build.gradle.kts`). Si no se sube, CI cree que
@@ -38,7 +47,8 @@ tocar, compilado tal cual.
 2. **Changelog**: agregar al final de `android/news.json` un mensaje
    `{"id": "v0.60.0", "title": "New in v0.60.0", "body": "• ...", "link": null}`. La app muestra cada id una vez.
 3. **Compilar, commitear y pushear** a `master`; el push dispara el workflow que publica la release
-   (las apps instaladas se actualizan solas desde las releases de GitHub).
+   (las apps instaladas se actualizan solas desde las releases de GitHub). Compilar **las dos**:
+   `./gradlew -q :app:compileReleaseKotlin :desktop:compileKotlin` (cambios en `shared/` afectan a ambas).
 
 ### Cómo compilar y pushear
 
@@ -47,8 +57,13 @@ tocar, compilado tal cual.
   P=~/.android-keys/mtg-reforged-release.properties; g(){ grep "^$1=" $P | cut -d= -f2-; }
   export RELEASE_KEYSTORE="$(g storeFile)" RELEASE_KEYSTORE_PASSWORD="$(g password)" RELEASE_KEY_PASSWORD="$(g password)" RELEASE_KEY_ALIAS=mtgreforged
   ```
-- Chequeo rápido: `cd android && ./gradlew -q :app:compileReleaseKotlin`. APK: `./gradlew -q :app:assembleRelease`
-  (queda en `android/dist/mtg-reforged-v<versión>.apk`).
+- Chequeo rápido: `cd android && ./gradlew -q :app:compileReleaseKotlin :desktop:compileKotlin`. APK:
+  `./gradlew -q :app:assembleRelease` (queda en `android/dist/mtg-reforged-v<versión>.apk`).
+- Windows: `./gradlew -q :desktop:packageReleaseExe` → `android/dist/mtg-reforged-v<versión>-windows.exe`
+  (instalador por usuario, sin admin, se actualiza encima). Probar sin abrir ventana:
+  `./gradlew -q :desktop:createReleaseDistributable` y
+  `"desktop/build/compose/binaries/main-release/app/MTG Reforged/MTG Reforged.exe" --smoke-test` (exit 0 = el
+  motor arrancó). Datos y `log.txt` en `%LOCALAPPDATA%\MTG Reforged`.
 - GitHub: usar la cuenta personal `nmanuelides` **solo por comando**; nunca cambiar la cuenta global de
   `gh` (la activa es la del trabajo, nmanuelidesBanyan):
   ```bash
@@ -65,6 +80,8 @@ tocar, compilado tal cual.
 
 Diario y en cada push a `android/**`: mergea upstream, compila el APK firmado y publica una release con
 tag `build-<versionCode>` (versionCode = cantidad de commits; la app se actualiza leyendo ese número).
+Después el job `windows` (windows-latest) hace el mismo merge, arma el instalador, corre el smoke test y
+sube el .exe a esa misma release; la app de Windows busca el `.exe` del último release.
 Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 
 ## Detalles técnicos que conviene saber
@@ -103,6 +120,14 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 - **Icono**: `android/branding/icon-source.png` → `res/drawable-nodpi/ic_launcher_art.png` (ícono adaptativo).
 
 ## Pendiente / a confirmar con el usuario
+
+- **Windows (v0.68.0)**: recién hecho; el usuario tiene que probarlo (instalar el .exe, partida completa,
+  constructor, colección, imágenes offline, backup a archivo, sonido, actualización). En PC: Esc = atrás,
+  clic derecho = mantener apretado (ver carta), arrastrar con el mouse = deslizar, rueda = zoom del avatar.
+- **Drive en Windows**: usa OAuth "Desktop app" (loopback + PKCE, `desktop/.../platform/DriveAuth.kt`).
+  Falta que el usuario cree ese cliente en el proyecto de Google Cloud y cargue `GOOGLE_DESKTOP_CLIENT_ID`
+  / `GOOGLE_DESKTOP_CLIENT_SECRET` como secrets de GitHub (o `~/.android-keys/google-desktop-oauth.properties`
+  con `clientId=`/`clientSecret=` para builds locales). Sin eso, el diálogo dice que no está configurado.
 
 - **Backup en Google Drive**: el usuario creó el cliente OAuth de Android (proyecto de Google Cloud
   "MTG-Reforged", paquete `io.github.nmanuelides.mtgreforged`, SHA-1

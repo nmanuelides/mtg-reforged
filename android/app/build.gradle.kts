@@ -94,6 +94,9 @@ android {
     }
 
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/engineData"))
+    // UI and game code shared with the Windows app (android/desktop); this module adds the
+    // Android side of the platform layer (io.github.nmanuelides.mtgreforged.platform).
+    sourceSets["main"].java.srcDir("../shared/src/main/kotlin")
 }
 
 kotlin {
@@ -101,44 +104,11 @@ kotlin {
 }
 
 // --- Engine data ------------------------------------------------------------
-// The rules data (card scripts, editions, formats, AI profiles...) ships inside
-// the APK as engine-data.zip, built from the same commit as the engine code so
-// both always match. The app extracts it on first run and after every update.
+// The rules data ships inside the APK as engine-data.zip (see ../engine-data.gradle.kts,
+// shared with the Windows app). The app extracts it on first run and after every update.
 
-val dataExcludes = listOf(
-    "adventure/**", "music/**", "skins/**", "fonts/**",
-    "cardsfolder/**", "**/*.xcf", "**/*.psd",
-)
-
-val zipCardsfolder by tasks.registering(Zip::class) {
-    from(upstreamRes.resolve("cardsfolder"))
-    archiveFileName.set("cardsfolder.zip")
-    destinationDirectory.set(layout.buildDirectory.dir("intermediates/engineData"))
-    isReproducibleFileOrder = true
-}
-
-val writeDataManifest by tasks.registering {
-    val out = layout.buildDirectory.file("intermediates/engineData/manifest.properties")
-    inputs.property("sha", commitSha)
-    inputs.property("versionCode", commitCount)
-    outputs.file(out)
-    doLast {
-        out.get().asFile.writeText("engineCommit=$commitSha\nversionCode=$commitCount\nupstreamVersion=$upstreamVersion\n")
-    }
-}
-
-val packageEngineData by tasks.registering(Zip::class) {
-    archiveFileName.set("engine-data.zip")
-    destinationDirectory.set(layout.buildDirectory.dir("generated/engineData"))
-    from(upstreamRes) {
-        into("res")
-        exclude(dataExcludes)
-        // Translated card names are ~8 MB per language; ship only Spanish (English is built in).
-        exclude { it.name.startsWith("cardnames-") && !it.name.contains("es-ES") }
-    }
-    from(zipCardsfolder) { into("res/cardsfolder") }
-    from(writeDataManifest)
-}
+apply(from = rootProject.file("engine-data.gradle.kts"))
+val packageEngineData = tasks.named("packageEngineData")
 
 tasks.named("preBuild") { dependsOn(packageEngineData) }
 
