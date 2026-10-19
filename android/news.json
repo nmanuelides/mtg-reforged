@@ -71,6 +71,12 @@
       "title": "New in v0.66.0",
       "body": "• Rebuilding a resumed board answers optional questions with no, so it can't take a card from your hand.\n• The last resumed save is kept as a copy, to look into resume problems.",
       "link": null
+    },
+    {
+      "id": "v0.67.0",
+      "title": "New in v0.67.0",
+      "body": "• Saved games can be repaired from a computer (support tool).",
+      "link": null
     }
   ]
 }

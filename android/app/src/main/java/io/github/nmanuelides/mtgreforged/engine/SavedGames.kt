@@ -62,6 +62,17 @@ object SavedGames {
     /** App-specific external storage (readable over adb): keeps a copy of the last resumed save to debug resumes. */
     var debugDir: File? = null
 
+    /** A save dropped in [debugDir] as import-save.json (over adb) replaces the current one at boot. */
+    fun importPending() {
+        val incoming = debugDir?.let { File(it, "import-save.json") }?.takeIf { it.exists() } ?: return
+        runCatching {
+            JSONObject(incoming.readText()) // only a readable save replaces the current one
+            file.parentFile?.mkdirs()
+            incoming.copyTo(file, overwrite = true)
+        }
+        incoming.delete()
+    }
+
     fun delete() {
         debugDir?.let { dir -> runCatching { file.copyTo(File(dir, "last-resumed-save.json"), overwrite = true) } }
         file.delete()
@@ -242,5 +253,6 @@ object SavedGames {
                 })
                 .toString(),
         )
+        debugDir?.let { dir -> runCatching { file.copyTo(File(dir, "last-save.json"), overwrite = true) } }
     }
 }

@@ -145,6 +145,7 @@ object Engine {
         BootProgress.advance(1f)
         // Warm up every sound effect so the first play of each isn't lost to async loading.
         Thread({ SoundEffectType.entries.forEach { runCatching { SoundSystem.instance.hasResource(it) } } }, "Sounds").start()
+        SavedGames.importPending()
         _status.value = Status.Ready
     }
 
