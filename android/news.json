@@ -29,6 +29,12 @@
       "title": "New in v0.59.0",
       "body": "• Undo works with a spell on the stack: the spell goes back to your hand.\n• Undo while choosing attackers or targets backs out and undoes, instead of loading forever.\n• Undo is available from the start of a game, including resumed games.",
       "link": null
+    },
+    {
+      "id": "v0.60.0",
+      "title": "New in v0.60.0",
+      "body": "• Undo with spells on the stack now uses the rules engine's own undo, which puts the stack back exactly: undoing a spell no longer re-casts other spells, loses triggered abilities or hands priority to the opponent.\n• End Turn keeps ending the turn instead of turning into Undo.",
+      "link": null
     }
   ]
 }
