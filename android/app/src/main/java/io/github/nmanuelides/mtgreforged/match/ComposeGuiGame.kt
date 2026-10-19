@@ -872,7 +872,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     }
 
     private fun confirmPlain(c: CardView?, question: String?, defaultIsYes: Boolean, options: List<String>): Boolean =
-        if (layingBoard) defaultIsYes else PromptHost.ask(
+        if (layingBoard) false else PromptHost.ask(
             Prompt.Options(c?.name.orEmpty(), question.orEmpty(), options, if (defaultIsYes) 0 else 1, ui(c)),
             if (defaultIsYes) 0 else 1,
         ) == 0
@@ -881,7 +881,8 @@ class ComposeGuiGame : NetworkGuiGame() {
         message: String?, min: Int, max: Int, choices: List<T>, selected: List<T>?, display: ((T) -> String)?,
     ): List<T>? {
         if (choices.isEmpty()) return emptyList()
-        if (layingBoard) return choices.take(min.coerceAtLeast(1).coerceAtMost(max.coerceAtLeast(1)))
+        // Optional picks ("you may exile a card from your hand") take nothing: the board is only being rebuilt.
+        if (layingBoard) return choices.take(min.coerceAtLeast(0))
         val items = choices.map { describe(it, display) }
         val pre = selected.orEmpty().mapNotNull { s -> choices.indexOf(s).takeIf { it >= 0 } }.toSet()
         val picked = PromptHost.ask<List<Int>?>(Prompt.Choose(message.orEmpty(), min, max, items, pre), null)

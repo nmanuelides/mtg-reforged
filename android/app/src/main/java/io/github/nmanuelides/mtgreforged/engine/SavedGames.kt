@@ -59,7 +59,11 @@ object SavedGames {
             }
     }.getOrNull()
 
+    /** App-specific external storage (readable over adb): keeps a copy of the last resumed save to debug resumes. */
+    var debugDir: File? = null
+
     fun delete() {
+        debugDir?.let { dir -> runCatching { file.copyTo(File(dir, "last-resumed-save.json"), overwrite = true) } }
         file.delete()
     }
 

@@ -94,6 +94,7 @@ object Engine {
     }
 
     private fun boot(context: Context) {
+        SavedGames.debugDir = context.getExternalFilesDir(null)
         val forgeDir = File(context.filesDir, "forge").apply { mkdirs() }
         val installer = EngineDataInstaller(context, forgeDir)
         if (!installer.isUpToDate()) {
