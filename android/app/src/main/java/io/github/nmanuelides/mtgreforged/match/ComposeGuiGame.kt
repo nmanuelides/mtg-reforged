@@ -212,7 +212,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
             blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
             canUndo = canUndo(),
-            undoError = undoError,
+            undoError = undoError ?: OLD_SAVE_NOTE.takeIf { resumedWithoutHistory && history.size <= 1 },
             boardChoice = boardChoice,
             lastActions = lastActions,
             lastPlay = lastPlay,
@@ -491,6 +491,28 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     @Volatile var resumeHistory: List<SavedGame.Position> = emptyList()
 
+    /** The resumed save carries no positions (made before v0.64): says why undo is off at first. */
+    @Volatile var resumedWithoutHistory = false
+
+    /**
+     * True while a saved board is laid over the game (resuming, or undo into a saved position).
+     * GameState puts each permanent onto the battlefield for real, so "As this enters, choose..."
+     * runs again (Sower of Discord's two players) and Forge has no switch to skip it. Meanwhile
+     * every question is answered with its default and nothing is shown; the saved choices are
+     * put back right after (SavedGames.applyChoices).
+     */
+    @Volatile var layingBoard = false
+
+    /** Answers a choice of players asked while [layingBoard] (Forge asks those on the board). */
+    private fun answerWhileLayingBoard() {
+        val controller = gameController as? PlayerControllerHuman ?: return
+        val input = currentInput() as? InputSelectEntitiesFromList<*> ?: return
+        val players = input.validChoices.filterIsInstance<forge.game.player.Player>()
+        if (players.isEmpty() || players.size != input.validChoices.size) return
+        if (input.selected.isEmpty()) controller.selectPlayer(players.first().view, Tap)
+        if (currentInput() === input) controller.selectButtonOk()
+    }
+
     init {
         runCatching { FModel.getPreferences().setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF) }
     }
@@ -631,7 +653,12 @@ class ComposeGuiGame : NetworkGuiGame() {
             // GameState clears the players' zones but not the stack.
             game.stack.toList().forEach { game.stack.remove(it) }
             game.stackZone.removeAllCards(true)
-            GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
+            layingBoard = true
+            try {
+                GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
+            } finally {
+                layingBoard = false
+            }
             SavedGames.applyChoices(position.choices, game)
             (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
         }.onFailure { Log.w("Undo", "resume undo failed", it) }
@@ -682,6 +709,7 @@ class ComposeGuiGame : NetworkGuiGame() {
 
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
         if (autoStart) autoAnswerPregame()
+        if (layingBoard) onGameThread { answerWhileLayingBoard() }
         // An undo asked for mid-play keeps backing out of each new step of it.
         if (undoPending) onGameThread { backOutOfPlay() }
         // 3: "Resolve all" keeps passing while things resolve, until the stack is empty.
@@ -814,6 +842,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     }
 
     override fun message(message: String?, title: String?) {
+        if (layingBoard) return
         PromptHost.ask(Prompt.Message(title ?: "Forge", message.orEmpty()), Unit)
     }
 
@@ -825,7 +854,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         showOptionDialog(message, title, null, listOf(yesButtonText ?: "Yes", noButtonText ?: "No"), if (defaultYes) 0 else 1) == 0
 
     override fun showOptionDialog(message: String?, title: String?, icon: FSkinProp?, options: List<String>, defaultOption: Int): Int =
-        PromptHost.ask(Prompt.Options(title.orEmpty(), message.orEmpty(), options, defaultOption), defaultOption)
+        if (layingBoard) defaultOption else PromptHost.ask(Prompt.Options(title.orEmpty(), message.orEmpty(), options, defaultOption), defaultOption)
 
     override fun showInputDialog(message: String?, title: String?, icon: FSkinProp?, initialInput: String?, inputOptions: List<String>?, isNumeric: Boolean): String? =
         PromptHost.ask(Prompt.Input(title.orEmpty(), message.orEmpty(), initialInput, inputOptions, isNumeric), null)
@@ -843,7 +872,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     }
 
     private fun confirmPlain(c: CardView?, question: String?, defaultIsYes: Boolean, options: List<String>): Boolean =
-        PromptHost.ask(
+        if (layingBoard) defaultIsYes else PromptHost.ask(
             Prompt.Options(c?.name.orEmpty(), question.orEmpty(), options, if (defaultIsYes) 0 else 1, ui(c)),
             if (defaultIsYes) 0 else 1,
         ) == 0
@@ -852,6 +881,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         message: String?, min: Int, max: Int, choices: List<T>, selected: List<T>?, display: ((T) -> String)?,
     ): List<T>? {
         if (choices.isEmpty()) return emptyList()
+        if (layingBoard) return choices.take(min.coerceAtLeast(1).coerceAtMost(max.coerceAtLeast(1)))
         val items = choices.map { describe(it, display) }
         val pre = selected.orEmpty().mapNotNull { s -> choices.indexOf(s).takeIf { it >= 0 } }.toSet()
         val picked = PromptHost.ask<List<Int>?>(Prompt.Choose(message.orEmpty(), min, max, items, pre), null)
@@ -915,6 +945,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     }
 
     companion object {
+        private const val OLD_SAVE_NOTE = "This game was saved before v0.64, so it has no steps from before the save. Undo works for the plays you make from now on."
         private val MY_TURN_STOPS = setOf(PhaseType.MAIN1, PhaseType.COMBAT_DECLARE_ATTACKERS, PhaseType.MAIN2)
         private val OPPONENT_TURN_STOPS = setOf(PhaseType.COMBAT_DECLARE_BLOCKERS, PhaseType.END_OF_TURN)
     }

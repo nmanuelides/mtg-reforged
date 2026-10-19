@@ -59,6 +59,12 @@
       "title": "New in v0.64.0",
       "body": "• Saved games keep your last 20 steps: after resuming, undo can go back to before the save. Applies to games saved from this version on.",
       "link": null
+    },
+    {
+      "id": "v0.65.0",
+      "title": "New in v0.65.0",
+      "body": "• Resuming a game no longer shows the choices permanents make as they enter (like Sower of Discord's two players): the board is rebuilt quietly and the saved choices are put back. Games saved before v0.64 come back with those choices made by default.\n• In a game saved before v0.64, tapping the greyed-out undo explains why there are no steps from before the save.",
+      "link": null
     }
   ]
 }

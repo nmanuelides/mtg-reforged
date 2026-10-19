@@ -1,7 +1,7 @@
 # MTG Reforged — traspaso de contexto
 
 Resumen para seguir el trabajo desde otra sesión o cuenta de Claude. Leelo entero antes de empezar.
-Estado al 2026-10-18, última versión publicada: **v0.64.0**.
+Estado al 2026-10-18, última versión publicada: **v0.65.0**.
 
 ## Qué es
 
@@ -83,8 +83,10 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
   historial en memoria aplica esas posiciones con `GameState.applyToGame` (menos exacto que el memento).
   Saves viejos: solo `undoState` (spell propio en el stack). (`GameSnapshot` ya no se usa.)
 - **Retomar**: `GameState.setupPlayerState` mete cada permanente con `moveToPlay` (se ve entrar carta por
-  carta y repetía los "As X enters, choose"). Desde v0.63 el save marca `|NoETBTrigs` (salvo copias/Clone)
-  y guarda aparte jugadores elegidos/recordados (`choices`), que GameState no guarda.
+  carta) y eso vuelve a correr los "As X enters, choose" (efectos de reemplazo; `|NoETBTrigs` NO los
+  evita: `moveTo(Battlefield)` = `moveToPlay`). Desde v0.65, mientras se arma el tablero
+  (`ComposeGuiGame.layingBoard`) cada pregunta se responde con el default sin mostrarse, y después
+  `SavedGames.applyChoices` repone los jugadores elegidos/recordados guardados (`choices`, desde v0.63).
 - **Elecciones fuera de la mesa**: objetivos en cementerio/exilio/biblioteca se eligen en un carrusel
   (`ZoneChoiceDialog`); elecciones de permanentes en `BoardChoiceDialog`.
 - **Colección**: cada impresión y acabado (foil) es una entrada separada. En la colección, buscando en

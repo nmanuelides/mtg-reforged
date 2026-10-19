@@ -151,25 +151,6 @@ object SavedGames {
     }
 
     /**
-     * Resuming puts each permanent onto the battlefield with a real "enters" (GameState.setupPlayerState),
-     * so "As this enters, choose..." would be asked again (e.g. Sower of Discord's two players).
-     * Forge's NoETBTrigs flag skips that. Copies (Clone) still need it to become what they copy.
-     */
-    private fun withoutEnterChoices(state: String, game: Game): String {
-        val ids = game.players.flatMap { it.getCardsIn(ZoneType.Battlefield) }
-            .filter { !it.isToken && !it.isCloned }.mapTo(HashSet()) { it.id }
-        if (ids.isEmpty()) return state
-        val idPattern = Regex("\\|Id:(\\d+)(?=\\||$)")
-        return state.lines().joinToString("\n") { line ->
-            if (!line.contains("battlefield=", ignoreCase = true)) line
-            else line.split(";").joinToString(";") { token ->
-                val id = idPattern.find(token)?.groupValues?.get(1)?.toIntOrNull()
-                if (id in ids && !token.contains("|NoETBTrigs")) "$token|NoETBTrigs" else token
-            }
-        }
-    }
-
-    /**
      * GameState saves chosen colours, types and cards but not chosen players: those, and players a
      * permanent remembers, by seat. The permanent is found again by controller, name and its place
      * among the same-named ones (card ids change on resume).
@@ -221,12 +202,12 @@ object SavedGames {
 
     /** The game as it is now, as a position a resumed game can go back to. Game thread, game waiting. */
     fun position(game: Game): SavedGame.Position {
-        val base = withoutEnterChoices(GameState().apply { initFromGame(game) }.toString(), game)
+        val base = GameState().apply { initFromGame(game) }.toString()
         return SavedGame.Position(restorable(withStack(base, game), game), playerChoices(game))
     }
 
     fun save(game: Game, format: Engine.Format, decks: List<Engine.DeckEntry>, history: List<SavedGame.Position> = emptyList()) {
-        val base = withoutEnterChoices(GameState().apply { initFromGame(game) }.toString(), game)
+        val base = GameState().apply { initFromGame(game) }.toString()
         val choices = playerChoices(game)
         val undoState = unstacked(base, game)
         val restorable = restorable(withStack(base, game), game)
