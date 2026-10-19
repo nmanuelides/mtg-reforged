@@ -4,6 +4,7 @@ import forge.gamemodes.match.input.InputBlock
 import forge.game.GameLogEntryType
 import android.util.Log
 import forge.game.GameSnapshot
+import forge.game.GameState
 import android.os.Handler
 import android.os.Looper
 import forge.LobbyPlayer
@@ -111,7 +112,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         if (undoPending && safeToRestore()) onGameThread { if (undoPending && safeToRestore()) restoreNow() }
         if (!basePointTried && !autoStart && undoStack.isEmpty() && currentInput() is InputPassPriority && gameView?.game != null) {
             basePointTried = true
-            onGameThread { if (undoStack.isEmpty()) checkpoint() }
+            onGameThread { if (undoStack.isEmpty()) checkpoint(base = true) }
         }
     }
 
@@ -207,7 +208,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             combat = combat,
             prompt = blockPrompt(prompt).copy(passesPriority = currentInput() is InputPassPriority),
             blockFocusId = blockFocus.takeIf { currentInput() is InputBlock },
-            canUndo = undoStack.isNotEmpty() || forgeUndoController() != null,
+            canUndo = canUndo(),
             undoError = undoError,
             boardChoice = boardChoice,
             lastActions = lastActions,
@@ -456,7 +457,16 @@ class ComposeGuiGame : NetworkGuiGame() {
     // land) while they hold priority, the whole game is copied with Forge's GameSnapshot.
     // Undo restores the latest copy: board, hands, life, phase and turn.
     /** A saved point plus the spells that were on the stack then (see restoreLast). */
-    private class UndoPoint(val snapshot: GameSnapshot, val stackIds: Set<Int>)
+    private class UndoPoint(val snapshot: GameSnapshot, val stackIds: Set<Int>, val base: Boolean)
+
+    /**
+     * A resumed game's state from before the player's spells on top of the stack were cast
+     * (SavedGame.undoState): the saved game itself has no history to undo them with.
+     */
+    @Volatile var resumeUndoState: String? = null
+
+    /** The base point is the state as it is now until a play follows it: nothing to go back to by itself. */
+    private fun canUndo() = undoStack.any { !it.base } || resumeUndoState != null || forgeUndoController() != null
 
     private val undoStack = ArrayDeque<UndoPoint>()
 
@@ -466,7 +476,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     /** A first point as soon as the game waits for us, so a fresh or resumed game can undo its first play too. */
     @Volatile private var basePointTried = false
 
-    private fun checkpoint() {
+    private fun checkpoint(base: Boolean = false) {
         if (currentInput() !is InputPassPriority) return
         val game = gameView?.game ?: return // network guests don't hold the game
         // GameSnapshot only copies the game when makeCopy() is called.
@@ -474,9 +484,14 @@ class ComposeGuiGame : NetworkGuiGame() {
             val snapshot = GameSnapshot(game)
             snapshot.makeCopy()
             // The live stack: the copy leaves out abilities, which must not be taken off on restore.
-            UndoPoint(snapshot, game.stack.mapTo(HashSet()) { it.id })
+            UndoPoint(snapshot, game.stack.mapTo(HashSet()) { it.id }, base)
         }
-            .onSuccess { undoError = null; undoStack.addLast(it); while (undoStack.size > MAX_UNDO) undoStack.removeFirst() }
+            .onSuccess {
+                undoError = null
+                undoStack.addLast(it)
+                // Past the base point, the resumed game's state is too far back to jump to.
+                while (undoStack.size > MAX_UNDO) if (undoStack.removeFirst().base) resumeUndoState = null
+            }
             .onFailure { Log.w("Undo", "snapshot failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
     }
@@ -491,7 +506,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     fun undo() = onGameThread {
         // Tapping again while it waits for its moment calls the undo off.
         if (undoPending) { undoPending = false; requestRefresh(); return@onGameThread }
-        if (undoStack.isEmpty() && forgeUndoController() == null) return@onGameThread
+        if (!canUndo()) return@onGameThread
         when (currentInput()) {
             // Waiting for our play, with or without spells on the stack: restore right away.
             is InputPassPriority -> restoreNow()
@@ -541,7 +556,8 @@ class ComposeGuiGame : NetworkGuiGame() {
     private fun restoreLast() {
         undoPending = false
         val game = gameView?.game ?: return
-        val point = undoStack.removeLastOrNull() ?: return
+        val point = undoStack.removeLastOrNull()
+        if (point == null || point.base) { undoResume(game); return }
         runCatching {
             // Forge's restore puts the saved stack back but never takes newer spells off it: do that first.
             game.stack.toList().filter { it.id !in point.stackIds }.forEach { game.stack.remove(it) }
@@ -554,6 +570,22 @@ class ComposeGuiGame : NetworkGuiGame() {
             game.undoManager.barrier("Undone")
         }.onFailure { Log.w("Undo", "restore failed", it) }
         // An undone End Turn must not keep auto-passing the restored turn away.
+        (gameController as? PlayerControllerHuman)?.autoPassCancel()
+        requestRefresh()
+    }
+    /** Lays the resumed game's undo state over the game: the saved spells go back to hand. */
+    private fun undoResume(game: forge.game.Game) {
+        val text = resumeUndoState ?: return
+        resumeUndoState = null
+        undoStack.clear()
+        runCatching {
+            // GameState clears the players' zones but not the stack.
+            game.stack.toList().forEach { game.stack.remove(it) }
+            game.stackZone.removeAllCards(true)
+            GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
+            (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
+            game.undoManager.barrier("Undone")
+        }.onFailure { Log.w("Undo", "resume undo failed", it) }
         (gameController as? PlayerControllerHuman)?.autoPassCancel()
         requestRefresh()
     }

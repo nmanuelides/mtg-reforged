@@ -35,6 +35,12 @@
       "title": "New in v0.60.0",
       "body": "• Undo with spells on the stack now uses the rules engine's own undo, which puts the stack back exactly: undoing a spell no longer re-casts other spells, loses triggered abilities or hands priority to the opponent.\n• End Turn keeps ending the turn instead of turning into Undo.",
       "link": null
+    },
+    {
+      "id": "v0.61.0",
+      "title": "New in v0.61.0",
+      "body": "• Undo in a resumed game with your spell on the stack puts the spell back in your hand. Games saved from now on also untap the lands that paid for it; in games saved before, those lands stay tapped.\n• The undo button no longer lights up when there is nothing to undo yet.",
+      "link": null
     }
   ]
 }

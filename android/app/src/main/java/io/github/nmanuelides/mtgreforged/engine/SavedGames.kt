@@ -15,6 +15,8 @@ data class SavedGame(
     val state: String,
     val turn: Int,
     val savedAt: Long,
+    /** The same state with the player's spells on top of the stack back in hand: undo after resuming. */
+    val undoState: String? = null,
 ) {
     data class Seat(val name: String, val human: Boolean, val deckName: String, val deckPath: String)
 
@@ -38,7 +40,7 @@ object SavedGames {
             state = json.getString("state"),
             turn = json.getInt("turn"),
             savedAt = json.getLong("savedAt"),
-        )
+        ).let { it.copy(undoState = json.optString("undoState").takeIf { u -> u.isNotBlank() } ?: unstackedFromSave(it)) }
     }.getOrNull()
 
     fun delete() {
@@ -51,7 +53,7 @@ object SavedGames {
      * whose target that syntax can't express goes back to its owner's hand instead, so no
      * card is ever lost. Triggered and activated abilities can't be saved and are dropped.
      */
-    private fun withStack(state: String, game: Game): String {
+    private fun withStack(state: String, game: Game, undone: Set<forge.game.spellability.SpellAbilityStackInstance> = emptySet()): String {
         val items = game.stack.toList().reversed()
         if (items.isEmpty()) return state
         val players = game.players
@@ -71,7 +73,7 @@ object SavedGames {
                 target is forge.game.player.Player && players.indexOf(target) == 1 -> "->ai"
                 else -> null
             }
-            if (targetText == null) toHand.getOrPut(players.indexOf(card.owner).coerceAtLeast(0)) { ArrayList() } += name
+            if (targetText == null || item in undone) toHand.getOrPut(players.indexOf(card.owner).coerceAtLeast(0)) { ArrayList() } += name
             else onStack.getOrPut(seat) { ArrayList() } += name + targetText
         }
         val lines = state.lines().toMutableList()
@@ -90,8 +92,52 @@ object SavedGames {
      * save with an empty stack; multiplayer combat can't be restored either, so a save
      * taken mid-combat resumes in the second main phase.
      */
+    /**
+     * The state from before the human player's spells on top of the stack were cast: those
+     * spells back in hand and the lands that paid for them untapped. Null with none there.
+     */
+    private fun unstacked(base: String, game: Game): String? {
+        val top = game.stack.toList().takeWhile { it.isSpell && it.spellAbility?.activatingPlayer?.controller?.isAI == false }
+        if (top.isEmpty()) return null
+        val paidBy = top.flatMap { si -> si.spellAbility?.payingMana.orEmpty().mapNotNull { it.sourceCard?.id } }.toSet()
+        val state = withStack(base, game, top.toSet())
+        if (paidBy.isEmpty()) return state
+        return state.lines().joinToString("\n") { line ->
+            if (!line.contains("battlefield=", ignoreCase = true)) line
+            else line.split(";").joinToString(";") { token ->
+                val id = Regex("\\|Id:(\\d+)").find(token)?.groupValues?.get(1)?.toIntOrNull()
+                if (id in paidBy) token.replace("|Tapped", "") else token
+            }
+        }
+    }
+
+    /** Saves from before undoState: the human seats' spells on the stack go back to hand (lands stay tapped). */
+    private fun unstackedFromSave(game: SavedGame): String? {
+        val humans = game.seats.indices.filter { game.seats[it].human }.map { "p${it}putonstack=" }
+        val lines = game.state.lines()
+        val moved = HashMap<Int, List<String>>()
+        val kept = lines.filter { line ->
+            val seat = humans.indexOfFirst { line.startsWith(it, ignoreCase = true) }
+            if (seat < 0) return@filter true
+            val i = game.seats.indices.filter { game.seats[it].human }[seat]
+            moved[i] = line.substringAfter("=").split(";").map { it.substringBefore("->") }.filter { it.isNotBlank() }
+            false
+        }
+        if (moved.isEmpty()) return null
+        val out = kept.toMutableList()
+        moved.forEach { (seat, names) ->
+            val key = "p${seat}hand="
+            val i = out.indexOfFirst { it.startsWith(key, ignoreCase = true) }
+            val extra = names.joinToString(";")
+            if (i >= 0) out[i] = out[i] + (if (out[i].length > key.length) ";" else "") + extra else out += key + extra
+        }
+        return out.joinToString("\n")
+    }
+
     fun save(game: Game, format: Engine.Format, decks: List<Engine.DeckEntry>) {
-        val state = withStack(GameState().apply { initFromGame(game) }.toString(), game)
+        val base = GameState().apply { initFromGame(game) }.toString()
+        val state = withStack(base, game)
+        val undoState = unstacked(base, game)
         val restorable = if (game.players.size > 2 && game.phaseHandler.inCombat()) {
             state.lines().joinToString("\n") { line ->
                 if (line.startsWith("activephase=", ignoreCase = true)) "activephase=${PhaseType.MAIN2.name}" else line
@@ -117,6 +163,7 @@ object SavedGames {
                 .put("state", restorable)
                 .put("turn", game.phaseHandler.turn)
                 .put("savedAt", System.currentTimeMillis())
+                .apply { if (undoState != null) put("undoState", undoState) }
                 .toString(),
         )
     }
