@@ -4,6 +4,8 @@ import forge.gamemodes.match.input.InputBlock
 import forge.game.GameLogEntryType
 import android.util.Log
 import forge.game.GameState
+import io.github.nmanuelides.mtgreforged.engine.SavedGame
+import io.github.nmanuelides.mtgreforged.engine.SavedGames
 import forge.localinstance.properties.ForgeConstants
 import forge.localinstance.properties.ForgePreferences.FPref
 import forge.model.FModel
@@ -459,7 +461,8 @@ class ComposeGuiGame : NetworkGuiGame() {
     // Forge's own UndoManager is turned off: it records every prompt as well, turns End Turn
     // into Undo, and stops at anything the opponent does.
 
-    private class UndoEntry(val memento: GameMemento, val logSize: Int)
+    /** [position] is the same state as text, so a save can carry the history (null if it failed). */
+    private class UndoEntry(val memento: GameMemento, val logSize: Int, val position: SavedGame.Position?)
 
     /** Newest last; while the player sits in [promptInput], the last entry is that prompt's state. */
     private val history = ArrayList<UndoEntry>()
@@ -475,7 +478,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     /** The player started a play (a card or ability) from priority and it isn't finished yet. */
     @Volatile private var startedPlay = false
 
-    /** History index an undo asked for away from a priority prompt goes back to (-1: [resumeUndoState]). */
+    /** History index an undo asked for away from a priority prompt goes back to (-1: the last of [resumeHistory]). */
     @Volatile private var undoTarget: Int? = null
     private val undoPending get() = undoTarget != null
 
@@ -483,13 +486,10 @@ class ComposeGuiGame : NetworkGuiGame() {
     @Volatile private var undoError: String? = null
 
     /**
-     * A resumed game's state from before the player's spells on top of the stack were cast
-     * (SavedGame.undoState): what lies before the first recorded prompt of a resumed game.
+     * A resumed game's positions from before the save (SavedGame.history), oldest first: what
+     * lies before the first recorded prompt. Laid back with GameState, one at a time.
      */
-    @Volatile var resumeUndoState: String? = null
-
-    /** The resumed game's chosen players, put back after [resumeUndoState] too. */
-    @Volatile var resumeChoices: String? = null
+    @Volatile var resumeHistory: List<SavedGame.Position> = emptyList()
 
     init {
         runCatching { FModel.getPreferences().setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF) }
@@ -501,7 +501,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     /** Where an undo asked now goes: the prompt before this one, or the last one once past it. */
     private fun undoReach() = if (atRecordedPrompt()) history.size - 2 else history.size - 1
 
-    private fun canUndo() = undoReach().let { it >= 0 || (it == -1 && resumeUndoState != null) }
+    private fun canUndo() = undoReach().let { it >= 0 || (it == -1 && resumeHistory.isNotEmpty()) }
 
     /** Called on every redraw: a new priority prompt gets recorded, or runs the pending undo. */
     private fun watchPrompt() {
@@ -524,11 +524,12 @@ class ComposeGuiGame : NetworkGuiGame() {
         undoTarget?.let { restoreTo(it, input, game); return }
         promptInput = input
         if (skipNextRecord) { skipNextRecord = false; return }
-        runCatching { UndoEntry(recorder.capture(game), game.gameLog.size()) }
+        runCatching { UndoEntry(recorder.capture(game), game.gameLog.size(), runCatching { SavedGames.position(game) }.getOrNull()) }
             .onSuccess {
                 undoError = null
                 history += it
-                while (history.size > MAX_UNDO + 1) { history.removeAt(0); resumeUndoState = null }
+                // Past the first entry, the save's older positions are too far back to jump to.
+                while (history.size > MAX_UNDO + 1) { history.removeAt(0); resumeHistory = emptyList() }
             }
             .onFailure { Log.w("Undo", "recording failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
@@ -610,16 +611,28 @@ class ComposeGuiGame : NetworkGuiGame() {
         game.fireEvent(GameEventPlayerStatsChanged(game.players))
     }
 
-    /** Lays the resumed game's undo state over the game: the saved spells go back to hand. */
+    /**
+     * Positions for a save to carry, oldest first: the resumed game's older ones, then every
+     * recorded prompt before the one the player sits in (that one is the saved state itself).
+     */
+    fun savedHistory(): List<SavedGame.Position> = runCatching {
+        val entries = history.toList().let { if (atRecordedPrompt()) it.dropLast(1) else it }
+        val gap = entries.indexOfLast { it.position == null }
+        val positions = entries.drop(gap + 1).mapNotNull { it.position }
+        (if (gap >= 0) positions else resumeHistory + positions).takeLast(MAX_UNDO)
+    }.getOrDefault(emptyList())
+
+    /** Lays the latest of the resumed game's saved positions over the game. */
     private fun undoResume(game: forge.game.Game) {
-        val text = resumeUndoState ?: return
-        resumeUndoState = null
+        val position = resumeHistory.lastOrNull() ?: return
+        resumeHistory = resumeHistory.dropLast(1)
+        val text = position.state
         runCatching {
             // GameState clears the players' zones but not the stack.
             game.stack.toList().forEach { game.stack.remove(it) }
             game.stackZone.removeAllCards(true)
             GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
-            io.github.nmanuelides.mtgreforged.engine.SavedGames.applyChoices(resumeChoices, game)
+            SavedGames.applyChoices(position.choices, game)
             (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
         }.onFailure { Log.w("Undo", "resume undo failed", it) }
     }

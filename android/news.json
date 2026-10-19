@@ -53,6 +53,12 @@
       "title": "New in v0.63.0",
       "body": "• Resuming a saved game no longer asks again the choices permanents made when they entered (like Sower of Discord's two players): they come back as they were. Applies to games saved from this version on.",
       "link": null
+    },
+    {
+      "id": "v0.64.0",
+      "title": "New in v0.64.0",
+      "body": "• Saved games keep your last 20 steps: after resuming, undo can go back to before the save. Applies to games saved from this version on.",
+      "link": null
     }
   ]
 }

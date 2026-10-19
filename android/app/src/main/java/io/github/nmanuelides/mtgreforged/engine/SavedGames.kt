@@ -20,7 +20,12 @@ data class SavedGame(
     val undoState: String? = null,
     /** Players chosen or remembered by permanents (see SavedGames.playerChoices). */
     val choices: String? = null,
+    /** Positions at the player's last prompts before the save, oldest first: undo after resuming. */
+    val history: List<Position> = emptyList(),
 ) {
+    /** A game position as GameState text plus the players permanents chose (GameState skips those). */
+    data class Position(val state: String, val choices: String?)
+
     data class Seat(val name: String, val human: Boolean, val deckName: String, val deckPath: String)
 
     val summary: String get() = "${format.label} · Turn $turn · ${seats.size} players"
@@ -44,6 +49,14 @@ object SavedGames {
             turn = json.getInt("turn"),
             savedAt = json.getLong("savedAt"),
         ).let { it.copy(choices = json.optString("choices").takeIf { c -> c.isNotBlank() }, undoState = json.optString("undoState").takeIf { u -> u.isNotBlank() } ?: unstackedFromSave(it)) }
+            .let { saved ->
+                val list = json.optJSONArray("history")
+                val history = (0 until (list?.length() ?: 0)).map { i ->
+                    list!!.getJSONObject(i).run { SavedGame.Position(getString("state"), optString("choices").takeIf { c -> c.isNotBlank() }) }
+                }
+                // Saves without a history: the state before the player's spells on the stack, if any.
+                saved.copy(history = history.ifEmpty { listOfNotNull(saved.undoState?.let { u -> SavedGame.Position(u, saved.choices) }) })
+            }
     }.getOrNull()
 
     fun delete() {
@@ -199,16 +212,24 @@ object SavedGames {
         }
     }
 
-    fun save(game: Game, format: Engine.Format, decks: List<Engine.DeckEntry>) {
+    /** Multiplayer combat can't be restored: such a position resumes in the second main phase. */
+    private fun restorable(state: String, game: Game) = if (game.players.size > 2 && game.phaseHandler.inCombat()) {
+        state.lines().joinToString("\n") { line ->
+            if (line.startsWith("activephase=", ignoreCase = true)) "activephase=${PhaseType.MAIN2.name}" else line
+        }
+    } else state
+
+    /** The game as it is now, as a position a resumed game can go back to. Game thread, game waiting. */
+    fun position(game: Game): SavedGame.Position {
+        val base = withoutEnterChoices(GameState().apply { initFromGame(game) }.toString(), game)
+        return SavedGame.Position(restorable(withStack(base, game), game), playerChoices(game))
+    }
+
+    fun save(game: Game, format: Engine.Format, decks: List<Engine.DeckEntry>, history: List<SavedGame.Position> = emptyList()) {
         val base = withoutEnterChoices(GameState().apply { initFromGame(game) }.toString(), game)
         val choices = playerChoices(game)
-        val state = withStack(base, game)
         val undoState = unstacked(base, game)
-        val restorable = if (game.players.size > 2 && game.phaseHandler.inCombat()) {
-            state.lines().joinToString("\n") { line ->
-                if (line.startsWith("activephase=", ignoreCase = true)) "activephase=${PhaseType.MAIN2.name}" else line
-            }
-        } else state
+        val restorable = restorable(withStack(base, game), game)
 
         val seats = JSONArray()
         game.players.forEachIndexed { i, p ->
@@ -231,6 +252,9 @@ object SavedGames {
                 .put("savedAt", System.currentTimeMillis())
                 .apply { if (undoState != null) put("undoState", undoState) }
                 .apply { if (choices != null) put("choices", choices) }
+                .put("history", JSONArray().apply {
+                    history.forEach { put(JSONObject().put("state", it.state).apply { if (it.choices != null) put("choices", it.choices) }) }
+                })
                 .toString(),
         )
     }

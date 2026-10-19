@@ -1,7 +1,7 @@
 # MTG Reforged — traspaso de contexto
 
 Resumen para seguir el trabajo desde otra sesión o cuenta de Claude. Leelo entero antes de empezar.
-Estado al 2026-10-18, última versión publicada: **v0.62.0**.
+Estado al 2026-10-18, última versión publicada: **v0.64.0**.
 
 ## Qué es
 
@@ -78,8 +78,13 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
   `restartPrompt()` para que Forge vuelva a preguntar. En otro input: si es una jugada propia en curso
   (costes, objetivos, maná) cancela cada paso; atacando retira atacantes; si no, espera al próximo prompt
   (tocar de nuevo cancela). El `UndoManager` de Forge se apaga (pref `UI_UNDO_MODE=Off`). Partidas
-  retomadas: el historial empieza al abrir; `SavedGame.undoState` permite deshacer el spell propio que
-  quedó en el stack al guardar. (`GameSnapshot` ya no se usa: re-lanzaba spells y perdía habilidades.)
+  retomadas (v0.64): cada entrada guarda también su posición en texto (`SavedGames.position`: GameState +
+  stack + jugadores elegidos) y el save lleva las últimas 20 (`history`); al retomar, el undo más allá del
+  historial en memoria aplica esas posiciones con `GameState.applyToGame` (menos exacto que el memento).
+  Saves viejos: solo `undoState` (spell propio en el stack). (`GameSnapshot` ya no se usa.)
+- **Retomar**: `GameState.setupPlayerState` mete cada permanente con `moveToPlay` (se ve entrar carta por
+  carta y repetía los "As X enters, choose"). Desde v0.63 el save marca `|NoETBTrigs` (salvo copias/Clone)
+  y guarda aparte jugadores elegidos/recordados (`choices`), que GameState no guarda.
 - **Elecciones fuera de la mesa**: objetivos en cementerio/exilio/biblioteca se eligen en un carrusel
   (`ZoneChoiceDialog`); elecciones de permanentes en `BoardChoiceDialog`.
 - **Colección**: cada impresión y acabado (foil) es una entrada separada. En la colección, buscando en

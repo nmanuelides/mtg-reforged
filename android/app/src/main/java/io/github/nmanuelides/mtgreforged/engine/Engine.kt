@@ -234,7 +234,7 @@ object Engine {
     fun saveMatch(): Boolean {
         val game = _match.value?.gameView?.game ?: return false
         val format = currentFormat ?: return false
-        return runCatching { SavedGames.save(game, format, currentDecks) }
+        return runCatching { SavedGames.save(game, format, currentDecks, _match.value?.savedHistory().orEmpty()) }
             .onFailure { Log.e("Engine", "Save failed", it) }
             .isSuccess
     }
@@ -264,8 +264,7 @@ object Engine {
             if (resume != null) {
                 // Breeze through "who starts" and mulligans, then lay the saved state over the new game.
                 guiGame.autoStart = true
-                guiGame.resumeUndoState = resume.undoState
-                guiGame.resumeChoices = resume.choices
+                guiGame.resumeHistory = resume.history
                 hosted.setStartGameHook {
                     // Forge's parser chokes on blank lines (state text written on Windows / edited saves).
                     GameState().apply { parse(resume.state.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(hosted.game)
