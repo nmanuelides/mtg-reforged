@@ -41,6 +41,12 @@
       "title": "New in v0.61.0",
       "body": "• Undo in a resumed game with your spell on the stack puts the spell back in your hand. Games saved from now on also untap the lands that paid for it; in games saved before, those lands stay tapped.\n• The undo button no longer lights up when there is nothing to undo yet.",
       "link": null
+    },
+    {
+      "id": "v0.62.0",
+      "title": "New in v0.62.0",
+      "body": "• Undo rebuilt from scratch: every time the game waits for your play it saves the whole game (stack included), and undo steps back one prompt at a time, up to 20 times.\n• Undo while paying a cost, choosing targets or attacking cancels that play and goes back to before it, instead of loading forever.\n• A resumed game starts its history when it opens; undo there can still take back a spell you left on the stack.",
+      "link": null
     }
   ]
 }

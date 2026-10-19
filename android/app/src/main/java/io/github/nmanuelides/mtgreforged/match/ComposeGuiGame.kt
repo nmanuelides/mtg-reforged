@@ -3,8 +3,14 @@ package io.github.nmanuelides.mtgreforged.match
 import forge.gamemodes.match.input.InputBlock
 import forge.game.GameLogEntryType
 import android.util.Log
-import forge.game.GameSnapshot
 import forge.game.GameState
+import forge.localinstance.properties.ForgeConstants
+import forge.localinstance.properties.ForgePreferences.FPref
+import forge.model.FModel
+import forge.game.event.GameEventPlayerStatsChanged
+import forge.game.event.GameEventCardStatsChanged
+import forge.game.event.GameEventSnapshotRestored
+import forge.game.undo.GameMemento
 import android.os.Handler
 import android.os.Looper
 import forge.LobbyPlayer
@@ -39,7 +45,6 @@ import forge.player.PlayerZoneUpdate
 import forge.trackable.TrackableCollection
 import forge.util.FSerializableFunction
 import forge.util.ITriggerEvent
-import forge.util.Localizer
 import forge.util.ThreadUtil
 import io.github.nmanuelides.mtgreforged.engine.Prompt
 import io.github.nmanuelides.mtgreforged.engine.PromptHost
@@ -109,11 +114,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         _state.value = snapshot
         // An undo asked for while the opponent played runs as soon as the game waits for us
         // with an empty stack; checked on every refresh, whichever callback brought us here.
-        if (undoPending && safeToRestore()) onGameThread { if (undoPending && safeToRestore()) restoreNow() }
-        if (!basePointTried && !autoStart && undoStack.isEmpty() && currentInput() is InputPassPriority && gameView?.game != null) {
-            basePointTried = true
-            onGameThread { if (undoStack.isEmpty()) checkpoint(base = true) }
-        }
+        watchPrompt()
     }
 
     private fun buildSnapshot(view: GameView): MatchUiState {
@@ -289,7 +290,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     fun tapCard(id: Int) {
         val cv = cardsById[id] ?: return
         onGameThread {
-            checkpoint() // only when this tap starts a play (priority held), see checkpoint()
+            if (currentInput() is InputPassPriority) startedPlay = true // see undo()
             // On a network guest the controller is Forge's remote one: just send the tap.
             val controller = gameController as? PlayerControllerHuman
                 ?: return@onGameThread run { gameController?.selectCard(cv, null, Tap) }
@@ -376,7 +377,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         onGameThread { gameController?.selectPlayer(pv, Tap) }
     }
 
-    fun pressOk() = onGameThread { checkpoint(); rememberChoice(); gameController?.selectButtonOk() }
+    fun pressOk() = onGameThread { rememberChoice(); gameController?.selectButtonOk() }
 
     // ---- Choosing permanents ----------------------------------------------------------
     // Forge asks to pick cards on the board by highlighting them, which is easy to miss and
@@ -441,82 +442,119 @@ class ComposeGuiGame : NetworkGuiGame() {
         val selected = runCatching { selectedInInput().mapTo(HashSet()) { it.id } }.getOrDefault(emptySet())
         return BoardChoiceUi(groups, selected, choiceHistory.toList())
     }
-    fun pressCancel() = onGameThread {
-        checkpoint()
-        // While Forge's own undo has history it turns the priority Cancel (End Turn) into Undo;
-        // undo has its own button here, so End Turn keeps ending the turn.
-        val controller = forgeUndoController()
-        if (controller != null && currentInput() is InputPassPriority) {
-            controller.autoPassUntilEndOfTurn()
-            controller.selectButtonOk()
-        } else gameController?.selectButtonCancel()
-    }
+    fun pressCancel() = onGameThread { gameController?.selectButtonCancel() }
 
     // ---- Undo ---------------------------------------------------------------------
-    // Before each of the player's plays (passing, ending the turn, starting a spell or a
-    // land) while they hold priority, the whole game is copied with Forge's GameSnapshot.
-    // Undo restores the latest copy: board, hands, life, phase and turn.
-    /** A saved point plus the spells that were on the stack then (see restoreLast). */
-    private class UndoPoint(val snapshot: GameSnapshot, val stackIds: Set<Int>, val base: Boolean)
+    // One rule: every time the game asks this player for a play (a priority prompt), the
+    // whole game is recorded with Forge's GameMemento, an in-place snapshot of every game
+    // object (board, hands, library order, life, mana, the stack with its abilities, phase,
+    // ids). Undo goes back to the prompt before the current one, up to MAX_UNDO times.
+    //
+    // A memento is only laid back while the game thread sits in a priority prompt: there
+    // Forge holds nothing about a play on its call stack. The prompt is then restarted, so
+    // Forge asks again from the restored state. Asked anywhere else (paying a cost, choosing
+    // targets, declaring attackers, the opponent's turn), the player's own play in progress is
+    // cancelled where Forge allows it, and the undo runs at the next priority prompt.
+    //
+    // Forge's own UndoManager is turned off: it records every prompt as well, turns End Turn
+    // into Undo, and stops at anything the opponent does.
+
+    private class UndoEntry(val memento: GameMemento, val logSize: Int)
+
+    /** Newest last; while the player sits in [promptInput], the last entry is that prompt's state. */
+    private val history = ArrayList<UndoEntry>()
+    private var recorder = GameMemento.Recorder()
+    private var historyGame: forge.game.Game? = null
+
+    /** The priority prompt last recorded (or shown again after an undo). */
+    @Volatile private var promptInput: InputPassPriority? = null
+
+    /** The prompt shown right after an undo is the restored state itself: not recorded again. */
+    private var skipNextRecord = false
+
+    /** The player started a play (a card or ability) from priority and it isn't finished yet. */
+    @Volatile private var startedPlay = false
+
+    /** History index an undo asked for away from a priority prompt goes back to (-1: [resumeUndoState]). */
+    @Volatile private var undoTarget: Int? = null
+    private val undoPending get() = undoTarget != null
+
+    /** Why recording failed, shown when the player taps a disabled undo. */
+    @Volatile private var undoError: String? = null
 
     /**
      * A resumed game's state from before the player's spells on top of the stack were cast
-     * (SavedGame.undoState): the saved game itself has no history to undo them with.
+     * (SavedGame.undoState): what lies before the first recorded prompt of a resumed game.
      */
     @Volatile var resumeUndoState: String? = null
 
-    /** The base point is the state as it is now until a play follows it: nothing to go back to by itself. */
-    private fun canUndo() = undoStack.any { !it.base } || resumeUndoState != null || forgeUndoController() != null
+    init {
+        runCatching { FModel.getPreferences().setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF) }
+    }
 
-    private val undoStack = ArrayDeque<UndoPoint>()
+    /** True while the player sits in the prompt whose state is the last history entry. */
+    private fun atRecordedPrompt() = currentInput().let { it is InputPassPriority && it === promptInput }
 
-    /** Why the last copy failed, shown when the player taps a disabled undo. */
-    @Volatile private var undoError: String? = null
+    /** Where an undo asked now goes: the prompt before this one, or the last one once past it. */
+    private fun undoReach() = if (atRecordedPrompt()) history.size - 2 else history.size - 1
 
-    /** A first point as soon as the game waits for us, so a fresh or resumed game can undo its first play too. */
-    @Volatile private var basePointTried = false
+    private fun canUndo() = undoReach().let { it >= 0 || (it == -1 && resumeUndoState != null) }
 
-    private fun checkpoint(base: Boolean = false) {
-        if (currentInput() !is InputPassPriority) return
+    /** Called on every redraw: a new priority prompt gets recorded, or runs the pending undo. */
+    private fun watchPrompt() {
+        val input = currentInput() as? InputPassPriority ?: return
+        if (input === promptInput || autoStart) return
+        onGameThread { onPrompt() }
+    }
+
+    private fun onPrompt() {
+        val input = currentInput() as? InputPassPriority ?: return
+        if (input === promptInput) return
         val game = gameView?.game ?: return // network guests don't hold the game
-        // GameSnapshot only copies the game when makeCopy() is called.
-        runCatching {
-            val snapshot = GameSnapshot(game)
-            snapshot.makeCopy()
-            // The live stack: the copy leaves out abilities, which must not be taken off on restore.
-            UndoPoint(snapshot, game.stack.mapTo(HashSet()) { it.id }, base)
+        if (game !== historyGame) {
+            historyGame = game
+            history.clear()
+            recorder = GameMemento.Recorder()
+            skipNextRecord = false
         }
+        startedPlay = false
+        undoTarget?.let { restoreTo(it, input, game); return }
+        promptInput = input
+        if (skipNextRecord) { skipNextRecord = false; return }
+        runCatching { UndoEntry(recorder.capture(game), game.gameLog.size()) }
             .onSuccess {
                 undoError = null
-                undoStack.addLast(it)
-                // Past the base point, the resumed game's state is too far back to jump to.
-                while (undoStack.size > MAX_UNDO) if (undoStack.removeFirst().base) resumeUndoState = null
+                history += it
+                while (history.size > MAX_UNDO + 1) { history.removeAt(0); resumeUndoState = null }
             }
-            .onFailure { Log.w("Undo", "snapshot failed", it); undoError = it.message ?: it.javaClass.simpleName }
+            .onFailure { Log.w("Undo", "recording failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
     }
 
-    /**
-     * Back to before the last play. The game must be waiting for this player to restore
-     * safely; asked while the AI is acting (e.g. right after End Turn), it waits for the
-     * next moment the game hands control back.
-     */
-    @Volatile private var undoPending = false
-
     fun undo() = onGameThread {
         // Tapping again while it waits for its moment calls the undo off.
-        if (undoPending) { undoPending = false; requestRefresh(); return@onGameThread }
+        if (undoPending) { undoTarget = null; requestRefresh(); return@onGameThread }
         if (!canUndo()) return@onGameThread
-        when (currentInput()) {
-            // Waiting for our play, with or without spells on the stack: restore right away.
-            is InputPassPriority -> restoreNow()
-            // Choosing targets: back out of the spell first; the restore follows at our priority.
-            is InputSelectTargets -> { undoPending = true; gameController?.selectButtonCancel() }
-            // Declaring attackers: call them all back and skip the attack, then restore.
-            is InputAttack -> { undoPending = true; leaveAttack() }
-            // Anything else (the opponent is playing, a question is open): restore at our next priority.
-            else -> { undoPending = true; requestRefresh() }
+        val game = gameView?.game ?: return@onGameThread
+        val target = undoReach()
+        val input = currentInput()
+        if (input is InputPassPriority && input === promptInput) { restoreTo(target, input, game); return@onGameThread }
+        undoTarget = target
+        when {
+            // Declaring attackers: call them all back and skip the attack.
+            input is InputAttack -> leaveAttack()
+            // Casting or activating (targets, costs, mana): back out of it where Forge allows.
+            startedPlay -> backOutOfPlay()
         }
+        requestRefresh()
+    }
+
+    /** Cancels the current step of the player's own play; called again on each new step. */
+    private fun backOutOfPlay() {
+        if (!undoPending || !startedPlay) return
+        val input = currentInput() ?: return
+        if (input is InputPassPriority || input is InputAttack) return
+        if (prompt.cancelEnabled) gameController?.selectButtonCancel()
     }
 
     private fun leaveAttack() {
@@ -527,68 +565,61 @@ class ComposeGuiGame : NetworkGuiGame() {
         if (currentInput() is InputAttack) controller.selectButtonOk()
     }
 
-    /** Restoring mid-resolution or mid-choice corrupts Forge's state: only while the game waits for our play. */
-    private fun safeToRestore() = currentInput() is InputPassPriority
-
     @Volatile private var resolveAll = false
 
     fun resolveAllNow() = onGameThread { resolveAll = true; gameController?.selectButtonOk() }
 
-    /**
-     * Forge's own undo (UndoManager) records every priority prompt and puts the stack back
-     * exactly, but it stops at anything the opponent did. Use it while it can reach back;
-     * past that, our GameSnapshot points take over.
-     */
-    private fun forgeUndoController() = (gameController as? PlayerControllerHuman)
-        ?.takeIf { runCatching { it.canUndoLastAction() }.getOrDefault(false) }
-
-    private fun restoreNow() {
-        val controller = forgeUndoController()
-        if (controller != null && runCatching { controller.tryUndoLastAction() }.getOrDefault(false)) {
-            // Same step back as our latest point: drop it so both stay in step.
-            undoPending = false
-            undoStack.removeLastOrNull()
-            controller.autoPassCancel()
-            requestRefresh()
-        } else restoreLast()
-    }
-
-    private fun restoreLast() {
-        undoPending = false
-        val game = gameView?.game ?: return
-        val point = undoStack.removeLastOrNull()
-        if (point == null || point.base) { undoResume(game); return }
-        runCatching {
-            // Forge's restore puts the saved stack back but never takes newer spells off it: do that first.
-            game.stack.toList().filter { it.id !in point.stackIds }.forEach { game.stack.remove(it) }
-            val before = game.stack.mapTo(HashSet()) { it.id }
-            point.snapshot.restoreGameState(game)
-            // Putting a spell back on the stack hands priority to its caster (often the AI) while
-            // the game still waits for us: give it back, so passing works as it did at that point.
-            if (game.stack.any { it.id !in before }) (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
-            // Forge's own undo history no longer matches the restored game.
-            game.undoManager.barrier("Undone")
-        }.onFailure { Log.w("Undo", "restore failed", it) }
+    /** Lays history entry [target] (or the resumed game's undo state for -1) over the game, then asks again. */
+    private fun restoreTo(target: Int, input: InputPassPriority, game: forge.game.Game) {
+        undoTarget = null
+        if (target < 0) {
+            undoResume(game)
+            history.clear()
+            skipNextRecord = false
+        } else {
+            val entry = history.getOrNull(target) ?: return
+            runCatching {
+                game.fireEvent(GameEventSnapshotRestored(true))
+                entry.memento.restore()
+                game.gameLog.truncateTo(entry.logSize)
+                refreshViews(game)
+                game.fireEvent(GameEventSnapshotRestored(false))
+                if (entry.memento.problems.isNotEmpty()) Log.w("Undo", "restore problems: ${entry.memento.problems}")
+            }.onFailure { Log.w("Undo", "restore failed", it) }
+            while (history.size > target + 1) history.removeAt(history.size - 1)
+            skipNextRecord = true
+        }
+        resolveAll = false
         // An undone End Turn must not keep auto-passing the restored turn away.
         (gameController as? PlayerControllerHuman)?.autoPassCancel()
+        // The prompt on screen belongs to the state we left: Forge asks again from the restored one.
+        promptInput = null
+        input.restartPrompt()
         requestRefresh()
     }
+
+    private fun refreshViews(game: forge.game.Game) {
+        game.triggerHandler.resetActiveTriggers()
+        for (p in game.players) { p.updateAllZonesForView(); p.updateManaForView() }
+        game.updateStackForView(); game.updatePhaseForView(); game.updatePlayerTurnForView()
+        game.updateTurnForView(); game.updateCombatForView()
+        game.fireEvent(GameEventCardStatsChanged(game.cardsInGame))
+        game.fireEvent(GameEventPlayerStatsChanged(game.players))
+    }
+
     /** Lays the resumed game's undo state over the game: the saved spells go back to hand. */
     private fun undoResume(game: forge.game.Game) {
         val text = resumeUndoState ?: return
         resumeUndoState = null
-        undoStack.clear()
         runCatching {
             // GameState clears the players' zones but not the stack.
             game.stack.toList().forEach { game.stack.remove(it) }
             game.stackZone.removeAllCards(true)
             GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
             (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
-            game.undoManager.barrier("Undone")
         }.onFailure { Log.w("Undo", "resume undo failed", it) }
-        (gameController as? PlayerControllerHuman)?.autoPassCancel()
-        requestRefresh()
     }
+
     fun concedeGame() = onGameThread { concede() }
     fun continueAfterGame() = onGameThread { hostedMatch?.continueMatch() }
     fun cardById(id: Int): CardView? = cardsById[id]
@@ -634,8 +665,8 @@ class ComposeGuiGame : NetworkGuiGame() {
 
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
         if (autoStart) autoAnswerPregame()
-        // The game is waiting for us again: run an undo asked for while the AI played.
-        if (undoPending) onGameThread { if (safeToRestore()) restoreNow() }
+        // An undo asked for mid-play keeps backing out of each new step of it.
+        if (undoPending) onGameThread { backOutOfPlay() }
         // 3: "Resolve all" keeps passing while things resolve, until the stack is empty.
         if (resolveAll) onGameThread {
             val stackEmpty = gameView?.stack?.isEmpty() != false
@@ -643,9 +674,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             else if (currentInput() is InputPassPriority) gameController?.selectButtonOk()
         }
         prompt = prompt.copy(
-            okLabel = label1.orEmpty(),
-            // Forge relabels End Turn as Undo when it can undo (see pressCancel).
-            cancelLabel = label2.orEmpty().let { if (it.startsWith(Localizer.getInstance().getMessage("lblUndo"))) Localizer.getInstance().getMessage("lblEndTurn") else it },
+            okLabel = label1.orEmpty(), cancelLabel = label2.orEmpty(),
             okEnabled = enable1, cancelEnabled = enable2,
         )
         requestRefresh()

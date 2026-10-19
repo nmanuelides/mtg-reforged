@@ -1,7 +1,7 @@
 # MTG Reforged — traspaso de contexto
 
 Resumen para seguir el trabajo desde otra sesión o cuenta de Claude. Leelo entero antes de empezar.
-Estado al 2026-10-18, última versión publicada: **v0.60.0**.
+Estado al 2026-10-18, última versión publicada: **v0.62.0**.
 
 ## Qué es
 
@@ -72,13 +72,14 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 - **Hilos**: Forge corre en su hilo de juego; la UI en el principal. Leer objetos vivos del juego desde la
   UI solo mientras el juego espera al jugador (InputSelectTargets, InputSelectEntitiesFromList,
   InputAttack); durante el turno de la IA da ConcurrentModificationException.
-- **Undo** (`ComposeGuiGame`): `GameSnapshot(game).makeCopy()` antes de cada jugada con prioridad, hasta
-  20 pasos. Restaura solo con `InputPassPriority`; antes saca del stack lo que no estaba en el punto
-  guardado (el restore de Forge no lo hace). Eligiendo objetivos cancela; atacando retira atacantes y no
-  ataca; si no, espera la próxima prioridad (tocar de nuevo cancela). Si copiar falla, el botón explica por qué.
-  Desde v0.60 prefiere el `UndoManager` propio de Forge (upstream, `forge.game.undo`): repone el stack exacto,
-  pero se corta cuando el rival actúa; ahí sigue nuestro GameSnapshot. Forge convierte Cancel (End Turn) en
-  "Undo" cuando puede deshacer: `pressCancel`/`updateButtons` lo mantienen como End Turn.
+- **Undo** (`ComposeGuiGame`, rehecho en v0.62): en cada prompt de prioridad del jugador se graba el juego
+  entero con `GameMemento` de Forge (snapshot reflexivo in-place, incluye stack y habilidades), hasta 20.
+  Undo restaura el prompt anterior **solo** mientras el hilo del juego está en `InputPassPriority`, y después
+  `restartPrompt()` para que Forge vuelva a preguntar. En otro input: si es una jugada propia en curso
+  (costes, objetivos, maná) cancela cada paso; atacando retira atacantes; si no, espera al próximo prompt
+  (tocar de nuevo cancela). El `UndoManager` de Forge se apaga (pref `UI_UNDO_MODE=Off`). Partidas
+  retomadas: el historial empieza al abrir; `SavedGame.undoState` permite deshacer el spell propio que
+  quedó en el stack al guardar. (`GameSnapshot` ya no se usa: re-lanzaba spells y perdía habilidades.)
 - **Elecciones fuera de la mesa**: objetivos en cementerio/exilio/biblioteca se eligen en un carrusel
   (`ZoneChoiceDialog`); elecciones de permanentes en `BoardChoiceDialog`.
 - **Colección**: cada impresión y acabado (foil) es una entrada separada. En la colección, buscando en
@@ -96,6 +97,6 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
   `AD:03:F3:55:A7:24:39:B2:7E:4F:D2:1B:98:B3:02:E4:DC:C9:AA:35`). Falta que confirme si ya funciona; el
   último error reportado fue "Google error 8: INTERNAL_ERROR". Si sigue, verificar que el APK de CI esté
   firmado con esa SHA-1 (requiere descargar el APK: pedir permiso).
-- **Undo (v0.60.0)**: esperando que pruebe spell en el stack (propio y en respuesta al rival), End Turn, atacantes y objetivos.
+- **Undo (v0.62.0)**: rehecho; esperando que pruebe varios pasos seguidos, undo pagando costes, spells en el stack y turno de la IA.
 - **Colección (v0.58+)**: esperando que pruebe varias impresiones/foil de la misma carta por separado.
 - Ideas sin hacer: brillo foil dentro de las partidas (CardView no trae el flag foil); importar foil desde ManaBox.
