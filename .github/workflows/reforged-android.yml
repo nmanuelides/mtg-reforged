@@ -193,8 +193,8 @@ jobs:
       - name: Smoke test (boots the engine without a window)
         working-directory: "android/desktop/build/compose/binaries/main-release/app/MTG Reforged"
         run: |
-          ./"MTG Reforged.exe" --smoke-test || { cat "$LOCALAPPDATA/MTG Reforged/log.txt"; exit 1; }
-          tail -n 1 "$LOCALAPPDATA/MTG Reforged/log.txt"
+          ./"MTG Reforged.exe" --smoke-test || { cat "$LOCALAPPDATA/MTG Reforged Data/log.txt"; exit 1; }
+          tail -n 1 "$LOCALAPPDATA/MTG Reforged Data/log.txt"
 
       - name: Add the installer to the release
         env:

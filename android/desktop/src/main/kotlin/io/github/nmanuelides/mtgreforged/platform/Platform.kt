@@ -49,7 +49,8 @@ const val PLATFORM_NAME = "Windows"
 
 /**
  * Where the app keeps its files, like an Android app's private storage: card data, images,
- * decks, saves and settings, under %LOCALAPPDATA%\MTG Reforged.
+ * decks, saves and settings, under %LOCALAPPDATA%\MTG Reforged Data (the app itself installs to
+ * %LOCALAPPDATA%\MTG Reforged).
  */
 class DesktopContext(val root: File) {
     val filesDir: File = File(root, "files").apply { mkdirs() }
@@ -65,7 +66,8 @@ class DesktopContext(val root: File) {
     companion object {
         fun default(): DesktopContext {
             val base = System.getenv("LOCALAPPDATA")?.let(::File) ?: File(System.getProperty("user.home"), "AppData/Local")
-            return DesktopContext(File(base, "MTG Reforged").apply { mkdirs() })
+            // Not "MTG Reforged": the per-user installer puts the app itself there.
+            return DesktopContext(File(base, "MTG Reforged Data").apply { mkdirs() })
         }
     }
 }

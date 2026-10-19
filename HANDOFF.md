@@ -63,7 +63,7 @@ tocar, compilado tal cual.
   (instalador por usuario, sin admin, se actualiza encima). Probar sin abrir ventana:
   `./gradlew -q :desktop:createReleaseDistributable` y
   `"desktop/build/compose/binaries/main-release/app/MTG Reforged/MTG Reforged.exe" --smoke-test` (exit 0 = el
-  motor arrancó). Datos y `log.txt` en `%LOCALAPPDATA%\MTG Reforged`.
+  motor arrancó). Datos y `log.txt` en `%LOCALAPPDATA%\MTG Reforged Data` (la app se instala en `%LOCALAPPDATA%\MTG Reforged`).
 - GitHub: usar la cuenta personal `nmanuelides` **solo por comando**; nunca cambiar la cuenta global de
   `gh` (la activa es la del trabajo, nmanuelidesBanyan):
   ```bash

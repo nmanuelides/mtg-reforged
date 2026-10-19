@@ -26,7 +26,7 @@ android/
 - **Windows**: `./gradlew :desktop:run` para probar, `:desktop:packageReleaseExe` para el
   instalador (queda en `dist/mtg-reforged-v<versión>-windows.exe`). `"MTG Reforged.exe" --smoke-test`
   arranca el motor sin ventana y sale con 0 si anda (lo corre CI). Datos del usuario en
-  `%LOCALAPPDATA%\MTG Reforged` (log en `log.txt`).
+  `%LOCALAPPDATA%\MTG Reforged Data` (log en `log.txt`).
 
 - **Motor**: Gradle compila las fuentes de upstream en su lugar. Las dependencias salen de
   los `pom.xml`, así que si upstream agrega o cambia una dependencia el build la toma solo.
