@@ -3,6 +3,7 @@ package io.github.nmanuelides.mtgreforged.engine
 import forge.game.Game
 import forge.game.GameState
 import forge.game.phase.PhaseType
+import forge.game.zone.ZoneType
 import forge.localinstance.properties.ForgeConstants
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,6 +18,8 @@ data class SavedGame(
     val savedAt: Long,
     /** The same state with the player's spells on top of the stack back in hand: undo after resuming. */
     val undoState: String? = null,
+    /** Players chosen or remembered by permanents (see SavedGames.playerChoices). */
+    val choices: String? = null,
 ) {
     data class Seat(val name: String, val human: Boolean, val deckName: String, val deckPath: String)
 
@@ -40,7 +43,7 @@ object SavedGames {
             state = json.getString("state"),
             turn = json.getInt("turn"),
             savedAt = json.getLong("savedAt"),
-        ).let { it.copy(undoState = json.optString("undoState").takeIf { u -> u.isNotBlank() } ?: unstackedFromSave(it)) }
+        ).let { it.copy(choices = json.optString("choices").takeIf { c -> c.isNotBlank() }, undoState = json.optString("undoState").takeIf { u -> u.isNotBlank() } ?: unstackedFromSave(it)) }
     }.getOrNull()
 
     fun delete() {
@@ -134,8 +137,71 @@ object SavedGames {
         return out.joinToString("\n")
     }
 
+    /**
+     * Resuming puts each permanent onto the battlefield with a real "enters" (GameState.setupPlayerState),
+     * so "As this enters, choose..." would be asked again (e.g. Sower of Discord's two players).
+     * Forge's NoETBTrigs flag skips that. Copies (Clone) still need it to become what they copy.
+     */
+    private fun withoutEnterChoices(state: String, game: Game): String {
+        val ids = game.players.flatMap { it.getCardsIn(ZoneType.Battlefield) }
+            .filter { !it.isToken && !it.isCloned }.mapTo(HashSet()) { it.id }
+        if (ids.isEmpty()) return state
+        val idPattern = Regex("\\|Id:(\\d+)(?=\\||$)")
+        return state.lines().joinToString("\n") { line ->
+            if (!line.contains("battlefield=", ignoreCase = true)) line
+            else line.split(";").joinToString(";") { token ->
+                val id = idPattern.find(token)?.groupValues?.get(1)?.toIntOrNull()
+                if (id in ids && !token.contains("|NoETBTrigs")) "$token|NoETBTrigs" else token
+            }
+        }
+    }
+
+    /**
+     * GameState saves chosen colours, types and cards but not chosen players: those, and players a
+     * permanent remembers, by seat. The permanent is found again by controller, name and its place
+     * among the same-named ones (card ids change on resume).
+     */
+    private fun playerChoices(game: Game): String? {
+        val players = game.players
+        val out = JSONArray()
+        players.forEachIndexed { seat, p ->
+            val cards = p.getCardsIn(ZoneType.Battlefield).filter { !it.isToken }
+            cards.forEach { c ->
+                val chosen = c.chosenPlayer?.let { players.indexOf(it) }?.takeIf { it >= 0 }
+                val remembered = c.remembered.filterIsInstance<forge.game.player.Player>().map { players.indexOf(it) }.filter { it >= 0 }
+                if (chosen == null && remembered.isEmpty()) return@forEach
+                out.put(
+                    JSONObject().put("seat", seat).put("name", c.name)
+                        .put("ordinal", cards.takeWhile { it !== c }.count { it.name == c.name })
+                        .put("chosen", chosen ?: -1).put("remembered", JSONArray(remembered)),
+                )
+            }
+        }
+        return if (out.length() == 0) null else out.toString()
+    }
+
+    /** Puts [SavedGame.choices] back on the resumed game's permanents. */
+    fun applyChoices(choices: String?, game: Game) {
+        if (choices.isNullOrBlank()) return
+        runCatching {
+            val players = game.players
+            val list = JSONArray(choices)
+            for (i in 0 until list.length()) {
+                val o = list.getJSONObject(i)
+                val p = players.getOrNull(o.getInt("seat")) ?: continue
+                val name = o.getString("name")
+                val card = p.getCardsIn(ZoneType.Battlefield).filter { !it.isToken && it.name == name }
+                    .getOrNull(o.getInt("ordinal")) ?: continue
+                players.getOrNull(o.getInt("chosen"))?.let { card.chosenPlayer = it }
+                val remembered = o.getJSONArray("remembered")
+                for (j in 0 until remembered.length()) players.getOrNull(remembered.getInt(j))?.let { card.addRemembered(it) }
+            }
+        }
+    }
+
     fun save(game: Game, format: Engine.Format, decks: List<Engine.DeckEntry>) {
-        val base = GameState().apply { initFromGame(game) }.toString()
+        val base = withoutEnterChoices(GameState().apply { initFromGame(game) }.toString(), game)
+        val choices = playerChoices(game)
         val state = withStack(base, game)
         val undoState = unstacked(base, game)
         val restorable = if (game.players.size > 2 && game.phaseHandler.inCombat()) {
@@ -164,6 +230,7 @@ object SavedGames {
                 .put("turn", game.phaseHandler.turn)
                 .put("savedAt", System.currentTimeMillis())
                 .apply { if (undoState != null) put("undoState", undoState) }
+                .apply { if (choices != null) put("choices", choices) }
                 .toString(),
         )
     }

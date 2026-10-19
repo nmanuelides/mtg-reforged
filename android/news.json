@@ -47,6 +47,12 @@
       "title": "New in v0.62.0",
       "body": "• Undo rebuilt from scratch: every time the game waits for your play it saves the whole game (stack included), and undo steps back one prompt at a time, up to 20 times.\n• Undo while paying a cost, choosing targets or attacking cancels that play and goes back to before it, instead of loading forever.\n• A resumed game starts its history when it opens; undo there can still take back a spell you left on the stack.",
       "link": null
+    },
+    {
+      "id": "v0.63.0",
+      "title": "New in v0.63.0",
+      "body": "• Resuming a saved game no longer asks again the choices permanents made when they entered (like Sower of Discord's two players): they come back as they were. Applies to games saved from this version on.",
+      "link": null
     }
   ]
 }

@@ -488,6 +488,9 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     @Volatile var resumeUndoState: String? = null
 
+    /** The resumed game's chosen players, put back after [resumeUndoState] too. */
+    @Volatile var resumeChoices: String? = null
+
     init {
         runCatching { FModel.getPreferences().setPref(FPref.UI_UNDO_MODE, ForgeConstants.UNDO_MODE_OFF) }
     }
@@ -616,6 +619,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             game.stack.toList().forEach { game.stack.remove(it) }
             game.stackZone.removeAllCards(true)
             GameState().apply { parse(text.lines().map { it.trim() }.filter { it.isNotBlank() }) }.applyToGame(game)
+            io.github.nmanuelides.mtgreforged.engine.SavedGames.applyChoices(resumeChoices, game)
             (gameController as? PlayerControllerHuman)?.player?.let { game.phaseHandler.setPriority(it) }
         }.onFailure { Log.w("Undo", "resume undo failed", it) }
     }
