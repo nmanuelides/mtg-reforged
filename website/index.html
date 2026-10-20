@@ -305,6 +305,17 @@ figure.mount { cursor: zoom-in; }
 figure.mount:hover, figure.mount:focus-visible { --grow: 1.045; z-index: 2; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 22px 40px -16px var(--shadow); }
 figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6px; }
 
+/* Hero downloads: a warning icon sits in each button's lower-right corner and opens its note. */
+.dl-wrap { position: relative; display: inline-flex; }
+.dl-warn {
+  position: absolute; right: .55rem; bottom: .45rem; width: 1.6rem; height: 1.6rem; padding: .2rem;
+  border: 0; background: transparent; color: var(--ochre); cursor: pointer; display: grid; place-items: center;
+  transition: transform .2s ease;
+}
+.dl-warn.on-accent { color: var(--on-accent); }
+.dl-warn svg { width: 100%; height: 100%; }
+.dl-warn:hover { transform: scale(1.2); }
+.dl-warn:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
 /* Windows warning: a small note next to the installer button, and the dialog it opens. */
 .dl-row { display: flex; gap: 1rem; align-items: stretch; flex-wrap: wrap; }
 .dl-row .btn:first-child { flex: 1 1 auto; }
@@ -391,14 +402,20 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
     <p class="lede">Magic: The Gathering on your tablet, phone and PC. Sit down at a Commander table with up to three AI opponents, build decks from every card, and keep your collection with real prices.</p>
     <div class="downloads">
-      <a class="btn primary tilt" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
-        <span class="lbl">Get it for Android<small>APK · tablets and phones</small></span>
-      </a>
-      <a class="btn tilt" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
-        <span class="lbl">Get it for Windows<small>Installer · Windows 10 and 11</small></span>
-      </a>
+      <div class="dl-wrap tilt">
+        <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+          <span class="lbl">Get it for Android<small>APK · tablets and phones</small></span>
+        </a>
+        <button class="dl-warn on-accent" data-note="phones" type="button" aria-label="About playing on a phone" title="About playing on a phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4.5M12 17.2v.3" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="dl-wrap tilt">
+        <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
+          <span class="lbl">Get it for Windows<small>Installer · Windows 10 and 11</small></span>
+        </a>
+        <button class="dl-warn" data-note="smartscreen" type="button" aria-label="About the Windows security warning" title="About the Windows security warning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4.5M12 17.2v.3" stroke-linecap="round"/></svg></button>
+      </div>
     </div>
     <p class="fine">Free and open source. Both apps update themselves from <a href="https://github.com/nmanuelides/mtg-reforged/releases">GitHub releases</a>.</p>
   </div>
@@ -488,14 +505,36 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
       </div>
       <div class="spread">
         <figure class="plaque mount tilt" style="margin:0">
-          <img src="img/offline.webp" alt="The offline card images dialog: download the 21,581 pictures for every card in all decks, up to 1.9 GB, or one printing of every card, 33,860 pictures, up to 2.9 GB." width="1600" height="867" loading="lazy">
-          <figcaption>Download card pictures to play and build decks without a connection.</figcaption>
+          <img src="img/home.webp" alt="The home screen with vampire art, the title plaque, a card search box, the Play button and buttons for Commander, opponents, decks, collection and friends." width="1600" height="867" loading="lazy">
+          <figcaption>Home: look up a card, pick your format and opponents, play.</figcaption>
         </figure>
         <ul class="feats">
+          <li class="pip-u"><span><b>Quick price check:</b> type any card in the search on the home screen to see it big with its cheapest Card Kingdom price, plus every printing and what each one costs.</span></li>
           <li class="pip-w"><span><b>Every printing and finish</b> is its own entry, so a foil and a regular copy of the same card are counted apart.</span></li>
           <li class="pip-r"><span><b>Foil cards shine</b>, with a holographic sweep across the art.</span></li>
-          <li class="pip-g"><span><b>Offline images:</b> download every card in your decks, or every card there is, over Wi-Fi.</span></li>
           <li class="pip-b"><span><b>Profiles:</b> your name and avatar, and avatars for each opponent, cropped from a photo or any card's art.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="offline">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">Offline</span>
+        <h2>Play without a connection</h2>
+        <p>Download the card pictures ahead of time, and play, browse and build decks anywhere: on a plane, on the subway, or with bad Wi-Fi.</p>
+      </div>
+      <div class="spread">
+        <figure class="plaque mount tilt" style="margin:0">
+          <img src="img/offline.webp" alt="The offline card images dialog: download the 21,581 pictures for every card in all decks, up to 1.9 GB, or one printing of every card, 33,860 pictures, up to 2.9 GB." width="1600" height="867" loading="lazy">
+          <figcaption>Pick what to download, see how big it is, and start.</figcaption>
+        </figure>
+        <ul class="feats">
+          <li class="pip-g"><span><b>Every card in your decks</b>, plus the preconstructed ones you play against: everything you'll see in a match. About 21,600 pictures, up to 1.9 GB.</span></li>
+          <li class="pip-u"><span><b>Every card in Magic:</b> one printing of each, to browse the whole card pool and build decks offline. About 33,900 pictures, up to 2.9 GB.</span></li>
+          <li class="pip-w"><span><b>Over Wi-Fi only</b>, in the background, so it never eats your mobile data.</span></li>
+          <li class="pip-r"><span><b>No need to finish in one go.</b> If the download stops halfway, start it again later and it picks up where it left off, skipping the pictures you already have.</span></li>
         </ul>
       </div>
     </div>
