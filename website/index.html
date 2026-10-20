@@ -1,0 +1,465 @@
+<title>MTG Reforged</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Magic: The Gathering for Android and Windows 10/11, played on the Forge rules engine. Commander against up to three AI opponents, a full deck builder, your collection with prices, and undo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a storybook table. Full-bleed card art opens, then parchment plaques framed like the app's own, one chapter per part of the game. */
+:root {
+  --paper: #F2D5AC;        /* Palette.Paper */
+  --paper-light: #F8E2C2;  /* Palette.PaperLight */
+  --paper-deep: #E7C595;   /* Palette.PaperDeep */
+  --ink: #3A2E26;          /* Palette.Ink */
+  --ink-soft: #7A6656;     /* Palette.InkSoft */
+  --line: #C09A82;         /* Palette.Line */
+  --line-strong: #B0705A;
+  --terracotta: #B4472C;
+  --title: #7A2418;        /* the landing title's deep oxblood */
+  --sage: #6F8A63;
+  --slate: #55779C;
+  --ochre: #C6963A;
+  --plum: #6E4E63;
+  --on-accent: #F7EEDC;
+  --shadow: rgba(58, 46, 38, .28);
+  --grain-opacity: .1;
+  --display: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+  --body: "EB Garamond", "Garamond", "Georgia", serif;
+  color-scheme: light;
+}
+/* The site keeps the app's parchment look in every theme. */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  position: relative;
+}
+/* The app's paper grain, laid over every surface. */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  background: url("img/paper.webp") repeat;
+  background-size: 700px;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  z-index: 0;
+}
+body > * { position: relative; z-index: 1; }
+a { color: var(--terracotta); }
+a:focus-visible, .btn:focus-visible { outline: 2px solid var(--slate); outline-offset: 3px; }
+img { max-width: 100%; display: block; }
+
+.wrap {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---- Ornaments: the ——◆—— rules from the app's plaques ---- */
+.rule {
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  color: var(--line-strong);
+}
+.rule::before, .rule::after {
+  content: ""; height: 1px; flex: 0 1 7rem;
+  background: linear-gradient(90deg, transparent, currentColor 25%, currentColor 75%, transparent);
+}
+.diamond {
+  width: .55rem; height: .55rem; border: 1.5px solid currentColor; transform: rotate(45deg); flex: none;
+}
+.eyebrow {
+  font-family: var(--display); font-weight: 600; font-size: .78rem;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--terracotta);
+  display: flex; align-items: center; gap: .7rem; justify-content: center;
+}
+.eyebrow::before, .eyebrow::after { content: ""; width: 2.2rem; height: 1px; background: currentColor; }
+
+/* ---- Plaque: parchment panel with a double frame and corner studs, like the app's buttons ---- */
+.plaque {
+  background: var(--paper-light);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line), 0 10px 26px -12px var(--shadow);
+  position: relative;
+}
+.studs::before, .studs::after {
+  content: ""; position: absolute; width: 7px; height: 7px; background: var(--line-strong);
+  transform: rotate(45deg); top: -9px;
+}
+.studs::before { left: -9px; }
+.studs::after { right: -9px; }
+
+/* ---- Buttons ---- */
+.btn {
+  font-family: var(--display); font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .65rem;
+  padding: .9rem 1.6rem; min-height: 3.2rem; border: 1.5px solid var(--line); color: var(--ink);
+  background: var(--paper-light); position: relative;
+  box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--line), 0 6px 14px -8px var(--shadow);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--line-strong), 0 12px 20px -10px var(--shadow); }
+.btn.primary { background: var(--terracotta); color: var(--on-accent); border-color: var(--terracotta); box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--terracotta), 0 8px 18px -8px var(--shadow); }
+.btn small { font-family: var(--body); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: .9rem; opacity: .85; }
+.btn svg { width: 1.25rem; height: 1.25rem; flex: none; }
+.btn .lbl { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+
+/* ---- Hero: card art behind the title plaque, as on the landing screen ---- */
+.hero {
+  position: relative; overflow: hidden;
+  padding-block: clamp(3rem, 9vw, 6.5rem) clamp(2.5rem, 6vw, 4.5rem);
+  background: #1d1714 url("img/art-dracula.webp") center 30% / cover no-repeat;
+  border-bottom: 2px solid var(--line-strong);
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(20,14,10,.15) 0%, rgba(20,14,10,.05) 45%, rgba(20,14,10,.55) 100%);
+}
+.hero .wrap { position: relative; z-index: 1; display: grid; justify-items: center; gap: 2rem; text-align: center; }
+.title-plaque { padding: 1.4rem clamp(1.2rem, 5vw, 3.4rem) 1.2rem; max-width: 46rem; width: 100%; }
+.title-plaque h1 {
+  font-family: var(--display); font-weight: 700; color: var(--title); margin: .5rem 0 .35rem;
+  font-size: clamp(2.3rem, 8.5vw, 5.4rem); line-height: 1; letter-spacing: .02em; text-wrap: balance;
+}
+.title-plaque .tag {
+  font-family: var(--display); font-size: clamp(.68rem, 1.9vw, .82rem); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+  display: flex; align-items: center; justify-content: center; gap: .7rem; flex-wrap: wrap;
+}
+.lede {
+  font-size: clamp(1.15rem, 2.6vw, 1.45rem); max-width: 40rem; margin: 0; color: #F7EEDC;
+  text-shadow: 0 1px 2px rgba(0,0,0,.8), 0 0 18px rgba(0,0,0,.6); text-wrap: balance;
+}
+.downloads { display: flex; flex-wrap: wrap; gap: 1.2rem 1.4rem; justify-content: center; }
+.fine { color: #EADBC0; font-size: .95rem; text-shadow: 0 1px 2px rgba(0,0,0,.9); margin: 0; }
+.fine a { color: #F2D5AC; }
+
+/* ---- Chapters ---- */
+section { padding-block: clamp(3.5rem, 8vw, 6rem); }
+.chapter-head { display: grid; gap: .8rem; text-align: center; justify-items: center; margin-bottom: clamp(2rem, 5vw, 3.2rem); }
+h2 {
+  font-family: var(--display); font-weight: 600; margin: 0; color: var(--title);
+  font-size: clamp(1.8rem, 4.6vw, 2.9rem); line-height: 1.1; text-wrap: balance;
+}
+.chapter-head p { margin: 0; max-width: 40rem; color: var(--ink-soft); font-size: 1.2rem; }
+h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-spacing: .04em; margin: 0; color: var(--ink); }
+
+/* A screenshot in a framed mount, like the commander card on the deck sheet. */
+.mount { padding: clamp(6px, 1.2vw, 12px); }
+.mount img { width: 100%; height: auto; border: 1px solid var(--line); }
+.mount figcaption { font-size: .98rem; color: var(--ink-soft); font-style: italic; padding: .7rem .2rem .1rem; text-align: center; }
+
+.spread { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.8rem, 4vw, 3.4rem); align-items: center; }
+.spread.flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
+.spread.flip > figure { order: 2; }
+@media (max-width: 860px) {
+  .spread, .spread.flip { grid-template-columns: minmax(0, 1fr); }
+  .spread.flip > figure { order: 0; }
+}
+
+/* Feature list: mana-coloured pips, one per line of the app's changelog. */
+.feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.05rem; }
+.feats li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: .8rem; align-items: start; }
+.feats li::before {
+  content: ""; width: .7rem; height: .7rem; margin-top: .55rem; transform: rotate(45deg);
+  background: var(--pip, var(--terracotta)); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--pip, var(--terracotta));
+}
+.feats b { font-weight: 600; }
+.pip-w { --pip: var(--ochre); } .pip-u { --pip: var(--slate); } .pip-b { --pip: var(--plum); } .pip-r { --pip: var(--terracotta); } .pip-g { --pip: var(--sage); }
+
+.second { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.8rem); margin-top: clamp(2rem, 5vw, 3rem); }
+@media (max-width: 760px) { .second { grid-template-columns: minmax(0, 1fr); } }
+
+.band { background: var(--paper-deep); border-block: 1.5px solid var(--line); }
+
+/* ---- Platforms ---- */
+.platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.4rem); }
+@media (max-width: 760px) { .platforms { grid-template-columns: minmax(0, 1fr); } }
+.platform { padding: clamp(1.4rem, 3vw, 2rem); display: grid; gap: 1rem; align-content: start; }
+.platform header { display: flex; align-items: center; gap: .9rem; }
+.platform header svg { width: 2.1rem; height: 2.1rem; color: var(--terracotta); flex: none; }
+.platform p { margin: 0; }
+.keys { display: flex; flex-wrap: wrap; gap: .5rem .9rem; font-size: 1rem; color: var(--ink-soft); }
+kbd { font-family: var(--display); font-size: .78rem; letter-spacing: .06em; padding: .15rem .45rem; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+
+/* ---- Credits ---- */
+.credits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.4rem); align-items: start; }
+@media (max-width: 760px) { .credits { grid-template-columns: minmax(0, 1fr); } }
+.forge { padding: clamp(1.4rem, 3vw, 2.2rem); display: grid; gap: .9rem; }
+.forge h3 { font-size: 1.5rem; color: var(--title); }
+.forge p { margin: 0; }
+.thanks { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
+.thanks li { padding-bottom: .9rem; border-bottom: 1px dashed var(--line); }
+.thanks li:last-child { border-bottom: 0; }
+.thanks b { font-family: var(--display); font-weight: 600; font-size: .95rem; letter-spacing: .05em; display: block; }
+
+footer { padding-block: 2.6rem 3.2rem; text-align: center; color: var(--ink-soft); font-size: 1rem; display: grid; gap: .9rem; }
+footer p { margin: 0 auto; max-width: 46rem; }
+
+/* Screenshots grow a little under the pointer and open the carousel on click. */
+figure.mount { cursor: zoom-in; transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s ease; }
+figure.mount:hover, figure.mount:focus-visible { transform: scale(1.045); z-index: 2; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 22px 40px -16px var(--shadow); }
+figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6px; }
+
+/* Carousel: the screenshots in a parchment frame over a dimmed table. */
+.carousel { position: fixed; inset: 0; z-index: 10; border: 0; padding: 0; margin: auto; max-width: none; max-height: none; width: 100%; height: 100%; background: transparent; }
+.carousel::backdrop { background: rgba(26, 19, 14, .82); }
+.carousel[open] { display: grid; place-items: center; }
+.stage {
+  width: min(1320px, 100% - 2 * max(16px, env(safe-area-inset-left, 0px)));
+  display: grid; gap: .9rem; padding: clamp(8px, 1.4vw, 14px);
+  animation: pop .4s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes pop { from { transform: scale(.96); } to { transform: none; } }
+.stage img { width: 100%; height: auto; max-height: calc(100vh - 11rem); object-fit: contain; border: 1px solid var(--line); background: var(--paper-deep); }
+.stage-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
+.stage-cap { text-align: center; font-style: italic; color: var(--ink-soft); min-width: 0; }
+.stage-cap span { display: block; font-family: var(--display); font-style: normal; font-size: .75rem; letter-spacing: .14em; color: var(--terracotta); }
+.round { width: 3rem; height: 3rem; padding: 0; min-height: 0; }
+.round svg { width: 1.3rem; height: 1.3rem; }
+.close { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }
+
+/* Page-load: the plaque settles in from in front of the glass, like the app's entrance. */
+@keyframes settle { from { transform: scale(1.06); opacity: .0; } to { transform: none; opacity: 1; } }
+.title-plaque { animation: settle .9s cubic-bezier(.2,.7,.2,1) both; }
+.lede { animation: settle .9s .12s cubic-bezier(.2,.7,.2,1) both; }
+.downloads { animation: settle .9s .24s cubic-bezier(.2,.7,.2,1) both; }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="plaque studs title-plaque">
+      <div class="rule"><span class="diamond"></span></div>
+      <h1>MTG Reforged</h1>
+      <div class="tag"><span>Android</span><span class="diamond"></span><span>Windows 10 &amp; 11</span><span class="diamond"></span><span>Forge engine</span></div>
+    </div>
+    <p class="lede">Magic: The Gathering on your tablet, phone and PC. Sit down at a Commander table with up to three AI opponents, build decks from every card, and keep your collection with real prices.</p>
+    <div class="downloads">
+      <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+        <span class="lbl">Get it for Android<small>APK · tablets and phones</small></span>
+      </a>
+      <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
+        <span class="lbl">Get it for Windows<small>Installer · Windows 10 and 11</small></span>
+      </a>
+    </div>
+    <p class="fine">Free and open source. Both apps update themselves from <a href="https://github.com/nmanuelides/mtg-reforged/releases">GitHub releases</a>.</p>
+  </div>
+</header>
+
+<main>
+  <section id="play">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">The table</span>
+        <h2>Play Commander against the AI</h2>
+        <p>Forge's rules engine runs every card for real: the stack, priority, triggers, combat and state-based actions. The table around it was drawn from scratch for touch.</p>
+      </div>
+      <div class="spread">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/board.webp" alt="A four-player Commander game on turn 38: three opponents' boards across the top, the player's elves and lands below, and the hand along the bottom." width="1600" height="867">
+          <figcaption>Turn 38 of a four-player Commander game.</figcaption>
+        </figure>
+        <ul class="feats">
+          <li class="pip-r"><span><b>One to three opponents</b> in Commander, each with their own deck, name and avatar.</span></li>
+          <li class="pip-u"><span><b>Undo, up to 20 steps.</b> Take back a land, a spell on the stack or an attack. Undo while paying a cost cancels the spell.</span></li>
+          <li class="pip-g"><span><b>Save and leave</b> any game and continue it later. Your undo steps come along.</span></li>
+          <li class="pip-w"><span><b>Clear combat.</b> Arrows from attackers to whoever they attack and from blockers to what they block. Struck cards shake, spells fly to their targets.</span></li>
+          <li class="pip-b"><span><b>Play with friends</b> on the same Wi-Fi: host a lobby, pick decks, fill empty seats with AI.</span></li>
+        </ul>
+      </div>
+      <div class="second">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/stack.webp" alt="The stack panel showing an opponent's Ransom Note waiting to resolve, with Resolve and End Turn plaques below." width="1600" height="867" loading="lazy">
+          <figcaption>The stack shows what is waiting to resolve. Swipe to pass.</figcaption>
+        </figure>
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/lookup.webp" alt="Card lookup on the home screen: Sol Ring shown large with its Card Kingdom price of $2.79 and 135 printings." width="1600" height="867" loading="lazy">
+          <figcaption>Look up any card from the home screen, with its cheapest price.</figcaption>
+        </figure>
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/home-serra.webp" alt="The home screen with Serra angel art, the title plaque, the card search box and the Play button." width="1600" height="867" loading="lazy">
+          <figcaption>New art every time you come home, and a dark theme for night games.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="decks" class="band">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">The workshop</span>
+        <h2>Build decks from every card</h2>
+        <p>A deck builder that searches like a database, prices like a store and reads like a binder.</p>
+      </div>
+      <div class="spread flip">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/builder.webp" alt="The deck builder showing a 53-card Commander elf deck as card tiles with Card Kingdom prices and plus and minus buttons." width="1600" height="867" loading="lazy">
+          <figcaption>Every card in the deck with its price, sorted by type.</figcaption>
+        </figure>
+        <ul class="feats">
+          <li class="pip-g"><span><b>Full search:</b> name, rules text, colours, colour identity, sets, keywords, legality, mana cost, types, power, toughness, rarity and artist.</span></li>
+          <li class="pip-u"><span><b>Import</b> plain lists, Moxfield and ManaBox. Export to text or share.</span></li>
+          <li class="pip-w"><span><b>Card Kingdom prices</b>, updated daily, for regular and foil printings. One tap switches a deck to its cheapest printings.</span></li>
+          <li class="pip-r"><span><b>Shopping list</b> of the cards you don't own yet, ready to copy or share.</span></li>
+          <li class="pip-b"><span><b>Commanders</b> are picked with a star, and imports find the commander on their own.</span></li>
+        </ul>
+      </div>
+      <div class="second">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/deck.webp" alt="The deck sheet for the Rhyzz deck: commander Rhys the Exiled, counts of creatures, spells and lands, a $200 value, and three key cards." width="1600" height="867" loading="lazy">
+          <figcaption>Each deck gets a sheet: commander, curve, value and key cards.</figcaption>
+        </figure>
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/filters.webp" alt="The filters panel open beside the deck: exact-name match, hide duplicates, search in, finish, alchemy cards and sort options." width="1600" height="867" loading="lazy">
+          <figcaption>Filters slide in beside the cards.</figcaption>
+        </figure>
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/viewer.webp" alt="The card viewer showing Vito, Thorn of the Dusk Rose large between its neighbours, printing 5 of 13, priced $13.99." width="1600" height="867" loading="lazy">
+          <figcaption>Swipe sideways through cards, up and down through printings.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="collection">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">The binder</span>
+        <h2>Your collection, printing by printing</h2>
+      </div>
+      <div class="spread">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/home.webp" alt="The home screen in the light theme with vampire art, the title plaque, a card search box, the Play button and buttons for Commander, opponents, decks, collection and friends." width="1600" height="867" loading="lazy">
+          <figcaption>Home: search a card, pick your format and opponents, play.</figcaption>
+        </figure>
+        <ul class="feats">
+          <li class="pip-w"><span><b>Every printing and finish</b> is its own entry, so a foil and a regular copy of the same card are counted apart.</span></li>
+          <li class="pip-r"><span><b>Foil cards shine</b>, with a holographic sweep across the art.</span></li>
+          <li class="pip-u"><span><b>Back up</b> your decks and collection to Google Drive or to a file, and restore them on another device.</span></li>
+          <li class="pip-g"><span><b>Offline images:</b> download every card in your decks, or every card there is, over Wi-Fi.</span></li>
+          <li class="pip-b"><span><b>Profiles:</b> your name and avatar, and avatars for each opponent, cropped from a photo or any card's art.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="platforms" class="band">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">Where to play</span>
+        <h2>One game, two homes</h2>
+        <p>Android and Windows are built from the same code, with the same screens and decks.</p>
+      </div>
+      <div class="platforms">
+        <article class="plaque platform">
+          <header>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+            <h3>Android</h3>
+          </header>
+          <p>Made for tablets first, with a portrait layout for phones. Pinch to zoom card grids, hold a card to see it big, swipe to pass priority.</p>
+          <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">Download the APK</a>
+        </article>
+        <article class="plaque platform">
+          <header>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
+            <h3>Windows 10 &amp; 11</h3>
+          </header>
+          <p>Its own installer, and it keeps itself up to date. Plays with the mouse and keyboard.</p>
+          <div class="keys"><span><kbd>Esc</kbd> goes back</span><span><kbd>Right-click</kbd> shows a card</span><span><kbd>Drag</kbd> flips through cards</span><span><kbd>F11</kbd> full screen</span></div>
+          <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">Download the installer</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="credits">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">Credits</span>
+        <h2>Built on Forge</h2>
+      </div>
+      <div class="credits">
+        <article class="plaque studs forge">
+          <h3>Forge</h3>
+          <p>Every rule, every card script and every AI opponent in MTG Reforged comes from <a href="https://github.com/Card-Forge/forge">Forge</a>, the open-source Magic: The Gathering engine its community has been building for more than fifteen years.</p>
+          <p>MTG Reforged replaces only the screens. The engine is Forge's own code, merged from Card-Forge/forge every day and compiled without changes, so new cards and rules fixes arrive as soon as Forge has them.</p>
+          <p>Thank you to everyone who has written for Forge. Like Forge, MTG Reforged is free software under the <a href="https://github.com/nmanuelides/mtg-reforged/blob/master/LICENSE">GNU GPL v3</a>.</p>
+          <a class="btn" href="https://github.com/Card-Forge/forge">Visit Forge on GitHub</a>
+        </article>
+        <ul class="thanks">
+          <li><b>Scryfall</b>Card images.</li>
+          <li><b>Card Kingdom</b>Daily card prices.</li>
+          <li><b>keldon-market</b>The holographic foil shine.</li>
+          <li><b>Wizards of the Coast</b>Magic: The Gathering, its card names, text and art are property of Wizards of the Coast. MTG Reforged is an unofficial fan project, not produced, endorsed or supported by Wizards of the Coast.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<dialog class="carousel" id="carousel" aria-label="Screenshots">
+  <button class="btn round close" id="c-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="plaque studs stage">
+    <img id="c-img" src="img/board.webp" alt="">
+    <div class="stage-bar">
+      <button class="btn round" id="c-prev" type="button" aria-label="Previous screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <p class="stage-cap" id="c-cap"></p>
+      <button class="btn round" id="c-next" type="button" aria-label="Next screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+</dialog>
+
+<footer class="wrap">
+  <div class="rule"><span class="diamond"></span></div>
+  <p>MTG Reforged · <a href="https://github.com/nmanuelides/mtg-reforged">Source on GitHub</a> · <a href="https://github.com/nmanuelides/mtg-reforged/blob/master/android/PRIVACY.md">Privacy</a></p>
+</footer>
+
+<script>
+(() => {
+  const shots = [...document.querySelectorAll("figure.mount")];
+  const dlg = document.getElementById("carousel");
+  const img = document.getElementById("c-img");
+  const cap = document.getElementById("c-cap");
+  let at = 0;
+  const show = (i) => {
+    at = (i + shots.length) % shots.length;
+    const src = shots[at].querySelector("img");
+    img.src = src.src;
+    img.alt = src.alt;
+    cap.innerHTML = "";
+    const n = document.createElement("span");
+    n.textContent = (at + 1) + " / " + shots.length;
+    cap.append(n, shots[at].querySelector("figcaption")?.textContent ?? "");
+  };
+  shots.forEach((f, i) => {
+    f.tabIndex = 0;
+    f.setAttribute("role", "button");
+    f.addEventListener("click", () => { show(i); dlg.showModal(); });
+    f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(i); dlg.showModal(); } });
+  });
+  document.getElementById("c-prev").addEventListener("click", () => show(at - 1));
+  document.getElementById("c-next").addEventListener("click", () => show(at + 1));
+  document.getElementById("c-close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft") show(at - 1);
+    if (e.key === "ArrowRight") show(at + 1);
+  });
+  let x0 = null;
+  img.addEventListener("pointerdown", (e) => { x0 = e.clientX; });
+  img.addEventListener("pointerup", (e) => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0; x0 = null;
+    if (Math.abs(dx) > 40) show(at + (dx < 0 ? 1 : -1));
+  });
+})();
+</script>

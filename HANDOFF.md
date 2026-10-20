@@ -119,6 +119,15 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 - **Precios**: lista de Card Kingdom con columna foil (`ck-prices-v2.tsv`).
 - **Icono**: `android/branding/icon-source.png` → `res/drawable-nodpi/ic_launcher_art.png` (ícono adaptativo).
 
+## Web (website/)
+
+Sitio promocional en https://mtg-reforged.netlify.app (cuenta Netlify personal magatsu82@gmail.com, team
+slug `nmanuelides`, proyecto `mtg-reforged`, linkeado en `website/.netlify`). `index.html` es el cuerpo de
+la página (también se previsualiza como artifact de Claude); `python build.py` arma `_site/` con el
+documento completo y `netlify deploy --prod --dir _site` lo publica. Capturas en `website/img`, sacadas de
+BlueStacks (`HD-Adb -P 5038 -s 127.0.0.1:5555 exec-out screencap -p`). Siempre en tema claro (pedido del
+usuario). Vive fuera de `android/` para no disparar el build de CI.
+
 ## Pendiente / a confirmar con el usuario
 
 - **Windows (v0.68.0)**: recién hecho; el usuario tiene que probarlo (instalar el .exe, partida completa,
