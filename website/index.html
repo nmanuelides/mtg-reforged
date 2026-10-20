@@ -49,7 +49,7 @@ body::before {
   opacity: var(--grain-opacity);
   mix-blend-mode: multiply;
   pointer-events: none;
-  z-index: 0;
+  z-index: 5;
 }
 body > * { position: relative; z-index: 1; }
 a { color: var(--terracotta); }
@@ -73,6 +73,8 @@ img { max-width: 100%; display: block; }
   content: ""; height: 1px; flex: 0 1 7rem;
   background: linear-gradient(90deg, transparent, currentColor 25%, currentColor 75%, transparent);
 }
+@keyframes turn { to { transform: rotate(405deg); } }
+.rule .diamond, .title-plaque .tag .diamond { animation: turn 9s linear infinite; }
 .diamond {
   width: .55rem; height: .55rem; border: 1.5px solid currentColor; transform: rotate(45deg); flex: none;
 }
@@ -106,6 +108,17 @@ img { max-width: 100%; display: block; }
   box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--line), 0 6px 14px -8px var(--shadow);
   transition: transform .18s ease, box-shadow .18s ease;
 }
+.btn { overflow: hidden; isolation: isolate; }
+.btn::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 240, 210, .55) 48%, transparent 66%);
+  transform: translateX(-120%); transition: transform .7s cubic-bezier(.2,.7,.2,1);
+}
+.btn.primary::after { background: linear-gradient(115deg, transparent 30%, rgba(255, 220, 180, .35) 48%, transparent 66%); }
+.btn:hover::after { transform: translateX(120%); }
+.btn.primary { animation: glow 3.2s ease-in-out infinite; }
+@keyframes glow { 50% { filter: drop-shadow(0 0 12px rgba(210, 105, 74, .55)); } }
+.btn:active { transform: translateY(0) scale(.98); }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--line-strong), 0 12px 20px -10px var(--shadow); }
 .btn.primary { background: var(--terracotta); color: var(--on-accent); border-color: var(--terracotta); box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--terracotta), 0 8px 18px -8px var(--shadow); }
 .btn small { font-family: var(--body); text-transform: none; letter-spacing: 0; font-weight: 400; font-size: .9rem; opacity: .85; }
@@ -116,12 +129,25 @@ img { max-width: 100%; display: block; }
 .hero {
   position: relative; overflow: hidden;
   padding-block: clamp(3rem, 9vw, 6.5rem) clamp(2.5rem, 6vw, 4.5rem);
-  background: #1d1714 url("img/art-dracula.webp") center 30% / cover no-repeat;
+  background: #1d1714;
   border-bottom: 2px solid var(--line-strong);
+  min-height: min(80vh, 54rem);
+  display: grid; align-content: center;
 }
+.hero-art {
+  position: absolute; inset: -6% 0; z-index: 0;
+  background: url("img/art-tiamat.webp") center 25% / cover no-repeat;
+  transform: translate3d(0, var(--py, 0px), 0) scale(var(--zoom, 1.04));
+  animation: breathe 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+@keyframes breathe { from { --zoom: 1.04; } to { --zoom: 1.13; } }
+@property --zoom { syntax: "<number>"; inherits: false; initial-value: 1.04; }
+.embers { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; mix-blend-mode: screen; }
 .hero::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(180deg, rgba(20,14,10,.15) 0%, rgba(20,14,10,.05) 45%, rgba(20,14,10,.55) 100%);
+  background: linear-gradient(180deg, rgba(20,14,10,.25) 0%, rgba(20,14,10,.05) 40%, rgba(20,14,10,.7) 100%);
+  z-index: 0;
 }
 .hero .wrap { position: relative; z-index: 1; display: grid; justify-items: center; gap: 2rem; text-align: center; }
 .title-plaque { padding: 1.4rem clamp(1.2rem, 5vw, 3.4rem) 1.2rem; max-width: 46rem; width: 100%; }
@@ -142,7 +168,16 @@ img { max-width: 100%; display: block; }
 .fine a { color: #F2D5AC; }
 
 /* ---- Chapters ---- */
-section { padding-block: clamp(3.5rem, 8vw, 6rem); }
+section { padding-block: clamp(3.5rem, 8vw, 6rem); position: relative; overflow: hidden; isolation: isolate; }
+.sect-art {
+  position: absolute; inset: -18% -4%; z-index: -1;
+  background: var(--art) center / cover no-repeat;
+  filter: blur(10px) saturate(1.15);
+  transform: translate3d(0, var(--py, 0px), 0);
+  will-change: transform;
+}
+.sect-art::after { content: ""; position: absolute; inset: 0; background: var(--veil, rgba(242, 213, 172, .8)); }
+.band .sect-art::after { --veil: rgba(231, 197, 149, .84); }
 .chapter-head { display: grid; gap: .8rem; text-align: center; justify-items: center; margin-bottom: clamp(2rem, 5vw, 3.2rem); }
 h2 {
   font-family: var(--display); font-weight: 600; margin: 0; color: var(--title);
@@ -172,6 +207,10 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
   background: var(--pip, var(--terracotta)); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--pip, var(--terracotta));
 }
 .feats b { font-weight: 600; }
+.feats li { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
+.feats li::before { transition: transform .45s cubic-bezier(.2,.7,.2,1); }
+.feats li:hover { transform: translateX(6px); }
+.feats li:hover::before { transform: rotate(225deg) scale(1.3); }
 .pip-w { --pip: var(--ochre); } .pip-u { --pip: var(--slate); } .pip-b { --pip: var(--plum); } .pip-r { --pip: var(--terracotta); } .pip-g { --pip: var(--sage); }
 
 .second { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.8rem); margin-top: clamp(2rem, 5vw, 3rem); }
@@ -182,6 +221,8 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 /* ---- Platforms ---- */
 .platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.4rem); }
 @media (max-width: 760px) { .platforms { grid-template-columns: minmax(0, 1fr); } }
+.tilt { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px)); transition: transform .4s cubic-bezier(.2,.7,.2,1), box-shadow .4s ease; }
+.tilt:hover { --lift: -4px; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 24px 40px -18px var(--shadow); }
 .platform { padding: clamp(1.4rem, 3vw, 2rem); display: grid; gap: 1rem; align-content: start; }
 .platform header { display: flex; align-items: center; gap: .9rem; }
 .platform header svg { width: 2.1rem; height: 2.1rem; color: var(--terracotta); flex: none; }
@@ -216,6 +257,10 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   animation: pop .4s cubic-bezier(.2,.7,.2,1) both;
 }
 @keyframes pop { from { transform: scale(.96); } to { transform: none; } }
+.stage img.slide-l { animation: slideL .38s cubic-bezier(.2,.7,.2,1); }
+.stage img.slide-r { animation: slideR .38s cubic-bezier(.2,.7,.2,1); }
+@keyframes slideL { from { transform: translateX(6%); opacity: .3; } to { transform: none; opacity: 1; } }
+@keyframes slideR { from { transform: translateX(-6%); opacity: .3; } to { transform: none; opacity: 1; } }
 .stage img { width: 100%; height: auto; max-height: calc(100vh - 11rem); object-fit: contain; border: 1px solid var(--line); background: var(--paper-deep); }
 .stage-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
 .stage-cap { text-align: center; font-style: italic; color: var(--ink-soft); min-width: 0; }
@@ -224,14 +269,37 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 .round svg { width: 1.3rem; height: 1.3rem; }
 .close { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }
 
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .chapter-head, figure.mount, .feats li, .platform, .forge, .thanks li, footer .rule {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+    .feats li:nth-child(2) { animation-range: entry 6% entry 76%; }
+    .feats li:nth-child(3) { animation-range: entry 12% entry 82%; }
+    .feats li:nth-child(4) { animation-range: entry 18% entry 88%; }
+    .feats li:nth-child(5) { animation-range: entry 24% entry 94%; }
+    .second figure:nth-child(2) { animation-range: entry 8% entry 78%; }
+    .second figure:nth-child(3) { animation-range: entry 16% entry 86%; }
+    .chapter-head h2 { animation: spread linear both; animation-timeline: view(); animation-range: entry 10% cover 40%; }
+  }
+}
+@keyframes rise { from { opacity: .15; translate: 0 48px; scale: .97; } to { opacity: 1; translate: 0 0; scale: 1; } }
+@keyframes spread { from { letter-spacing: .12em; opacity: .4; } to { letter-spacing: 0; opacity: 1; } }
+
 /* Page-load: the plaque settles in from in front of the glass, like the app's entrance. */
 @keyframes settle { from { transform: scale(1.06); opacity: .0; } to { transform: none; opacity: 1; } }
 .title-plaque { animation: settle .9s cubic-bezier(.2,.7,.2,1) both; }
+.title-plaque h1 { animation: ink 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes ink { from { letter-spacing: .2em; filter: blur(6px); } to { letter-spacing: .02em; filter: none; } }
 .lede { animation: settle .9s .12s cubic-bezier(.2,.7,.2,1) both; }
 .downloads { animation: settle .9s .24s cubic-bezier(.2,.7,.2,1) both; }
 </style>
 
 <header class="hero">
+  <div class="hero-art" aria-hidden="true"></div>
+  <canvas class="embers" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="plaque studs title-plaque">
       <div class="rule"><span class="diamond"></span></div>
@@ -255,6 +323,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 
 <main>
   <section id="play">
+    <div class="sect-art" style="--art: url('img/art-calamity-titans.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">The table</span>
@@ -292,6 +361,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="decks" class="band">
+    <div class="sect-art" style="--art: url('img/art-dragoncaller.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">The workshop</span>
@@ -329,6 +399,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="collection">
+    <div class="sect-art" style="--art: url('img/art-sol-ring.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">The binder</span>
@@ -351,6 +422,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="platforms" class="band">
+    <div class="sect-art" style="--art: url('img/art-kozilek.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">Where to play</span>
@@ -358,7 +430,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         <p>Android and Windows are built from the same code, with the same screens and decks.</p>
       </div>
       <div class="platforms">
-        <article class="plaque platform">
+        <article class="plaque platform tilt">
           <header>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
             <h3>Android</h3>
@@ -366,7 +438,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
           <p>Made for tablets first, with a portrait layout for phones. Pinch to zoom card grids, hold a card to see it big, swipe to pass priority.</p>
           <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">Download the APK</a>
         </article>
-        <article class="plaque platform">
+        <article class="plaque platform tilt">
           <header>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
             <h3>Windows 10 &amp; 11</h3>
@@ -379,13 +451,14 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="credits">
+    <div class="sect-art" style="--art: url('img/art-elesh-norn.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">Credits</span>
         <h2>Built on Forge</h2>
       </div>
       <div class="credits">
-        <article class="plaque studs forge">
+        <article class="plaque studs forge tilt">
           <h3>Forge</h3>
           <p>Every rule, every card script and every AI opponent in MTG Reforged comes from <a href="https://github.com/Card-Forge/forge">Forge</a>, the open-source Magic: The Gathering engine its community has been building for more than fifteen years.</p>
           <p>The engine is Forge's own code, merged from Card-Forge/forge every day and compiled without changes, so new cards and rules fixes arrive as soon as Forge has them.</p>
@@ -429,7 +502,11 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   const cap = document.getElementById("c-cap");
   let at = 0;
   const show = (i) => {
+    const dir = i > at ? "slide-l" : "slide-r";
     at = (i + shots.length) % shots.length;
+    img.classList.remove("slide-l", "slide-r");
+    void img.offsetWidth;
+    if (dlg.open) img.classList.add(dir);
     const src = shots[at].querySelector("img");
     img.src = src.src;
     img.alt = src.alt;
@@ -459,5 +536,84 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     const dx = e.clientX - x0; x0 = null;
     if (Math.abs(dx) > 40) show(at + (dx < 0 ? 1 : -1));
   });
+})();
+
+(() => {
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (still) return;
+
+  // Parallax: section art and the hero art drift slower than the page.
+  const layers = [...document.querySelectorAll(".sect-art, .hero-art")];
+  let queued = false;
+  const drift = () => {
+    queued = false;
+    const vh = innerHeight;
+    for (const el of layers) {
+      const r = el.parentElement.getBoundingClientRect();
+      if (r.bottom < -200 || r.top > vh + 200) continue;
+      const speed = el.classList.contains("hero-art") ? 0.35 : 0.22;
+      const off = el.classList.contains("hero-art") ? -r.top : (vh / 2 - (r.top + r.height / 2));
+      el.style.setProperty("--py", (off * speed).toFixed(1) + "px");
+    }
+  };
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(drift); } }, { passive: true });
+  addEventListener("resize", drift);
+  drift();
+
+  // Plaques lean toward the pointer.
+  if (matchMedia("(hover: hover)").matches) {
+    for (const el of document.querySelectorAll(".tilt")) {
+      el.addEventListener("pointermove", (e) => {
+        const r = el.getBoundingClientRect();
+        const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+        el.style.setProperty("--ry", (x * 7).toFixed(2) + "deg");
+        el.style.setProperty("--rx", (-y * 7).toFixed(2) + "deg");
+      });
+      el.addEventListener("pointerleave", () => { el.style.setProperty("--rx", "0deg"); el.style.setProperty("--ry", "0deg"); });
+    }
+  }
+
+  // Embers rising from Tiamat's fire.
+  const cv = document.querySelector(".embers");
+  const ctx = cv.getContext("2d");
+  let w = 0, h = 0, embers = [];
+  const size = () => {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    w = cv.clientWidth; h = cv.clientHeight;
+    cv.width = w * dpr; cv.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const n = Math.round(Math.min(90, w / 14));
+    embers = Array.from({ length: n }, () => spawn(true));
+  };
+  const spawn = (anywhere) => ({
+    x: Math.random() * w,
+    y: anywhere ? Math.random() * h : h + 10,
+    r: 0.6 + Math.random() * 2.2,
+    vy: 0.25 + Math.random() * 0.9,
+    sway: Math.random() * Math.PI * 2,
+    life: 0.5 + Math.random() * 0.5,
+  });
+  let visible = true;
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(cv);
+  const tick = () => {
+    if (visible) {
+      ctx.clearRect(0, 0, w, h);
+      for (const p of embers) {
+        p.y -= p.vy; p.sway += 0.02; p.x += Math.sin(p.sway) * 0.4;
+        const fade = Math.max(0, Math.min(1, p.y / h)) * p.life;
+        if (p.y < -10) Object.assign(p, spawn(false));
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+        g.addColorStop(0, `rgba(255, 200, 120, ${fade})`);
+        g.addColorStop(0.4, `rgba(240, 110, 50, ${fade * 0.6})`);
+        g.addColorStop(1, "rgba(200, 60, 20, 0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  addEventListener("resize", size);
+  size();
+  tick();
 })();
 </script>
