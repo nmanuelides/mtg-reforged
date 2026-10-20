@@ -228,7 +228,10 @@ public final class FileUtil {
     public static List<String> readAllLines(final Reader reader, final boolean mayTrim) {
         final List<String> list = new ArrayList<>();
         try {
-            final BufferedReader in = new BufferedReader(reader);
+            // A small buffer: this reads every card script at start-up (~34,000 files of ~1 KB),
+            // and the default 8K-char buffer is a 16 KB large object each time, which on Android
+            // keeps the garbage collector running for the whole card load.
+            final BufferedReader in = reader instanceof BufferedReader ? (BufferedReader) reader : new BufferedReader(reader, 2048);
             String line;
             while ((line = in.readLine()) != null) {
                 if (mayTrim) {
