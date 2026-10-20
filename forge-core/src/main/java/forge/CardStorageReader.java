@@ -198,14 +198,14 @@ public class CardStorageReader {
      */
     private NavigableMap<String, ZipEntry> zipCardNameIndex(final File zipFile) {
         final File cache = new File(zipFile.getParentFile(), zipFile.getName() + ".index");
-        final String stamp = "v1	" + zipFile.length() + "	" + zipFile.lastModified();
+        final String stamp = "v1\t" + zipFile.length() + "\t" + zipFile.lastModified();
         if (cache.isFile()) {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(cache), charset))) {
                 if (stamp.equals(in.readLine())) {
                     final NavigableMap<String, ZipEntry> index = new TreeMap<>();
                     String line;
                     while ((line = in.readLine()) != null) {
-                        final int tab = line.indexOf('	');
+                        final int tab = line.indexOf('\t');
                         if (tab <= 0) {
                             continue;
                         }
@@ -226,14 +226,12 @@ public class CardStorageReader {
         final NavigableMap<String, ZipEntry> index = buildZipCardNameIndexInParallel();
         try (Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(cache), charset))) {
             out.write(stamp);
-            out.write('
-');
+            out.write('\n');
             for (final Map.Entry<String, ZipEntry> e : index.entrySet()) {
                 out.write(e.getKey());
-                out.write('	');
+                out.write('\t');
                 out.write(e.getValue().getName());
-                out.write('
-');
+                out.write('\n');
             }
         } catch (final IOException e) {
             System.err.println("Lazy card database: could not save the index: " + e);
