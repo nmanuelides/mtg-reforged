@@ -188,7 +188,7 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 /* A screenshot in a framed mount, like the commander card on the deck sheet. */
 .mount { padding: clamp(6px, 1.2vw, 12px); }
 .mount img { width: 100%; height: auto; border: 1px solid var(--line); }
-.mount figcaption { font-size: .98rem; color: var(--ink-soft); font-style: italic; padding: .7rem .2rem .1rem; text-align: center; }
+.mount figcaption { font-size: 1.12rem; font-weight: 500; line-height: 1.35; color: var(--ink); padding: .75rem .3rem .15rem; text-align: center; text-wrap: balance; }
 
 .spread { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.8rem, 4vw, 3.4rem); align-items: center; }
 .spread.flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
@@ -263,7 +263,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 @keyframes slideR { from { transform: translateX(-6%); opacity: .3; } to { transform: none; opacity: 1; } }
 .stage img { width: 100%; height: auto; max-height: calc(100vh - 11rem); object-fit: contain; border: 1px solid var(--line); background: var(--paper-deep); }
 .stage-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
-.stage-cap { text-align: center; font-style: italic; color: var(--ink-soft); min-width: 0; }
+.stage-cap { text-align: center; font-size: 1.2rem; font-weight: 500; color: var(--ink); min-width: 0; margin: 0; }
 .stage-cap span { display: block; font-family: var(--display); font-style: normal; font-size: .75rem; letter-spacing: .14em; color: var(--terracotta); }
 .round { width: 3rem; height: 3rem; padding: 0; min-height: 0; }
 .round svg { width: 1.3rem; height: 1.3rem; }
