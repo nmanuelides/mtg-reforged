@@ -141,8 +141,8 @@ img { max-width: 100%; display: block; }
   animation: breathe 22s ease-in-out infinite alternate;
   will-change: transform;
 }
-@keyframes breathe { from { --zoom: 1.04; } to { --zoom: 1.13; } }
-@property --zoom { syntax: "<number>"; inherits: false; initial-value: 1.04; }
+@keyframes breathe { from { --zoom: 1.01; } to { --zoom: 1.06; } }
+@property --zoom { syntax: "<number>"; inherits: false; initial-value: 1.01; }
 .embers { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; mix-blend-mode: screen; }
 .hero::after {
   content: ""; position: absolute; inset: 0;
@@ -258,12 +258,31 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 /* ---- Platforms ---- */
 .platforms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.4rem); }
 @media (max-width: 760px) { .platforms { grid-template-columns: minmax(0, 1fr); } }
-.tilt { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px)); transition: transform .4s cubic-bezier(.2,.7,.2,1), box-shadow .4s ease; }
+.tilt { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px)) scale(var(--grow, 1)); transition: transform .4s cubic-bezier(.2,.7,.2,1), box-shadow .4s ease; }
+.btn.tilt:hover { transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(-3px); }
 .tilt:hover { --lift: -4px; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 24px 40px -18px var(--shadow); }
 .platform { padding: clamp(1.4rem, 3vw, 2rem); display: grid; gap: 1rem; align-content: start; }
 .platform header { display: flex; align-items: center; gap: .9rem; }
 .platform header svg { width: 2.1rem; height: 2.1rem; color: var(--terracotta); flex: none; }
 .platform p { margin: 0; }
+
+/* ---- Support ---- */
+#support .chapter-head p { color: var(--ink); font-size: clamp(1.25rem, 2.4vw, 1.45rem); font-weight: 500; max-width: 44rem; }
+.donate { max-width: 52rem; margin-inline: auto; padding: clamp(1.4rem, 3vw, 2.2rem); display: flex; gap: clamp(1.4rem, 4vw, 2.6rem); align-items: center; flex-wrap: wrap; justify-content: center; }
+.donate-text { flex: 1 1 22rem; min-width: 0; display: grid; gap: .9rem; }
+.donate-text h3 { font-size: 1.35rem; color: var(--title); }
+.donate-text p { margin: 0; }
+.alias-row { display: flex; gap: 1rem; align-items: stretch; flex-wrap: wrap; }
+.alias {
+  font-family: var(--display); font-weight: 600; font-size: clamp(1.3rem, 3.4vw, 1.7rem); letter-spacing: .06em; color: var(--ink);
+  background: var(--paper); border: 1.5px dashed var(--line-strong); padding: .5rem 1.1rem; display: flex; align-items: center;
+  user-select: all;
+}
+.mp-mark { display: grid; gap: .4rem; justify-items: center; }
+.mp-mark img { width: 180px; height: auto; }
+.mp-mark { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
+.mp-mark:hover { transform: scale(1.05); }
+.mp-mark:focus-visible { outline: 2px solid var(--slate); outline-offset: 6px; }
 
 /* ---- Credits ---- */
 .credits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1.4rem, 3vw, 2.4rem); align-items: start; }
@@ -274,14 +293,16 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 .thanks { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
 .thanks li { padding-bottom: .9rem; border-bottom: 1px dashed var(--line); }
 .thanks li:last-child { border-bottom: 0; }
+.thanks .credit { display: grid; grid-template-columns: .9rem minmax(0, 1fr); gap: .6rem; align-items: start; }
+.thanks .credit::before { content: ""; width: .45rem; height: .45rem; margin-top: .6rem; transform: rotate(45deg); background: var(--line-strong); }
 .thanks b { font-family: var(--display); font-weight: 600; font-size: .95rem; letter-spacing: .05em; display: block; }
 
 footer { padding-block: 2.6rem 3.2rem; text-align: center; color: var(--ink-soft); font-size: 1rem; display: grid; gap: .9rem; }
 footer p { margin: 0 auto; max-width: 46rem; }
 
 /* Screenshots grow a little under the pointer and open the carousel on click. */
-figure.mount { cursor: zoom-in; transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s ease; }
-figure.mount:hover, figure.mount:focus-visible { transform: scale(1.045); z-index: 2; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 22px 40px -16px var(--shadow); }
+figure.mount { cursor: zoom-in; }
+figure.mount:hover, figure.mount:focus-visible { --grow: 1.045; z-index: 2; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 22px 40px -16px var(--shadow); }
 figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6px; }
 
 /* Windows warning: a small note next to the installer button, and the dialog it opens. */
@@ -351,7 +372,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 }
 
 /* Page-load: the plaque settles in from in front of the glass, like the app's entrance. */
-@keyframes settle { from { transform: scale(1.06); opacity: .0; } to { transform: none; opacity: 1; } }
+@keyframes settle { from { scale: 1.06; opacity: 0; } to { scale: 1; opacity: 1; } }
 .title-plaque { animation: settle .9s cubic-bezier(.2,.7,.2,1) both; }
 .title-plaque h1 { animation: ink 1.4s .2s cubic-bezier(.2,.7,.2,1) both; }
 @keyframes ink { from { letter-spacing: .2em; filter: blur(6px); } to { letter-spacing: .02em; filter: none; } }
@@ -363,18 +384,18 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   <div class="hero-art" aria-hidden="true"></div>
   <canvas class="embers" aria-hidden="true"></canvas>
   <div class="wrap">
-    <div class="plaque studs title-plaque">
+    <div class="plaque studs title-plaque tilt">
       <div class="rule"><span class="diamond"></span></div>
       <h1>MTG Reforged</h1>
       <div class="tag"><span>Android</span><span class="diamond"></span><span>Windows 10 &amp; 11</span><span class="diamond"></span><span>Forge engine</span></div>
     </div>
     <p class="lede">Magic: The Gathering on your tablet, phone and PC. Sit down at a Commander table with up to three AI opponents, build decks from every card, and keep your collection with real prices.</p>
     <div class="downloads">
-      <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">
+      <a class="btn primary tilt" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
         <span class="lbl">Get it for Android<small>APK · tablets and phones</small></span>
       </a>
-      <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">
+      <a class="btn tilt" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
         <span class="lbl">Get it for Windows<small>Installer · Windows 10 and 11</small></span>
       </a>
@@ -392,7 +413,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         <p>Forge's rules engine runs every card for real: the stack, priority, triggers, combat and state-based actions. The table around it was drawn from scratch for touch.</p>
       </div>
       <div class="spread">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/board.webp" alt="A four-player Commander game on turn 38: three opponents' boards across the top, the player's elves and lands below, and the hand along the bottom." width="1600" height="867">
           <figcaption>Turn 38 of a four-player Commander game.</figcaption>
         </figure>
@@ -405,15 +426,15 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         </ul>
       </div>
       <div class="second">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/stack.webp" alt="The stack panel showing an opponent's Ransom Note waiting to resolve, with Resolve and End Turn plaques below." width="1600" height="867" loading="lazy">
           <figcaption>The stack shows what is waiting to resolve. Swipe to pass.</figcaption>
         </figure>
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/lookup.webp" alt="Card lookup on the home screen: Sol Ring shown large with its Card Kingdom price of $2.79 and 135 printings." width="1600" height="867" loading="lazy">
           <figcaption>Look up any card from the home screen, with its cheapest price.</figcaption>
         </figure>
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/home-serra.webp" alt="The home screen with Serra angel art, the title plaque, the card search box and the Play button." width="1600" height="867" loading="lazy">
           <figcaption>New art every time you come home, and a dark theme for night games.</figcaption>
         </figure>
@@ -430,11 +451,11 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         <p>A deck builder that searches like a database, prices like a store and reads like a binder.</p>
       </div>
       <div class="spread flip">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/builder.webp" alt="The deck builder showing a 53-card Commander elf deck as card tiles with Card Kingdom prices and plus and minus buttons." width="1600" height="867" loading="lazy">
           <figcaption>Every card in the deck with its price, sorted by type.</figcaption>
         </figure>
-        <ul class="feats plaque">
+        <ul class="feats plaque tilt">
           <li class="pip-g"><span><b>Full search:</b> name, rules text, colours, colour identity, sets, keywords, legality, mana cost, types, power, toughness, rarity and artist.</span></li>
           <li class="pip-u"><span><b>Import</b> plain lists, Moxfield and ManaBox. Export to text or share.</span></li>
           <li class="pip-w"><span><b>Card Kingdom prices</b>, updated daily, for regular and foil printings. One tap switches a deck to its cheapest printings.</span></li>
@@ -443,15 +464,15 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         </ul>
       </div>
       <div class="second">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/deck.webp" alt="The deck sheet for the Rhyzz deck: commander Rhys the Exiled, counts of creatures, spells and lands, a $200 value, and three key cards." width="1600" height="867" loading="lazy">
           <figcaption>Each deck gets a sheet: commander, curve, value and key cards.</figcaption>
         </figure>
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/filters.webp" alt="The filters panel open beside the deck: exact-name match, hide duplicates, search in, finish, alchemy cards and sort options." width="1600" height="867" loading="lazy">
           <figcaption>Filters Panel full of options to get what you need for your strategy.</figcaption>
         </figure>
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/viewer.webp" alt="The card viewer showing Vito, Thorn of the Dusk Rose large between its neighbours, printing 5 of 13, priced $13.99." width="1600" height="867" loading="lazy">
           <figcaption>Swipe sideways through cards, up and down through printings.</figcaption>
         </figure>
@@ -466,7 +487,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         <h2>Your collection, printing by printing</h2>
       </div>
       <div class="spread">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/offline.webp" alt="The offline card images dialog: download the 21,581 pictures for every card in all decks, up to 1.9 GB, or one printing of every card, 33,860 pictures, up to 2.9 GB." width="1600" height="867" loading="lazy">
           <figcaption>Download card pictures to play and build decks without a connection.</figcaption>
         </figure>
@@ -488,7 +509,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         <p>Save your collection and your decks to Google Drive, and bring them back on any phone, tablet or PC.</p>
       </div>
       <div class="spread flip">
-        <figure class="plaque mount" style="margin:0">
+        <figure class="plaque mount tilt" style="margin:0">
           <img src="img/backup.webp" alt="The Backup and restore dialog: a Back up to Google Drive button, three dated backups with their card and deck counts and a Restore button each, and Save file and Open file for backups without Google Drive." width="1600" height="867" loading="lazy">
           <figcaption>Every backup is listed with its date, cards and decks.</figcaption>
         </figure>
@@ -541,6 +562,32 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
   </section>
 
+  <section id="support" class="band">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">Support</span>
+        <h2>Buy the developer a coffee</h2>
+        <p>MTG Reforged is made by one developer, in his spare time. It's free and has no ads. If it makes your games better, a small donation helps keep it growing.</p>
+      </div>
+      <div class="plaque studs donate tilt">
+        <div class="donate-text">
+          <h3>From Argentina</h3>
+          <p>Transfer to the Mercado Pago alias from any bank or wallet app. Transfers are free, so all of it arrives.</p>
+          <div class="alias-row">
+            <code class="alias" id="alias">magatsu.mp</code>
+            <button class="btn primary" id="alias-copy" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12"/><path d="M16 8V4H4v12h4"/></svg>
+              <span id="alias-label">Copy alias</span>
+            </button>
+          </div>
+        </div>
+        <a class="mp-mark" href="https://www.mercadopago.com.ar" target="_blank" rel="noopener" aria-label="Mercado Pago (opens in a new tab)">
+          <img src="img/mercadopago.svg" alt="Mercado Pago" width="180" height="170">
+        </a>
+      </div>
+    </div>
+  </section>
+
   <section id="credits">
     <div class="wrap">
       <div class="chapter-head">
@@ -560,6 +607,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
           <li><b>Scryfall</b>Card images.</li>
           <li><b>Card Kingdom</b>Daily card prices.</li>
           <li><b>keldon-market</b>The holographic foil shine.</li>
+          <li><b>The art on this page</b><span class="credit">Tiamat by Chris Rahn.</span><span class="credit">Rite of the Dragoncaller by Olivier Bernard.</span><span class="credit">Kozilek, Butcher of Truth by Michael Komarck.</span></li>
           <li><b>Wizards of the Coast</b>Magic: The Gathering, its card names, text and art are property of Wizards of the Coast. MTG Reforged is an unofficial fan project, not produced, endorsed or supported by Wizards of the Coast.</li>
         </ul>
       </div>
@@ -803,7 +851,6 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   add(".thanks li", { dx: "120px" }, 0.08);
   add("footer .rule", { sc: ".6" });
 
-  let queued = false;
   // Layout position, ignoring the element's own movement (offsetTop doesn't see translate/scale).
   const measure = () => {
     for (const it of items) {
@@ -811,26 +858,43 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
       for (let e = it.el; e; e = e.offsetParent) y += e.offsetTop;
       it.top = y;
       it.h = it.el.offsetHeight;
+      let sy = 0;
+      for (let e = it.el.closest("section, footer"); e; e = e.offsetParent) sy += e.offsetTop;
+      it.sectionTop = sy;
     }
   };
+  // Target progress: 0 when the element peeks in at the bottom of the screen, 1 when its section's
+  // top reaches the top of the screen (at least a third of a screen of travel, and never past the
+  // end of the page).
+  const target = (it, vh) => {
+    const start = it.top - vh;
+    const maxScroll = document.documentElement.scrollHeight - vh;
+    let end = Math.max(it.sectionTop, start + vh * 0.33);
+    end = Math.min(end, maxScroll);
+    const raw = end > start ? (scrollY - start) / (end - start) : 1;
+    const t = Math.max(0, Math.min(1, (raw - it.delay) / (1 - it.delay)));
+    return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  };
+  // Shown progress follows the target with some inertia, so wheel steps glide instead of jumping.
+  let running = false;
   const place = () => {
-    queued = false;
     const vh = innerHeight;
+    let moving = false;
     for (const it of items) {
-      const top = it.top - scrollY;
-      // 0 while the element is below the screen, 1 once all of it is on screen
-      // (tall ones finish when they fill 90% of it).
-      const span = Math.min(it.h, vh * 0.9);
-      const raw = (vh - top) / span;
-      const t = Math.max(0, Math.min(1, (raw - it.delay) / (1 - it.delay)));
-      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      it.el.style.setProperty("--p", eased.toFixed(3));
+      const goal = target(it, vh);
+      const cur = it.p ?? goal;
+      const next = Math.abs(goal - cur) < 0.002 ? goal : cur + (goal - cur) * 0.09;
+      if (next !== goal) moving = true;
+      if (next !== it.p) { it.p = next; it.el.style.setProperty("--p", next.toFixed(4)); }
     }
+    running = moving;
+    if (moving) requestAnimationFrame(place);
   };
-  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(place); } }, { passive: true });
-  addEventListener("resize", () => { measure(); place(); });
-  addEventListener("load", () => { measure(); place(); });
-  new ResizeObserver(() => { measure(); place(); }).observe(document.body);
+  const kick = () => { if (!running) { running = true; requestAnimationFrame(place); } };
+  addEventListener("scroll", kick, { passive: true });
+  addEventListener("resize", () => { measure(); kick(); });
+  addEventListener("load", () => { measure(); kick(); });
+  new ResizeObserver(() => { measure(); kick(); }).observe(document.body);
   measure();
   place();
 })();
@@ -863,6 +927,18 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     b.addEventListener("click", () => dlg.showModal());
     dlg.querySelector("[data-close]").addEventListener("click", () => dlg.close());
     dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  });
+})();
+(() => {
+  // Copy the Mercado Pago alias; where the clipboard is refused, select it to copy by hand.
+  const btn = document.getElementById("alias-copy");
+  const label = document.getElementById("alias-label");
+  const alias = document.getElementById("alias");
+  btn.addEventListener("click", () => {
+    const done = () => { label.textContent = "Copied"; setTimeout(() => { label.textContent = "Copy alias"; }, 2000); };
+    const select = () => { const r = document.createRange(); r.selectNodeContents(alias); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); label.textContent = "Press Ctrl+C"; };
+    if (navigator.clipboard) navigator.clipboard.writeText(alias.textContent.trim()).then(done, select);
+    else select();
   });
 })();
 </script>
