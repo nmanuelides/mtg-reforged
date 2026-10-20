@@ -83,6 +83,12 @@
       "title": "MTG Reforged for Windows",
       "body": "• MTG Reforged now runs on Windows 10 and 11: the same game, screens and decks, with its own installer that keeps itself up to date.\n• On a PC: Esc goes back, right-click shows a card, drag with the mouse to flip through cards, F11 for full screen.",
       "link": "https://github.com/nmanuelides/mtg-reforged/releases/latest"
+    },
+    {
+      "id": "v0.69.0",
+      "title": "New in v0.69.0",
+      "body": "• Faster start: loading the cards takes about 40% less time (from about 7.5 to 4.3 seconds on a fast PC; more on tablets).",
+      "link": null
     }
   ]
 }

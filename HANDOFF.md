@@ -119,6 +119,15 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 - **Precios**: lista de Card Kingdom con columna foil (`ck-prices-v2.tsv`).
 - **Icono**: `android/branding/icon-source.png` → `res/drawable-nodpi/ic_launcher_art.png` (ícono adaptativo).
 
+## Arranque (v0.69)
+
+El log tiene marcas con tag `Boot` (`adb logcat -s Boot:I`). En BlueStacks: ~1,2 s de preparación y la
+lectura de las ~34.000 cartas de Forge es el 85 % del resto. Única modificación a Forge: en
+`forge-core/.../util/FileUtil.readAllLines` un buffer de 2K en vez de 8K (el de 16 KB por archivo era un
+"large object" y mantenía la GC corriendo): carga de cartas 7,5 s → 4,3 s. Si un merge de upstream choca
+ahí, conservar ese cambio. Probado y descartado: zip de cartas sin comprimir (~3 %), carga perezosa de
+Forge (igual parsea todo para indexar nombres).
+
 ## Web (website/)
 
 Sitio promocional en https://mtg-reforged.netlify.app (cuenta Netlify personal magatsu82@gmail.com, team
