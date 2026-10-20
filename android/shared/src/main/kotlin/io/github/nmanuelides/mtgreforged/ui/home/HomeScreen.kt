@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material.icons.filled.Favorite
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.News
 import io.github.nmanuelides.mtgreforged.engine.Favorites
@@ -154,23 +155,43 @@ fun HomeScreen(
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 LocalArtImage(art, Modifier.fillMaxSize().onGloballyPositioned { onArtBounds(it.boundsInRoot()) })
-                // The rest of the card database is still loading in the background after start-up.
+                // Lower-right corner of the art: the background card load (right after start-up) and
+                // a way to support the developer.
                 val allCards by Engine.allCardsLoaded.collectAsState()
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = !allCards,
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                    enter = androidx.compose.animation.fadeIn(),
-                    exit = androidx.compose.animation.fadeOut(),
+                var support by remember { mutableStateOf(false) }
+                Row(
+                    Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = !allCards,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut(),
+                    ) {
+                        Row(
+                            Modifier.paperShadow(offsetY = 2.dp, blur = 8.dp).paper(Palette.Paper).padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Palette.Terracotta, strokeWidth = 2.dp)
+                            Text("Loading all cards…", color = Palette.InkSoft, fontSize = 13.sp)
+                        }
+                    }
                     Row(
-                        Modifier.paperShadow(offsetY = 2.dp, blur = 8.dp).paper(Palette.Paper).padding(horizontal = 10.dp, vertical = 6.dp),
+                        Modifier
+                            .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                            .paper(Palette.Paper)
+                            .clickable { support = true }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Palette.Terracotta, strokeWidth = 2.dp)
-                        Text("Loading all cards…", color = Palette.InkSoft, fontSize = 13.sp)
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Terracotta, modifier = Modifier.size(18.dp))
+                        Text("Support the developer", color = Palette.Ink, fontSize = 14.sp, fontFamily = io.github.nmanuelides.mtgreforged.ui.theme.Cinzel, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                     }
                 }
+                if (support) SupportDialog { support = false }
                 Column(
                     Modifier
                         .fillMaxWidth()

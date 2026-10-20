@@ -25,6 +25,7 @@ object R {
         const val art_sol_ring: ResId = "drawable/art_sol_ring.webp"
         const val art_tiamat: ResId = "drawable/art_tiamat.webp"
         const val foil_illusion: ResId = "drawable/foil_illusion.png"
+        const val mercadopago_logo: ResId = "drawable/mercadopago_logo.png"
         const val mana_b: ResId = "drawable/mana_b.png"
         const val mana_c: ResId = "drawable/mana_c.png"
         const val mana_g: ResId = "drawable/mana_g.png"

@@ -167,6 +167,14 @@ img { max-width: 100%; display: block; }
 .fine { color: #EADBC0; font-size: .95rem; text-shadow: 0 1px 2px rgba(0,0,0,.9); margin: 0; }
 .fine a { color: #F2D5AC; }
 
+/* Support button resting on the art's lower-right corner. */
+.hero-support {
+  position: absolute; z-index: 2; padding: .6rem 1.1rem; min-height: 0; font-size: .82rem;
+  right: max(16px, env(safe-area-inset-right, 0px)); bottom: 1.1rem;
+}
+.hero-support svg { width: 1.05rem; height: 1.05rem; color: var(--terracotta); }
+@media (max-width: 640px) { .hero-support { position: relative; right: auto; bottom: auto; justify-self: center; margin-top: 1.4rem; } }
+
 /* ---- Chapters ---- */
 section { padding-block: clamp(3.5rem, 8vw, 6rem); position: relative; overflow: hidden; isolation: isolate; }
 .sect-art {
@@ -419,6 +427,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
     <p class="fine">Free and open source. Both apps update themselves from <a href="https://github.com/nmanuelides/mtg-reforged/releases">GitHub releases</a>.</p>
   </div>
+  <a class="btn hero-support tilt" href="#support"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.9 4.5 6.6 4.5c2.1 0 3.5 1.2 4.4 2.6.9-1.4 2.3-2.6 4.4-2.6 3.7 0 5.7 3.9 4.2 7.3C19.5 16.4 12 21 12 21z"/></svg><span>Support the developer</span></a>
 </header>
 
 <main>
