@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.Engine
 import androidx.compose.animation.core.CubicBezierEasing
 import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
 import androidx.compose.ui.graphics.SolidColor
@@ -118,8 +119,14 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
         keyboard?.show()
     }
 
-    val names = remember { StaticData.instance().commonCards.uniqueCards.map { it.name }.filterNot { it.startsWith("A-") }.distinct().sorted() }
-    val hits = remember(query) {
+    // Every card name, once the background card load is done (right after start-up it may still be running).
+    val names by produceState(emptyList<String>()) {
+        value = withContext(Dispatchers.Default) {
+            Engine.awaitAllCards()
+            StaticData.instance().commonCards.uniqueCards.map { it.name }.filterNot { it.startsWith("A-") }.distinct().sorted()
+        }
+    }
+    val hits = remember(query, names) {
         val q = query.trim().lowercase()
         if (q.length < 2) emptyList()
         else names.filter { q in it.lowercase() }.sortedBy { !it.lowercase().startsWith(q) }.take(40)

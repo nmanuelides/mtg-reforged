@@ -95,6 +95,27 @@ object Engine {
         }
     }
 
+    private val _allCardsLoaded = MutableStateFlow(false)
+    /** False while the rest of the card database is still loading in the background after start-up. */
+    val allCardsLoaded: StateFlow<Boolean> = _allCardsLoaded.asStateFlow()
+
+    private fun loadRestOfCards() {
+        Thread({
+            awaitAllCards()
+            bootMark("all cards loaded")
+        }, "All cards").apply { priority = Thread.NORM_PRIORITY - 1; start() }
+    }
+
+    /**
+     * Blocks until every card is in the database (at once if it already is). Call it off the main
+     * thread before going through all cards: the card search, card name lists, downloads of every image.
+     */
+    fun awaitAllCards() {
+        if (_allCardsLoaded.value) return
+        runCatching { FModel.getMagicDb().ensureAllCardsLoaded() }.onFailure { Log.w("Boot", "loading all cards failed", it) }
+        _allCardsLoaded.value = true
+    }
+
     /** Boot timeline in the log ("Boot" tag): where start-up time goes. */
     private var bootStartedAt = 0L
     private fun bootMark(step: String) = Log.i("Boot", "${uptimeMillis() - bootStartedAt} ms  $step")
@@ -121,6 +142,10 @@ object Engine {
         GuiBase.setInterface(gui)
 
         BootProgress.step = "Loading cards…"
+        // Cards load lazily: only the ones something asks for get parsed at start (Forge keeps a
+        // saved name index, see CardStorageReader), the rest follow in the background (loadRestOfCards).
+        // Forge only allows lazy loading off mobile; that's the one place it checks, so say so meanwhile.
+        GuiBase.setIsAndroid(false)
         val engineStartedAt = uptimeMillis()
         val expected = BootProgress.expectedEngineMs(context)
         val ticker = Thread({
@@ -146,9 +171,17 @@ object Engine {
             // Seconds the AI may spend choosing one play before it settles for what it has
             // (Forge's default 5 piles up into minutes on big multiplayer boards).
             prefs.setPref(FPref.MATCH_AI_TIMEOUT, "3")
+            prefs.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
             null
         }
+        GuiBase.setIsAndroid(true)
         bootMark("FModel.initialize done")
+        // The player's own decks and collection first, so the home screen and deck sheets have
+        // their cards before the background load takes Forge's card lock for a few seconds.
+        BootProgress.step = "Loading your decks…"
+        runCatching { Format.entries.forEach { f -> UserDecks.list(f).forEach { runCatching { loadDeck(it) } } } }
+        runCatching { CardCollection.cards() }
+        bootMark("decks and collection loaded")
         ticker.interrupt()
         ticker.join(1_000)
         BootProgress.remember(context, uptimeMillis() - engineStartedAt)
@@ -158,6 +191,7 @@ object Engine {
         SavedGames.importPending()
         bootMark("ready")
         _status.value = Status.Ready
+        loadRestOfCards()
     }
 
     private object ProgressBridge : IProgressBar {

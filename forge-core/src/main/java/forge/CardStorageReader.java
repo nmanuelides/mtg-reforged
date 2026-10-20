@@ -107,8 +107,7 @@ public class CardStorageReader {
         this.charset = Charset.forName(CardStorageReader.DEFAULT_CHARSET_NAME);
 
         if (loadCardsLazily) {
-            zipEntriesByCardName = zip == null ? Collections.emptyNavigableMap()
-                    : buildCardNameIndex(getZipEntries(), this::loadCard);
+            zipEntriesByCardName = zip == null ? Collections.emptyNavigableMap() : zipCardNameIndex(zipFile);
             cardFilesByCardName = buildCardNameIndex(collectCardFiles(new ArrayList<>(), cardsfolder), this::loadCard);
         } else {
             zipEntriesByCardName = Collections.emptyNavigableMap();
@@ -190,6 +189,120 @@ public class CardStorageReader {
             return loadCard(rulesReader, file);
         }
         return null;
+    }
+
+    /**
+     * The lazy name index for the zip, kept next to it as "cardsfolder.zip.index" so later starts
+     * skip parsing every script just to learn which file holds which card. The cache is valid while
+     * the zip keeps its size and modification time; otherwise the index is rebuilt (in parallel) and saved.
+     */
+    private NavigableMap<String, ZipEntry> zipCardNameIndex(final File zipFile) {
+        final File cache = new File(zipFile.getParentFile(), zipFile.getName() + ".index");
+        final String stamp = "v1	" + zipFile.length() + "	" + zipFile.lastModified();
+        if (cache.isFile()) {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(cache), charset))) {
+                if (stamp.equals(in.readLine())) {
+                    final NavigableMap<String, ZipEntry> index = new TreeMap<>();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        final int tab = line.indexOf('	');
+                        if (tab <= 0) {
+                            continue;
+                        }
+                        final ZipEntry entry = zip.getEntry(line.substring(tab + 1));
+                        if (entry != null) {
+                            index.put(line.substring(0, tab), entry);
+                        }
+                    }
+                    if (!index.isEmpty()) {
+                        System.out.printf("Lazy card database: %d card names from the saved index%n", index.size());
+                        return index;
+                    }
+                }
+            } catch (final IOException | RuntimeException e) {
+                System.err.println("Lazy card database: saved index unreadable, rebuilding: " + e);
+            }
+        }
+        final NavigableMap<String, ZipEntry> index = buildZipCardNameIndexInParallel();
+        try (Writer out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(cache), charset))) {
+            out.write(stamp);
+            out.write('
+');
+            for (final Map.Entry<String, ZipEntry> e : index.entrySet()) {
+                out.write(e.getKey());
+                out.write('	');
+                out.write(e.getValue().getName());
+                out.write('
+');
+            }
+        } catch (final IOException e) {
+            System.err.println("Lazy card database: could not save the index: " + e);
+        }
+        return index;
+    }
+
+    /** Same result as buildCardNameIndex over the zip entries, parsing the scripts on several threads. */
+    private NavigableMap<String, ZipEntry> buildZipCardNameIndexInParallel() {
+        final StopWatch sw = new StopWatch();
+        sw.start();
+        final List<ZipEntry> entries = getZipEntries();
+        final int parts = Math.max(1, Math.min(NUMBER_OF_PARTS, entries.size() / 100));
+        final List<Callable<List<String[]>>> tasks = new ArrayList<>();
+        for (int p = 0; p < parts; p++) {
+            final int from = entries.size() * p / parts, to = entries.size() * (p + 1) / parts;
+            tasks.add(() -> {
+                // Each row: entry name, then "P" + name for primary names or "H" + name for placeholders.
+                final List<String[]> rows = new ArrayList<>();
+                final CardRules.Reader rulesReader = new CardRules.Reader();
+                for (final ZipEntry entry : entries.subList(from, to)) {
+                    final CardRules rules;
+                    try {
+                        rules = loadCard(rulesReader, entry);
+                    } catch (final RuntimeException e) {
+                        continue;
+                    }
+                    if (rules == null) {
+                        continue;
+                    }
+                    final List<String> row = new ArrayList<>();
+                    row.add(entry.getName());
+                    for (final String name : primaryNamesOf(rules)) {
+                        row.add("P" + name);
+                    }
+                    for (final String name : rules.getPlaceholderFaceNames()) {
+                        row.add("H" + name);
+                    }
+                    rows.add(row.toArray(new String[0]));
+                }
+                return rows;
+            });
+        }
+        final NavigableMap<String, ZipEntry> index = new TreeMap<>();
+        final Map<String, ZipEntry> placeholderNames = new TreeMap<>();
+        try {
+            final ExecutorService executor = ThreadUtil.getComputingPool(0.5f);
+            final List<Future<List<String[]>>> results = executor.invokeAll(tasks);
+            executor.shutdown();
+            for (final Future<List<String[]>> result : results) {
+                for (final String[] row : result.get()) {
+                    final ZipEntry entry = zip.getEntry(row[0]);
+                    for (int i = 1; i < row.length; i++) {
+                        putName(row[i].charAt(0) == 'P' ? index : placeholderNames, row[i].substring(1), entry);
+                    }
+                }
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (final ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+        for (final Map.Entry<String, ZipEntry> e : placeholderNames.entrySet()) {
+            index.putIfAbsent(e.getKey(), e.getValue());
+        }
+        sw.stop();
+        System.out.printf("Lazy card database: indexed %d card names from %d files in %d ms%n", index.size(), entries.size(), sw.getTime());
+        return index;
     }
 
     private <T> NavigableMap<String, T> buildCardNameIndex(List<T> sources, BiFunction<CardRules.Reader, T, CardRules> loader) {

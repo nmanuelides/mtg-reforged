@@ -59,7 +59,7 @@ object ImageDownloader {
     /** Image keys for [scope]: front faces, plus back faces of double-faced cards. */
     fun keys(scope: Scope): List<String> {
         val cards: Collection<PaperCard> = when (scope) {
-            Scope.All -> StaticData.instance().commonCards.uniqueCards.filterNot { it.name.startsWith("A-") }
+            Scope.All -> { Engine.awaitAllCards(); StaticData.instance().commonCards.uniqueCards.filterNot { it.name.startsWith("A-") } }
             Scope.Decks -> Engine.Format.entries
                 .flatMap { Engine.decks(it) }
                 .flatMap { entry -> runCatching { Engine.loadDeck(entry).allCards() }.getOrDefault(emptyList()) }

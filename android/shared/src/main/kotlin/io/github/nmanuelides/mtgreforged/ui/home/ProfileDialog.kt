@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.Engine
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -155,8 +157,14 @@ private fun AvatarEditor(seat: Int, onDismiss: () -> Unit) {
 @Composable
 private fun CardArtPicker(onDismiss: () -> Unit, onPick: (String) -> Unit) {
     var query by remember { mutableStateOf("") }
-    val names = remember { StaticData.instance().commonCards.uniqueCards.map { it.name }.filterNot { it.startsWith("A-") }.distinct().sorted() }
-    val hits = remember(query) { if (query.length < 2) emptyList() else names.filter { query.lowercase() in it.lowercase() }.take(60) }
+    // Every card name, once the background card load is done (right after start-up it may still be running).
+    val names by produceState(emptyList<String>()) {
+        value = withContext(Dispatchers.Default) {
+            Engine.awaitAllCards()
+            StaticData.instance().commonCards.uniqueCards.map { it.name }.filterNot { it.startsWith("A-") }.distinct().sorted()
+        }
+    }
+    val hits = remember(query, names) { if (query.length < 2) emptyList() else names.filter { query.lowercase() in it.lowercase() }.take(60) }
     OrnateDialog(onDismiss = onDismiss, maxWidth = 560.dp) {
         SectionLabel("Choose a card")
         Spacer(Modifier.height(10.dp))

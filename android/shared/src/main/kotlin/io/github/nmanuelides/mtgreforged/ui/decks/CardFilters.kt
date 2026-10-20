@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.engine.Engine
 import forge.StaticData
 import forge.card.CardRarity
 import forge.card.CardRules
@@ -114,6 +115,7 @@ data class CardFilter(
         if (q.length < 2 && activeCount == 0) return emptyList<PaperCard>() to 0
         val db = StaticData.instance().commonCards
         val ownedPool = within == Within.Collection && owned != null
+        if (!ownedPool) Engine.awaitAllCards() // right after start-up the rest of the cards may still be loading
         val pool: Collection<PaperCard> = when {
             ownedPool -> owned!!
             perPrinting || !hideDuplicates -> db.allCards
@@ -237,11 +239,13 @@ object FilterOptions {
     }
 
     val subtypes: List<String> by lazy {
+        Engine.awaitAllCards()
         StaticData.instance().commonCards.uniqueCards.flatMapTo(sortedSetOf()) { it.rules.type.subtypes }.toList()
     }
 
     /** Keywords printed on at least a few cards; drops Forge's internal script keywords. */
     val keywords: List<String> by lazy {
+        Engine.awaitAllCards()
         StaticData.instance().commonCards.uniqueCards
             .flatMap { CardFilter.keywordsOf(it.rules) }
             .filter { it.firstOrNull()?.isUpperCase() == true && it.length < 24 && ' ' !in it.drop(12) }
@@ -250,6 +254,7 @@ object FilterOptions {
     }
 
     val artists: List<String> by lazy {
+        Engine.awaitAllCards()
         StaticData.instance().commonCards.allCards.mapNotNullTo(sortedSetOf()) { it.artist?.takeIf(String::isNotBlank) }.toList()
     }
 }

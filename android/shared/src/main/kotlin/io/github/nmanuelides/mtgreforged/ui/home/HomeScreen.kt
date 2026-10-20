@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.News
 import io.github.nmanuelides.mtgreforged.engine.Favorites
 import androidx.compose.ui.draw.blur
@@ -153,6 +154,23 @@ fun HomeScreen(
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 LocalArtImage(art, Modifier.fillMaxSize().onGloballyPositioned { onArtBounds(it.boundsInRoot()) })
+                // The rest of the card database is still loading in the background after start-up.
+                val allCards by Engine.allCardsLoaded.collectAsState()
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = !allCards,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    enter = androidx.compose.animation.fadeIn(),
+                    exit = androidx.compose.animation.fadeOut(),
+                ) {
+                    Row(
+                        Modifier.paperShadow(offsetY = 2.dp, blur = 8.dp).paper(Palette.Paper).padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(14.dp), color = Palette.Terracotta, strokeWidth = 2.dp)
+                        Text("Loading all cards…", color = Palette.InkSoft, fontSize = 13.sp)
+                    }
+                }
                 Column(
                     Modifier
                         .fillMaxWidth()
