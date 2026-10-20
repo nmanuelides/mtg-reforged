@@ -172,11 +172,18 @@ section { padding-block: clamp(3.5rem, 8vw, 6rem); position: relative; overflow:
 .sect-art {
   position: absolute; inset: -18% -4%; z-index: -1;
   background: var(--art) center / cover no-repeat;
-  filter: blur(7px) saturate(1.2);
+  filter: blur(7px) saturate(1.15);
   transform: translate3d(0, var(--py, 0px), 0);
   will-change: transform;
 }
-.sect-art::after { content: ""; position: absolute; inset: 0; background: rgba(242, 213, 172, .66); }
+/* Over the art the heading switches to light text with a strong shadow. */
+.art .chapter-head {
+  --ink-soft: #FBF1DF; --title: #FBE3B8; --terracotta: #FFD3B8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .9), 0 0 6px rgba(0, 0, 0, .8), 0 0 22px rgba(0, 0, 0, .6);
+}
+.art .chapter-head .eyebrow::before, .art .chapter-head .eyebrow::after { box-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
+/* Over the art, the feature list sits on a parchment plaque like the screenshots. */
+.art .feats.plaque { padding: clamp(1.2rem, 2.6vw, 1.8rem) clamp(1.4rem, 3vw, 2.1rem); }
 .chapter-head { display: grid; gap: .8rem; text-align: center; justify-items: center; margin-bottom: clamp(2rem, 5vw, 3.2rem); }
 h2 {
   font-family: var(--display); font-weight: 600; margin: 0; color: var(--title);
@@ -190,7 +197,11 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 .mount img { width: 100%; height: auto; border: 1px solid var(--line); }
 .mount figcaption { font-size: 1.12rem; font-weight: 500; line-height: 1.35; color: var(--ink); padding: .75rem .3rem .15rem; text-align: center; text-wrap: balance; }
 
-.spread { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.8rem, 4vw, 3.4rem); align-items: center; }
+.spread { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(1.8rem, 4vw, 3.4rem); align-items: stretch; }
+/* Both columns share a height: the screenshot's frame grows and the spare room goes to its caption. */
+.spread > figure { display: flex; flex-direction: column; }
+.spread > figure figcaption { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+.spread > .feats { align-content: center; }
 .spread.flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr); }
 .spread.flip > figure { order: 2; }
 @media (max-width: 860px) {
@@ -200,17 +211,43 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
 
 /* Feature list: mana-coloured pips, one per line of the app's changelog. */
 .feats { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.05rem; }
-.feats li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: .8rem; align-items: start; }
+.feats li {
+  display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: .8rem; align-items: start;
+  position: relative; padding: .45rem .8rem; margin: -.45rem -.8rem;
+}
 .feats li::before {
   content: ""; width: .7rem; height: .7rem; margin-top: .55rem; transform: rotate(45deg);
   background: var(--pip, var(--terracotta)); box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px var(--pip, var(--terracotta));
+  /* Leaving: waits for the background to shrink back into the square, then spins back. */
+  transition: transform .32s cubic-bezier(.4,0,.2,1) .3s;
 }
 .feats b { font-weight: 600; }
 .soon { font-family: var(--display); font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--on-accent); background: var(--plum); padding: .12rem .5rem; margin-inline: .25rem; vertical-align: .15em; white-space: nowrap; }
-.feats li { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
-.feats li::before { transition: transform .45s cubic-bezier(.2,.7,.2,1); }
-.feats li:hover { transform: translateX(6px); }
-.feats li:hover::before { transform: rotate(225deg) scale(1.3); }
+
+/* Hover: the diamond (with its ring) turns square, then that square grows into the item's
+   background, ring and all. ::after is the growing square; .fill is a copy of the line in light
+   text (added by the script) revealed by the same box, so each letter turns light exactly as the
+   colour passes under it. */
+.feats li::after {
+  content: ""; position: absolute; z-index: 1; pointer-events: none;
+  inset: calc(1rem - 3px) calc(100% - 1.5rem - 3px) calc(100% - 1.7rem - 3px) calc(.8rem - 3px);
+  background: var(--pip, var(--terracotta));
+  box-shadow: inset 0 0 0 1px var(--pip, var(--terracotta)), inset 0 0 0 3px var(--paper);
+  opacity: 0;
+  transition: inset .3s cubic-bezier(.65,0,.35,1), opacity 0s linear .3s;
+}
+.feats li:hover::after { inset: 0; opacity: 1; transition: inset .3s cubic-bezier(.65,0,.35,1) .3s, opacity 0s linear .3s; }
+.feats .fill {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: .8rem; align-items: start; padding: .45rem .8rem;
+  color: var(--on-accent);
+  clip-path: inset(calc(1rem - 3px) calc(100% - 1.5rem - 3px) calc(100% - 1.7rem - 3px) calc(.8rem - 3px));
+  transition: clip-path .3s cubic-bezier(.65,0,.35,1);
+}
+.feats .fill::before { content: ""; }
+.feats .fill .soon { background: var(--on-accent); color: var(--pip, var(--plum)); }
+.feats li:hover::before { transform: rotate(450deg); transition-delay: 0s; }
+.feats li:hover .fill { clip-path: inset(0 0 0 0); transition-delay: .3s; }
 .pip-w { --pip: var(--ochre); } .pip-u { --pip: var(--slate); } .pip-b { --pip: var(--plum); } .pip-r { --pip: var(--terracotta); } .pip-g { --pip: var(--sage); }
 
 .second { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1rem, 2.4vw, 1.8rem); margin-top: clamp(2rem, 5vw, 3rem); }
@@ -247,14 +284,40 @@ figure.mount { cursor: zoom-in; transition: transform .35s cubic-bezier(.2,.7,.2
 figure.mount:hover, figure.mount:focus-visible { transform: scale(1.045); z-index: 2; box-shadow: 0 0 0 4px var(--paper-light), 0 0 0 5px var(--line-strong), 0 22px 40px -16px var(--shadow); }
 figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6px; }
 
+/* Windows warning: a small note next to the installer button, and the dialog it opens. */
+.dl-row { display: flex; gap: 1rem; align-items: stretch; flex-wrap: wrap; }
+.dl-row .btn:first-child { flex: 1 1 auto; }
+.btn.round.warn { color: var(--ochre); height: auto; min-height: 0; width: 4.2rem; flex: none; align-self: stretch; animation: none; }
+.btn.round.warn.primary { color: var(--on-accent); }
+.warn svg { width: 1.6rem; height: 1.6rem; }
+.note { border: 0; padding: 0; background: transparent; max-width: min(40rem, 100% - 32px); margin: auto; position: fixed; inset: 0; z-index: 10; height: fit-content; max-height: calc(100% - 32px); overflow: auto; }
+.note::backdrop { background: rgba(26, 19, 14, .78); }
+.note[open] .note-body { animation: pop .35s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes pop { from { transform: scale(.94); opacity: .4; } to { transform: none; opacity: 1; } }
+.note-body { padding: clamp(1.3rem, 4vw, 2rem); display: grid; gap: 1rem; margin: 10px; }
+.note-body .eyebrow { justify-content: flex-start; }
+.note-body .eyebrow::before { display: none; }
+.note-body h3 { font-size: 1.35rem; color: var(--title); text-wrap: balance; }
+.note-body p { margin: 0; }
+.note-body .btn { justify-self: end; }
+.steps { margin: 0; padding-left: 1.4rem; display: grid; gap: .3rem; font-size: 1.15rem; }
+/* A sketch of the SmartScreen screen, so it's recognised when it appears. */
+.ss-mock { background: #0b5fa5; color: #fff; font-family: "Segoe UI", system-ui, sans-serif; padding: 1rem 1.1rem; display: grid; gap: .45rem; font-size: .9rem; border: 1px solid var(--line); }
+.ss-title { font-size: 1.25rem; font-weight: 600; }
+.ss-link { text-decoration: underline; outline: 2px solid #ffd27a; outline-offset: 2px; justify-self: start; padding-inline: 2px; }
+.ss-buttons { display: flex; gap: .5rem; justify-content: flex-end; }
+.ss-buttons span { border: 1px solid #fff; padding: .25rem .9rem; }
+.ss-buttons .ss-run { outline: 2px solid #ffd27a; outline-offset: 2px; }
+
 /* Carousel: the screenshots in a parchment frame over a dimmed table. */
 .carousel { position: fixed; inset: 0; z-index: 10; border: 0; padding: 0; margin: auto; max-width: none; max-height: none; width: 100%; height: 100%; background: transparent; }
-.carousel::backdrop { background: rgba(26, 19, 14, .82); }
+.carousel::backdrop { background: rgba(26, 19, 14, .82); animation: dim .35s ease both; }
+.carousel.closing::backdrop { animation: dim .3s ease reverse both; }
+@keyframes dim { from { opacity: 0; } }
 .carousel[open] { display: grid; place-items: center; }
 .stage {
   width: min(1320px, 100% - 2 * max(16px, env(safe-area-inset-left, 0px)));
   display: grid; gap: .9rem; padding: clamp(8px, 1.4vw, 14px);
-  animation: pop .4s cubic-bezier(.2,.7,.2,1) both;
 }
 @keyframes pop { from { transform: scale(.96); } to { transform: none; } }
 .stage img.slide-l { animation: slideL .38s cubic-bezier(.2,.7,.2,1); }
@@ -263,10 +326,19 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 @keyframes slideR { from { transform: translateX(-6%); opacity: .3; } to { transform: none; opacity: 1; } }
 .stage img { width: 100%; height: auto; max-height: calc(100vh - 11rem); object-fit: contain; border: 1px solid var(--line); background: var(--paper-deep); }
 .stage-bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1rem; }
+.stage-mid { display: grid; gap: .55rem; justify-items: center; min-width: 0; }
 .stage-cap { text-align: center; font-size: 1.2rem; font-weight: 500; color: var(--ink); min-width: 0; margin: 0; }
-.stage-cap span { display: block; font-family: var(--display); font-style: normal; font-size: .75rem; letter-spacing: .14em; color: var(--terracotta); }
-.round { width: 3rem; height: 3rem; padding: 0; min-height: 0; }
-.round svg { width: 1.3rem; height: 1.3rem; }
+/* Dots: one per screenshot, the current one long and in colour. */
+.dots { display: flex; gap: .55rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+.dots button {
+  width: .7rem; height: .7rem; padding: 0; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--line); transition: width .3s cubic-bezier(.2,.7,.2,1), background .3s ease;
+}
+.dots button[aria-current="true"] { width: 1.9rem; background: var(--terracotta); }
+.dots button:focus-visible { outline: 2px solid var(--slate); outline-offset: 3px; }
+/* The arrows are the same parchment plaque as the Windows download button. */
+.round { width: 3.6rem; height: 3.4rem; padding: 0; }
+.round svg { width: 1.5rem; height: 1.5rem; }
 .close { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }
 
 /* Scroll placement: the script sets --p from 0 (below the fold) to 1 (in place) for each .mv
@@ -298,11 +370,11 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
     <p class="lede">Magic: The Gathering on your tablet, phone and PC. Sit down at a Commander table with up to three AI opponents, build decks from every card, and keep your collection with real prices.</p>
     <div class="downloads">
-      <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">
+      <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
         <span class="lbl">Get it for Android<small>APK · tablets and phones</small></span>
       </a>
-      <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">
+      <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm8.5-1.15L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zm8.5 0H21V21l-9.5-1.35z"/></svg>
         <span class="lbl">Get it for Windows<small>Installer · Windows 10 and 11</small></span>
       </a>
@@ -349,7 +421,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
   </section>
 
-  <section id="decks" class="band">
+  <section id="decks" class="band art">
     <div class="sect-art" style="--art: url('img/art-dragoncaller.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
@@ -362,7 +434,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
           <img src="img/builder.webp" alt="The deck builder showing a 53-card Commander elf deck as card tiles with Card Kingdom prices and plus and minus buttons." width="1600" height="867" loading="lazy">
           <figcaption>Every card in the deck with its price, sorted by type.</figcaption>
         </figure>
-        <ul class="feats">
+        <ul class="feats plaque">
           <li class="pip-g"><span><b>Full search:</b> name, rules text, colours, colour identity, sets, keywords, legality, mana cost, types, power, toughness, rarity and artist.</span></li>
           <li class="pip-u"><span><b>Import</b> plain lists, Moxfield and ManaBox. Export to text or share.</span></li>
           <li class="pip-w"><span><b>Card Kingdom prices</b>, updated daily, for regular and foil printings. One tap switches a deck to its cheapest printings.</span></li>
@@ -377,7 +449,7 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
         </figure>
         <figure class="plaque mount" style="margin:0">
           <img src="img/filters.webp" alt="The filters panel open beside the deck: exact-name match, hide duplicates, search in, finish, alchemy cards and sort options." width="1600" height="867" loading="lazy">
-          <figcaption>Filters slide in beside the cards.</figcaption>
+          <figcaption>Filters Panel full of options to get what you need for your strategy.</figcaption>
         </figure>
         <figure class="plaque mount" style="margin:0">
           <img src="img/viewer.webp" alt="The card viewer showing Vito, Thorn of the Dusk Rose large between its neighbours, printing 5 of 13, priced $13.99." width="1600" height="867" loading="lazy">
@@ -395,13 +467,12 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
       </div>
       <div class="spread">
         <figure class="plaque mount" style="margin:0">
-          <img src="img/home.webp" alt="The home screen in the light theme with vampire art, the title plaque, a card search box, the Play button and buttons for Commander, opponents, decks, collection and friends." width="1600" height="867" loading="lazy">
-          <figcaption>Home: search a card, pick your format and opponents, play.</figcaption>
+          <img src="img/offline.webp" alt="The offline card images dialog: download the 21,581 pictures for every card in all decks, up to 1.9 GB, or one printing of every card, 33,860 pictures, up to 2.9 GB." width="1600" height="867" loading="lazy">
+          <figcaption>Download card pictures to play and build decks without a connection.</figcaption>
         </figure>
         <ul class="feats">
           <li class="pip-w"><span><b>Every printing and finish</b> is its own entry, so a foil and a regular copy of the same card are counted apart.</span></li>
           <li class="pip-r"><span><b>Foil cards shine</b>, with a holographic sweep across the art.</span></li>
-          <li class="pip-u"><span><b>Back up</b> your decks and collection to Google Drive or to a file, and restore them on another device.</span></li>
           <li class="pip-g"><span><b>Offline images:</b> download every card in your decks, or every card there is, over Wi-Fi.</span></li>
           <li class="pip-b"><span><b>Profiles:</b> your name and avatar, and avatars for each opponent, cropped from a photo or any card's art.</span></li>
         </ul>
@@ -409,7 +480,29 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     </div>
   </section>
 
-  <section id="platforms" class="band">
+  <section id="backup" class="band">
+    <div class="wrap">
+      <div class="chapter-head">
+        <span class="eyebrow">Backup &amp; restore</span>
+        <h2>Your cards follow you</h2>
+        <p>Save your collection and your decks to Google Drive, and bring them back on any phone, tablet or PC.</p>
+      </div>
+      <div class="spread flip">
+        <figure class="plaque mount" style="margin:0">
+          <img src="img/backup.webp" alt="The Backup and restore dialog: a Back up to Google Drive button, three dated backups with their card and deck counts and a Restore button each, and Save file and Open file for backups without Google Drive." width="1600" height="867" loading="lazy">
+          <figcaption>Every backup is listed with its date, cards and decks.</figcaption>
+        </figure>
+        <ul class="feats">
+          <li class="pip-u"><span><b>One tap to Google Drive.</b> Your collection and the decks you made are saved in your own Drive.</span></li>
+          <li class="pip-g"><span><b>Restore on any device</b> signed in with the same Google account.</span></li>
+          <li class="pip-w"><span><b>Pick the backup</b> to bring back: each one shows when it was made and how many cards and decks it holds.</span></li>
+          <li class="pip-r"><span><b>No Google account needed:</b> save the backup as a file and open it on another device.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="platforms" class="band art">
     <div class="sect-art" style="--art: url('img/art-kozilek.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
@@ -423,8 +516,13 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22a11.4 11.4 0 0 0-9.84 0L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
             <h3>Android</h3>
           </header>
-          <p>Made for tablets first, with a portrait layout for phones. Pinch to zoom card grids, hold a card to see it big, swipe to pass priority.</p>
-          <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">Download the APK</a>
+          <p>Made for tablets: pinch to zoom card grids, hold a card to see it big, swipe to pass priority.</p>
+          <div class="dl-row">
+            <a class="btn primary" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="apk">Download the APK</a>
+            <button class="btn primary round warn" data-note="phones" type="button" aria-label="About playing on a phone" title="About playing on a phone">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4.5M12 17.2v.3" stroke-linecap="round"/></svg>
+            </button>
+          </div>
         </article>
         <article class="plaque platform tilt">
           <header>
@@ -432,7 +530,12 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
             <h3>Windows 10 &amp; 11</h3>
           </header>
           <p>Its own installer, and it keeps itself up to date. Plays with the mouse and keyboard.</p>
-          <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest">Download the installer</a>
+          <div class="dl-row">
+            <a class="btn" href="https://github.com/nmanuelides/mtg-reforged/releases/latest" data-get="exe">Download the installer</a>
+            <button class="btn round warn" data-note="smartscreen" type="button" aria-label="About the Windows security warning" title="About the Windows security warning">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4.5M12 17.2v.3" stroke-linecap="round"/></svg>
+            </button>
+          </div>
         </article>
       </div>
     </div>
@@ -464,21 +567,54 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 </main>
 
+<dialog class="note" id="phones" aria-labelledby="ph-title">
+  <div class="plaque studs note-body">
+    <span class="eyebrow">Android phones</span>
+    <h3 id="ph-title">Best played on a tablet</h3>
+    <p>A Commander table with four players needs room. On a phone the cards and controls get too small to play comfortably.</p>
+    <p>A phone is still a great companion: look up any card and its price, keep your collection up to date and build decks wherever you are, then play them on your tablet or PC.</p>
+    <button class="btn primary" data-close type="button">Got it</button>
+  </div>
+</dialog>
+
+<dialog class="note" id="smartscreen" aria-labelledby="ss-title">
+  <div class="plaque studs note-body">
+    <span class="eyebrow">Installing on Windows</span>
+    <h3 id="ss-title">Windows may warn you about the installer</h3>
+    <p>When you open the installer, Windows may show a blue screen saying <b>“Windows protected your PC”</b>. Windows shows it for apps from independent developers that haven't paid for a code-signing certificate. It doesn't mean anything harmful was found.</p>
+    <div class="ss-mock" aria-hidden="true">
+      <div class="ss-title">Windows protected your PC</div>
+      <div class="ss-text">Microsoft Defender SmartScreen prevented an unrecognized app from starting.</div>
+      <div class="ss-link">More info</div>
+      <div class="ss-buttons"><span class="ss-run">Run anyway</span><span>Don't run</span></div>
+    </div>
+    <p>MTG Reforged is safe to install. It's open source, so anyone can read its code on <a href="https://github.com/nmanuelides/mtg-reforged">GitHub</a>, and the installer is built from that code by GitHub's own servers. It has no ads or analytics and collects no personal data.</p>
+    <ol class="steps">
+      <li>Click <b>More info</b>.</li>
+      <li>Click <b>Run anyway</b>.</li>
+    </ol>
+    <button class="btn primary" data-close type="button">Got it</button>
+  </div>
+</dialog>
+
 <dialog class="carousel" id="carousel" aria-label="Screenshots">
   <button class="btn round close" id="c-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   <div class="plaque studs stage">
     <img id="c-img" src="img/board.webp" alt="">
     <div class="stage-bar">
-      <button class="btn round" id="c-prev" type="button" aria-label="Previous screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-      <p class="stage-cap" id="c-cap"></p>
-      <button class="btn round" id="c-next" type="button" aria-label="Next screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button class="btn primary round" id="c-prev" type="button" aria-label="Previous screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="stage-mid">
+        <p class="stage-cap" id="c-cap"></p>
+        <div class="dots" id="c-dots" role="group" aria-label="Screenshots"></div>
+      </div>
+      <button class="btn primary round" id="c-next" type="button" aria-label="Next screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
     </div>
   </div>
 </dialog>
 
 <footer class="wrap">
   <div class="rule"><span class="diamond"></span></div>
-  <p>MTG Reforged · <a href="https://github.com/nmanuelides/mtg-reforged">Source on GitHub</a> · <a href="https://github.com/nmanuelides/mtg-reforged/blob/master/android/PRIVACY.md">Privacy</a></p>
+  <p>MTG Reforged by Magatsu · <a href="https://github.com/nmanuelides/mtg-reforged">Source on GitHub</a> · <a href="https://github.com/nmanuelides/mtg-reforged/blob/master/android/PRIVACY.md">Privacy</a></p>
 </footer>
 
 <script>
@@ -488,6 +624,16 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   const img = document.getElementById("c-img");
   const cap = document.getElementById("c-cap");
   let at = 0;
+  const stage = dlg.querySelector(".stage");
+  const dots = document.getElementById("c-dots");
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  shots.forEach((f, i) => {
+    const d = document.createElement("button");
+    d.type = "button";
+    d.setAttribute("aria-label", "Screenshot " + (i + 1));
+    d.addEventListener("click", () => show(i));
+    dots.append(d);
+  });
   const show = (i) => {
     const dir = i > at ? "slide-l" : "slide-r";
     at = (i + shots.length) % shots.length;
@@ -497,21 +643,46 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
     const src = shots[at].querySelector("img");
     img.src = src.src;
     img.alt = src.alt;
-    cap.innerHTML = "";
-    const n = document.createElement("span");
-    n.textContent = (at + 1) + " / " + shots.length;
-    cap.append(n, shots[at].querySelector("figcaption")?.textContent ?? "");
+    cap.textContent = shots[at].querySelector("figcaption")?.textContent ?? "";
+    [...dots.children].forEach((d, k) => d.setAttribute("aria-current", k === at ? "true" : "false"));
+  };
+  // The framed screenshot grows out of the one that was clicked, and goes back into it on close.
+  const between = (from, to) => {
+    const dx = from.left - to.left, dy = from.top - to.top;
+    return `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})`;
+  };
+  const onScreen = (r) => r.bottom > 0 && r.top < innerHeight;
+  const open = (i) => {
+    show(i);
+    dlg.classList.remove("closing");
+    dlg.showModal();
+    const from = shots[i].getBoundingClientRect();
+    if (still || !onScreen(from)) return;
+    stage.animate([{ transformOrigin: "0 0", transform: between(from, stage.getBoundingClientRect()) }, { transformOrigin: "0 0", transform: "none" }],
+      { duration: 420, easing: "cubic-bezier(.2,.75,.2,1)" });
+  };
+  let closing = false;
+  const close = () => {
+    if (closing || !dlg.open) return;
+    const to = shots[at].getBoundingClientRect();
+    if (still || !onScreen(to)) { dlg.close(); return; }
+    closing = true;
+    dlg.classList.add("closing");
+    stage.animate([{ transformOrigin: "0 0", transform: "none" }, { transformOrigin: "0 0", transform: between(to, stage.getBoundingClientRect()) }],
+      { duration: 320, easing: "cubic-bezier(.5,0,.75,0)", fill: "forwards" })
+      .finished.then((anim) => { dlg.close(); dlg.classList.remove("closing"); anim.cancel(); closing = false; });
   };
   shots.forEach((f, i) => {
     f.tabIndex = 0;
     f.setAttribute("role", "button");
-    f.addEventListener("click", () => { show(i); dlg.showModal(); });
-    f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(i); dlg.showModal(); } });
+    f.addEventListener("click", () => open(i));
+    f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(i); } });
   });
   document.getElementById("c-prev").addEventListener("click", () => show(at - 1));
   document.getElementById("c-next").addEventListener("click", () => show(at + 1));
-  document.getElementById("c-close").addEventListener("click", () => dlg.close());
-  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  document.getElementById("c-close").addEventListener("click", close);
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) close(); });
+  dlg.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
   dlg.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft") show(at - 1);
     if (e.key === "ArrowRight") show(at + 1);
@@ -617,6 +788,14 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   };
   add(".chapter-head", { dy: "70px", sc: ".12" });
   add(".spread > figure", (el) => ({ dx: el.parentElement.classList.contains("flip") ? "180px" : "-180px", rot: el.parentElement.classList.contains("flip") ? "4deg" : "-4deg", sc: ".08" }));
+  // Feature lines: a light-on-colour copy that the hover reveals (see .fill).
+  document.querySelectorAll(".feats li").forEach((li) => {
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    fill.setAttribute("aria-hidden", "true");
+    fill.innerHTML = li.querySelector(":scope > span").outerHTML;
+    li.append(fill);
+  });
   add(".feats li", (el) => ({ dx: el.closest(".spread.flip") ? "-110px" : "110px" }), 0.07);
   add(".second figure", (el, i) => ({ dy: "160px", rot: ["-5deg", "0deg", "5deg"][i % 3], sc: ".1" }), 0.08);
   add(".platform", (el, i) => ({ dx: i % 2 ? "160px" : "-160px", rot: i % 2 ? "3deg" : "-3deg" }));
@@ -625,20 +804,65 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   add("footer .rule", { sc: ".6" });
 
   let queued = false;
+  // Layout position, ignoring the element's own movement (offsetTop doesn't see translate/scale).
+  const measure = () => {
+    for (const it of items) {
+      let y = 0;
+      for (let e = it.el; e; e = e.offsetParent) y += e.offsetTop;
+      it.top = y;
+      it.h = it.el.offsetHeight;
+    }
+  };
   const place = () => {
     queued = false;
     const vh = innerHeight;
     for (const it of items) {
-      const r = it.el.getBoundingClientRect();
-      // 0 when the element's top is at the bottom of the screen, 1 once it has risen 45% of the screen.
-      const raw = (vh - r.top) / (vh * 0.45);
+      const top = it.top - scrollY;
+      // 0 while the element is below the screen, 1 once all of it is on screen
+      // (tall ones finish when they fill 90% of it).
+      const span = Math.min(it.h, vh * 0.9);
+      const raw = (vh - top) / span;
       const t = Math.max(0, Math.min(1, (raw - it.delay) / (1 - it.delay)));
-      const eased = 1 - Math.pow(1 - t, 3);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       it.el.style.setProperty("--p", eased.toFixed(3));
     }
   };
   addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(place); } }, { passive: true });
-  addEventListener("resize", place);
+  addEventListener("resize", () => { measure(); place(); });
+  addEventListener("load", () => { measure(); place(); });
+  new ResizeObserver(() => { measure(); place(); }).observe(document.body);
+  measure();
   place();
+})();
+(() => {
+  // Point the download buttons straight at the newest APK and installer, so a click downloads the
+  // file instead of opening GitHub. Until (or unless) GitHub answers, they open the releases page.
+  fetch("https://api.github.com/repos/nmanuelides/mtg-reforged/releases?per_page=10")
+    .then((r) => (r.ok ? r.json() : []))
+    .then((releases) => {
+      const find = (test) => {
+        for (const rel of releases) {
+          if (rel.draft || rel.prerelease) continue;
+          const asset = rel.assets.find((a) => test(a.name));
+          if (asset) return asset.browser_download_url;
+        }
+        return null;
+      };
+      const urls = { apk: find((n) => n.endsWith(".apk")), exe: find((n) => n.endsWith("-windows.exe")) };
+      document.querySelectorAll("[data-get]").forEach((a) => {
+        const url = urls[a.dataset.get];
+        if (url) a.href = url;
+      });
+    })
+    .catch(() => {});
+})();
+(() => {
+  // Warning icons open their note; Got it or a click outside closes it.
+  document.querySelectorAll("[data-note]").forEach((b) => {
+    const dlg = document.getElementById(b.dataset.note);
+    b.addEventListener("click", () => dlg.showModal());
+    dlg.querySelector("[data-close]").addEventListener("click", () => dlg.close());
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+  });
 })();
 </script>
