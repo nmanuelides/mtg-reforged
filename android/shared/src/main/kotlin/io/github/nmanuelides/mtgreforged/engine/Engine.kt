@@ -103,7 +103,7 @@ object Engine {
         Thread({
             awaitAllCards()
             bootMark("all cards loaded")
-        }, "All cards").apply { priority = Thread.NORM_PRIORITY - 1; start() }
+        }, "All cards").apply { start() }
     }
 
     /**

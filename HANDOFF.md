@@ -122,11 +122,22 @@ Cambios solo en `android/news.json` o `android/PRIVACY.md` no disparan build.
 ## Arranque (v0.69)
 
 El log tiene marcas con tag `Boot` (`adb logcat -s Boot:I`). En BlueStacks: ~1,2 s de preparación y la
-lectura de las ~34.000 cartas de Forge es el 85 % del resto. Única modificación a Forge: en
+lectura de las ~34.000 cartas de Forge es el 85 % del resto. Modificaciones a Forge: en
 `forge-core/.../util/FileUtil.readAllLines` un buffer de 2K en vez de 8K (el de 16 KB por archivo era un
 "large object" y mantenía la GC corriendo): carga de cartas 7,5 s → 4,3 s. Si un merge de upstream choca
 ahí, conservar ese cambio. Probado y descartado: zip de cartas sin comprimir (~3 %), carga perezosa de
 Forge (igual parsea todo para indexar nombres).
+
+**v0.70: carga parcial.** Forge arranca en modo perezoso (`LOAD_CARD_SCRIPTS_LAZILY`; Forge solo lo permite
+fuera de mobile, así que `Engine.boot` pone `GuiBase.setIsAndroid(false)` solo durante `FModel.initialize`).
+El índice nombre→archivo del modo perezoso se guarda en `cardsfolder.zip.index` (cambio en
+`forge-core/.../CardStorageReader`, se reconstruye en paralelo si cambia el zip). Antes de mostrar el inicio
+se cargan los mazos propios y la colección; después `Engine.loadRestOfCards()` llama a
+`ensureAllCardsLoaded()` en segundo plano (indicador "Loading all cards…" abajo a la derecha del arte del
+inicio). Lo que recorre todas las cartas (buscador, filtros, nombres del buscador/perfiles, descarga de
+todas las imágenes) llama antes a `Engine.awaitAllCards()` fuera del hilo principal. Ojo: mientras corre
+`ensureAllCardsLoaded` tiene tomado el lock de carga de Forge; cargar una carta suelta (p. ej. un precon)
+espera a que termine. BlueStacks: inicio en ~2,4 s (antes 8,7 s); el resto ~10 s después.
 
 ## Web (website/)
 

@@ -89,6 +89,12 @@
       "title": "New in v0.69.0",
       "body": "• Faster start: loading the cards takes about 40% less time (from about 7.5 to 4.3 seconds on a fast PC; more on tablets).",
       "link": null
+    },
+    {
+      "id": "v0.70.0",
+      "title": "New in v0.70.0",
+      "body": "• Much faster start: the app opens with your decks and collection ready, and the rest of the cards finish loading in the background (a small Loading all cards sign shows on the home screen meanwhile). On a fast PC the home screen now appears in about 2.4 seconds instead of 8.7.",
+      "link": null
     }
   ]
 }
