@@ -95,7 +95,13 @@ object Engine {
         }
     }
 
+    /** Boot timeline in the log ("Boot" tag): where start-up time goes. */
+    private var bootStartedAt = 0L
+    private fun bootMark(step: String) = Log.i("Boot", "${uptimeMillis() - bootStartedAt} ms  $step")
+
     private fun boot(context: AppContext) {
+        bootStartedAt = uptimeMillis()
+        bootMark("start")
         SavedGames.debugDir = context.publicDir()
         val forgeDir = File(context.filesDir, "forge").apply { mkdirs() }
         val installer = EngineDataInstaller(context, forgeDir)
@@ -108,6 +114,7 @@ object Engine {
             BootProgress.engineStart = 0.4f
         }
 
+        bootMark("engine data checked")
         GuiBase.setIsAndroid(true)
         GuiBase.setUsingAppDirectory(true)
         gui = ReforgedGui(context, forgeDir.path + File.separator)
@@ -141,6 +148,7 @@ object Engine {
             prefs.setPref(FPref.MATCH_AI_TIMEOUT, "3")
             null
         }
+        bootMark("FModel.initialize done")
         ticker.interrupt()
         ticker.join(1_000)
         BootProgress.remember(context, uptimeMillis() - engineStartedAt)
@@ -148,6 +156,7 @@ object Engine {
         // Warm up every sound effect so the first play of each isn't lost to async loading.
         Thread({ SoundEffectType.entries.forEach { runCatching { SoundSystem.instance.hasResource(it) } } }, "Sounds").start()
         SavedGames.importPending()
+        bootMark("ready")
         _status.value = Status.Ready
     }
 
@@ -156,7 +165,7 @@ object Engine {
         private var max = 0
         override fun setDescription(s0: String?) {
             description = s0.orEmpty()
-            if (description.isNotBlank()) BootProgress.step = description
+            if (description.isNotBlank()) { BootProgress.step = description; bootMark(description) }
         }
         override fun setValue(progress: Int) {
             if (max > 0) BootProgress.forgeFraction = maxOf(BootProgress.forgeFraction, progress.toFloat() / max)

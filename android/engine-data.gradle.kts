@@ -27,6 +27,9 @@ val zipCardsfolder by tasks.registering(Zip::class) {
     archiveFileName.set("cardsfolder.zip")
     destinationDirectory.set(layout.buildDirectory.dir("intermediates/engineData"))
     isReproducibleFileOrder = true
+    // Stored, not deflated: Forge reads all ~34,000 card scripts from this zip on every start, and
+    // skipping the inflate saves that work. The APK doesn't grow: engine-data.zip compresses it.
+    entryCompression = ZipEntryCompression.STORED
 }
 
 val writeDataManifest by tasks.registering {
