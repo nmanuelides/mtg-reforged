@@ -49,7 +49,7 @@ body::before {
   opacity: var(--grain-opacity);
   mix-blend-mode: multiply;
   pointer-events: none;
-  z-index: 5;
+  z-index: 0;
 }
 body > * { position: relative; z-index: 1; }
 a { color: var(--terracotta); }
@@ -172,12 +172,11 @@ section { padding-block: clamp(3.5rem, 8vw, 6rem); position: relative; overflow:
 .sect-art {
   position: absolute; inset: -18% -4%; z-index: -1;
   background: var(--art) center / cover no-repeat;
-  filter: blur(10px) saturate(1.15);
+  filter: blur(7px) saturate(1.2);
   transform: translate3d(0, var(--py, 0px), 0);
   will-change: transform;
 }
-.sect-art::after { content: ""; position: absolute; inset: 0; background: var(--veil, rgba(242, 213, 172, .8)); }
-.band .sect-art::after { --veil: rgba(231, 197, 149, .84); }
+.sect-art::after { content: ""; position: absolute; inset: 0; background: rgba(242, 213, 172, .66); }
 .chapter-head { display: grid; gap: .8rem; text-align: center; justify-items: center; margin-bottom: clamp(2rem, 5vw, 3.2rem); }
 h2 {
   font-family: var(--display); font-weight: 600; margin: 0; color: var(--title);
@@ -269,24 +268,14 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 .round svg { width: 1.3rem; height: 1.3rem; }
 .close { position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); }
 
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
-    .chapter-head, figure.mount, .feats li, .platform, .forge, .thanks li, footer .rule {
-      animation: rise linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 70%;
-    }
-    .feats li:nth-child(2) { animation-range: entry 6% entry 76%; }
-    .feats li:nth-child(3) { animation-range: entry 12% entry 82%; }
-    .feats li:nth-child(4) { animation-range: entry 18% entry 88%; }
-    .feats li:nth-child(5) { animation-range: entry 24% entry 94%; }
-    .second figure:nth-child(2) { animation-range: entry 8% entry 78%; }
-    .second figure:nth-child(3) { animation-range: entry 16% entry 86%; }
-    .chapter-head h2 { animation: spread linear both; animation-timeline: view(); animation-range: entry 10% cover 40%; }
-  }
+/* Scroll placement: the script sets --p from 0 (below the fold) to 1 (in place) for each .mv
+   element; without the script --p stays 1 and everything sits in place. */
+.mv {
+  translate: calc((1 - var(--p, 1)) * var(--dx, 0px)) calc((1 - var(--p, 1)) * var(--dy, 0px));
+  rotate: calc((1 - var(--p, 1)) * var(--rot, 0deg));
+  scale: calc(1 - (1 - var(--p, 1)) * var(--sc, 0));
+  opacity: calc(.1 + .9 * var(--p, 1));
 }
-@keyframes rise { from { opacity: .15; translate: 0 48px; scale: .97; } to { opacity: 1; translate: 0 0; scale: 1; } }
-@keyframes spread { from { letter-spacing: .12em; opacity: .4; } to { letter-spacing: 0; opacity: 1; } }
 
 /* Page-load: the plaque settles in from in front of the glass, like the app's entrance. */
 @keyframes settle { from { transform: scale(1.06); opacity: .0; } to { transform: none; opacity: 1; } }
@@ -323,7 +312,6 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 
 <main>
   <section id="play">
-    <div class="sect-art" style="--art: url('img/art-calamity-titans.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">The table</span>
@@ -399,7 +387,6 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="collection">
-    <div class="sect-art" style="--art: url('img/art-sol-ring.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">The binder</span>
@@ -451,7 +438,6 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   </section>
 
   <section id="credits">
-    <div class="sect-art" style="--art: url('img/art-elesh-norn.webp')" aria-hidden="true"></div>
     <div class="wrap">
       <div class="chapter-head">
         <span class="eyebrow">Credits</span>
@@ -615,5 +601,43 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   addEventListener("resize", size);
   size();
   tick();
+})();
+(() => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  // Each element travels from an offset into place over the first 45% of the screen it scrolls through.
+  const items = [];
+  const add = (sel, cfg, stagger = 0) => {
+    document.querySelectorAll(sel).forEach((el, i) => {
+      const c = typeof cfg === "function" ? cfg(el, i) : cfg;
+      el.classList.add("mv");
+      for (const [k, v] of Object.entries(c)) el.style.setProperty("--" + k, v);
+      items.push({ el, delay: (i % 5) * stagger });
+    });
+  };
+  add(".chapter-head", { dy: "70px", sc: ".12" });
+  add(".spread > figure", (el) => ({ dx: el.parentElement.classList.contains("flip") ? "180px" : "-180px", rot: el.parentElement.classList.contains("flip") ? "4deg" : "-4deg", sc: ".08" }));
+  add(".feats li", (el) => ({ dx: el.closest(".spread.flip") ? "-110px" : "110px" }), 0.07);
+  add(".second figure", (el, i) => ({ dy: "160px", rot: ["-5deg", "0deg", "5deg"][i % 3], sc: ".1" }), 0.08);
+  add(".platform", (el, i) => ({ dx: i % 2 ? "160px" : "-160px", rot: i % 2 ? "3deg" : "-3deg" }));
+  add(".forge", { dx: "-160px", rot: "-3deg" });
+  add(".thanks li", { dx: "120px" }, 0.08);
+  add("footer .rule", { sc: ".6" });
+
+  let queued = false;
+  const place = () => {
+    queued = false;
+    const vh = innerHeight;
+    for (const it of items) {
+      const r = it.el.getBoundingClientRect();
+      // 0 when the element's top is at the bottom of the screen, 1 once it has risen 45% of the screen.
+      const raw = (vh - r.top) / (vh * 0.45);
+      const t = Math.max(0, Math.min(1, (raw - it.delay) / (1 - it.delay)));
+      const eased = 1 - Math.pow(1 - t, 3);
+      it.el.style.setProperty("--p", eased.toFixed(3));
+    }
+  };
+  addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(place); } }, { passive: true });
+  addEventListener("resize", place);
+  place();
 })();
 </script>
