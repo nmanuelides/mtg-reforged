@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.ZoomableCard
 import io.github.nmanuelides.mtgreforged.match.ZoneChoiceUi
 import androidx.compose.foundation.horizontalScroll
 import io.github.nmanuelides.mtgreforged.match.BoardChoiceUi
@@ -199,7 +200,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
     zoneSheet?.let { (title, cards) ->
         ZoneSheet(title, cards, onInspect = { detail = it }, onDismiss = { zoneSheet = null })
     }
-    if (showLog) LogSheet(state.log) { showLog = false }
+    if (showLog) LogSheet(state.logEntries, onRewind = { game.rewindTo(it); showLog = false }) { showLog = false }
     if (confirmLeave) {
         OrnateDialog(onDismiss = { confirmLeave = false }) {
             SectionLabel("Leave the match")
@@ -691,7 +692,7 @@ private fun StackStrip(stack: List<StackItemUi>, actions: BoardActions) {
                 item { Text("Stack", style = MaterialTheme.typography.labelSmall, color = Palette.Slate) }
                 items(stack, key = { it.id }) { item ->
                     item.source?.let { src ->
-                        CardTile(src, 40.dp, showTapped = false, onClick = { actions.onInspect(src) })
+                        ZoomableCard(src, 40.dp, onTap = { actions.onInspect(src) })
                     } ?: Text(item.text, fontSize = 11.sp, maxLines = 2, modifier = Modifier.width(120.dp))
                 }
             }
@@ -813,18 +814,6 @@ private fun ZoneSheet(title: String, cards: List<CardUi>, onInspect: (CardUi) ->
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LogSheet(log: List<String>, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
-        Column(Modifier.padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
-            Text("Log", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            log.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 2.dp)) }
-            Spacer(Modifier.height(32.dp))
-        }
-    }
-}
 
 // ---- Turn & cast announcements ------------------------------------------------------
 

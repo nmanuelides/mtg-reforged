@@ -165,8 +165,25 @@ data class MatchUiState(
     /** While declaring attackers: the player (or planeswalker) new attackers will target. */
     val attackTargetId: Int? = null,
     val log: List<String> = emptyList(),
+    /** The game log, newest first, with players and cards resolved for the log sheet. */
+    val logEntries: List<LogEntryUi> = emptyList(),
     val gameOver: GameOverUi? = null,
 ) {
     val me: PlayerUi? get() = players.firstOrNull { it.isLocal }
     val opponents: List<PlayerUi> get() = players.filter { !it.isLocal }
 }
+
+/** What a log line is about; phases, turns and mana stay plain lines, the rest are action cards. */
+enum class LogKind { Turn, Phase, Mana, Info, Cast, Resolve, Land, Combat, Damage, Life, Zone, Other }
+
+/** One game log line for the log sheet. [index] counts from the first line of the game. */
+data class LogEntryUi(
+    val index: Int,
+    val kind: LogKind,
+    val text: String,
+    val playerSeat: Int?,
+    val playerName: String?,
+    val cards: List<CardUi>,
+    /** The game can go back to just before this line (it's within the undo history). */
+    val canRewind: Boolean,
+)

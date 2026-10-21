@@ -190,6 +190,7 @@ class ComposeGuiGame : NetworkGuiGame() {
 
         val entries = view.gameLog?.getLogEntries(null).orEmpty()
         val log = entries.take(40).map { it.message() }
+        val logEntries = runCatching { logEntries(view, entries, cards) }.getOrDefault(emptyList())
         val quiet = setOf(GameLogEntryType.PHASE, GameLogEntryType.TURN, GameLogEntryType.MANA, GameLogEntryType.INFORMATION)
         val lastActions = HashMap<String, String>()
         val lastPlay = entries.firstOrNull { it.type() !in quiet }?.message()
@@ -226,6 +227,7 @@ class ComposeGuiGame : NetworkGuiGame() {
             choosablePlayerIds = choosable,
             attackTargetId = attackTarget,
             log = log,
+            logEntries = logEntries,
             gameOver = gameOver,
         )
     }
@@ -564,10 +566,29 @@ class ComposeGuiGame : NetworkGuiGame() {
         // Tapping again while it waits for its moment calls the undo off.
         if (undoPending) { undoTarget = null; requestRefresh(); return@onGameThread }
         if (!canUndo()) return@onGameThread
-        val game = gameView?.game ?: return@onGameThread
-        val target = undoReach()
+        requestRestore(undoReach())
+    }
+
+    /** Back to just before log line [logIndex] (counted from the game's first line), if the undo history reaches it. */
+    fun rewindTo(logIndex: Int) = onGameThread {
+        if (undoPending) return@onGameThread
+        val target = rewindTarget(logIndex) ?: return@onGameThread
+        requestRestore(target)
+    }
+
+    /** The newest undo point taken before log line [logIndex], or null when the history doesn't reach that far. */
+    private fun rewindTarget(logIndex: Int): Int? = runCatching {
+        val points = history.toList()
+        val target = points.indexOfLast { it.logSize <= logIndex }
+        // Going back to the prompt the player sits in changes nothing.
+        if (target < 0 || (target == points.lastIndex && atRecordedPrompt())) null else target
+    }.getOrNull()
+
+    /** Restores history entry [target] now if the game waits in a priority prompt, otherwise at the next one. */
+    private fun requestRestore(target: Int) {
+        val game = gameView?.game ?: return
         val input = currentInput()
-        if (input is InputPassPriority && input === promptInput) { restoreTo(target, input, game); return@onGameThread }
+        if (input is InputPassPriority && input === promptInput) { restoreTo(target, input, game); return }
         undoTarget = target
         when {
             // Declaring attackers: call them all back and skip the attack.
@@ -850,6 +871,52 @@ class ComposeGuiGame : NetworkGuiGame() {
         // Forge's bare "Attack declaration invalid": say which creatures have to attack, and why.
         val text = if (message == "Attack declaration invalid") mustAttackExplanation() ?: message else message.orEmpty()
         PromptHost.ask(Prompt.Message(if (message == "Attack declaration invalid") "These creatures must attack" else title ?: "Forge", text), Unit)
+    }
+
+    // ---- Game log for the log sheet -----------------------------------------------
+
+    private val logCardId = Regex("\\((\\d+)\\)")
+    private val logCardIdText = Regex("\\s*\\(\\d+\\)")
+
+    /** The newest log lines with their player and cards resolved; [entries] come newest first. */
+    private fun logEntries(view: GameView, entries: List<forge.game.GameLogEntry>, cards: Map<Int, CardView>): List<LogEntryUi> {
+        val total = entries.size
+        val players = view.players.orEmpty().toList()
+        val byName = players.withIndex().sortedByDescending { it.value.name.length }
+        val game = gameView?.game
+        return entries.take(150).mapIndexed { i, e ->
+            val index = total - 1 - i
+            val text = e.message()
+            val cardUis = logCardId.findAll(text).map { it.groupValues[1].toInt() }.distinct().mapNotNull { id ->
+                val cv = cards[id] ?: runCatching { game?.findById(id)?.view }.getOrNull()
+                cv?.let { CardUi.from(it, mayView(it)) }
+            }.take(4).toList()
+            val who = byName.firstOrNull { it.value.name.isNotBlank() && it.value.name in text }
+            LogEntryUi(
+                index = index,
+                kind = logKind(e.type()),
+                text = text.replace(logCardIdText, ""),
+                playerSeat = who?.index,
+                playerName = who?.value?.name,
+                cards = cardUis,
+                canRewind = rewindTarget(index) != null,
+            )
+        }
+    }
+
+    private fun logKind(type: GameLogEntryType): LogKind = when (type) {
+        GameLogEntryType.TURN -> LogKind.Turn
+        GameLogEntryType.PHASE -> LogKind.Phase
+        GameLogEntryType.MANA -> LogKind.Mana
+        GameLogEntryType.INFORMATION -> LogKind.Info
+        GameLogEntryType.STACK_ADD -> LogKind.Cast
+        GameLogEntryType.STACK_RESOLVE -> LogKind.Resolve
+        GameLogEntryType.LAND -> LogKind.Land
+        GameLogEntryType.COMBAT -> LogKind.Combat
+        GameLogEntryType.DAMAGE -> LogKind.Damage
+        GameLogEntryType.LIFE -> LogKind.Life
+        GameLogEntryType.ZONE_CHANGE, GameLogEntryType.DISCARD -> LogKind.Zone
+        else -> LogKind.Other
     }
 
     // ---- Creatures that must attack (goaded, "attacks each combat if able") ----------

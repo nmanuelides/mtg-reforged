@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -97,5 +100,15 @@ fun HoldZoom(card: CardUi, visible: Boolean, width: Dp = 300.dp, caption: String
                 Pill(it, Palette.Slate)
             }
         }
+    }
+}
+
+/** A card that can be held to see it big: tap does [onTap]; press and hold (or right-click) zooms until released. */
+@Composable
+fun ZoomableCard(card: CardUi, width: Dp, modifier: Modifier = Modifier, onTap: (() -> Unit)? = null) {
+    var held by remember { mutableStateOf(false) }
+    Box(modifier.tapOrHold(card.id, onTap = { onTap?.invoke() }, onHold = { h, _ -> held = h })) {
+        CardTile(card, width, showTapped = false)
+        HoldZoom(card, held)
     }
 }
