@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -44,7 +53,7 @@ private const val ATTACH_PEEK = 0.16f
 private const val GAP_DP = 6f
 
 private fun groupKey(c: CardUi) =
-    listOf(c.name, c.tapped, c.sick, c.power, c.toughness, c.damage, c.counters, c.token, c.faceDown)
+    listOf(c.name, c.tapped, c.sick, c.power, c.toughness, c.damage, c.counters, c.token, c.faceDown, c.goaded)
 
 private fun buildItems(cards: List<CardUi>, mirrored: Boolean): List<FieldItem> {
     val ids = cards.mapTo(HashSet()) { it.id }
@@ -174,6 +183,7 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                 Modifier
                     .offset(x = step * i)
                     .size(slotWidth, cardHeight)
+                    .goadGlow(card.goaded)
                     .trackPosition("c${card.id}")
                     .tapOrHold(
                         card.id,
@@ -238,3 +248,25 @@ internal class BoardActions(
     val onInspect: (CardUi) -> Unit,
     val onZone: (String, List<CardUi>) -> Unit,
 )
+
+/** A goaded creature: red light pulsing out from behind the card. */
+@Composable
+private fun Modifier.goadGlow(on: Boolean): Modifier {
+    if (!on) return this
+    val pulse by rememberInfiniteTransition(label = "goad").animateFloat(
+        initialValue = 0.45f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "goadPulse",
+    )
+    return drawBehind {
+        val step = 3.dp.toPx()
+        for (i in 1..6) {
+            val grow = step * i * (0.7f + 0.3f * pulse)
+            drawRoundRect(
+                color = Color(0xFFE5321F).copy(alpha = pulse * (0.34f - i * 0.05f).coerceAtLeast(0.03f)),
+                topLeft = Offset(-grow, -grow),
+                size = Size(size.width + 2 * grow, size.height + 2 * grow),
+                cornerRadius = CornerRadius(6.dp.toPx() + grow),
+            )
+        }
+    }
+}

@@ -120,9 +120,14 @@ class ComposeGuiGame : NetworkGuiGame() {
     private fun buildSnapshot(view: GameView): MatchUiState {
         val cards = HashMap<Int, CardView>()
         val players = HashMap<Int, PlayerView>()
+        // Goad isn't in the card views; read it from the game (the host's; network guests don't have it).
+        val goadedIds = runCatching {
+            gameView?.game?.getCardsIn(ZoneType.Battlefield)?.filter { it.isGoaded }?.mapTo(HashSet()) { it.id }
+        }.getOrNull().orEmpty()
         fun card(cv: CardView): CardUi {
             cards[cv.id] = cv
-            return CardUi.from(cv, mayView(cv))
+            val ui = CardUi.from(cv, mayView(cv))
+            return if (cv.id in goadedIds) ui.copy(goaded = true) else ui
         }
         fun zone(p: PlayerView, z: ZoneType) = p.getCards(z)?.map(::card).orEmpty()
 
@@ -708,6 +713,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     override fun updateButtons(owner: PlayerView?, label1: String?, label2: String?, enable1: Boolean, enable2: Boolean, focus1: Boolean) {
         if (autoStart) autoAnswerPregame()
         if (layingBoard) onGameThread { answerWhileLayingBoard() }
+        if (currentInput() is InputAttack) onGameThread { prepareRequiredAttackers() }
         // An undo asked for mid-play keeps backing out of each new step of it.
         if (undoPending) onGameThread { backOutOfPlay() }
         // 3: "Resolve all" keeps passing while things resolve, until the stack is empty.
@@ -841,7 +847,65 @@ class ComposeGuiGame : NetworkGuiGame() {
 
     override fun message(message: String?, title: String?) {
         if (layingBoard) return
-        PromptHost.ask(Prompt.Message(title ?: "Forge", message.orEmpty()), Unit)
+        // Forge's bare "Attack declaration invalid": say which creatures have to attack, and why.
+        val text = if (message == "Attack declaration invalid") mustAttackExplanation() ?: message else message.orEmpty()
+        PromptHost.ask(Prompt.Message(if (message == "Attack declaration invalid") "These creatures must attack" else title ?: "Forge", text), Unit)
+    }
+
+    // ---- Creatures that must attack (goaded, "attacks each combat if able") ----------
+
+    /** Creatures with an attack requirement this combat, with the defender Forge's best legal attack gives each. */
+    private fun requiredAttackers(): Map<Card, forge.game.GameEntity?> {
+        val combat = gameView?.game?.phaseHandler?.combat ?: return emptyMap()
+        val constraints = combat.attackConstraints
+        val required = constraints.requirements.filterValues { it.hasRequirement() }.keys
+        if (required.isEmpty()) return emptyMap()
+        val best = runCatching { constraints.legalAttackers.left }.getOrNull().orEmpty()
+        return required.associateWith { best[it] }
+    }
+
+    private fun mustAttackExplanation(): String? = runCatching {
+        val required = requiredAttackers().keys
+        if (required.isEmpty()) return null
+        val lines = required.joinToString("\n") { c ->
+            val why = when {
+                c.isGoaded -> "goaded by ${c.goaded.joinToString(", ") { it.name }}: it must attack, and not them"
+                else -> {
+                    val sources = combatRequirementSources(c)
+                    if (sources.isEmpty()) "it attacks each combat if able" else "because of ${sources.joinToString(", ")}"
+                }
+            }
+            "• ${c.name}: $why"
+        }
+        "These creatures have to attack this turn if they can:\n\n$lines\n\nThey're marked as attackers already; pick other attackers too if you want."
+    }.getOrNull()
+
+    private fun combatRequirementSources(c: Card): List<String> = runCatching {
+        val combat = gameView?.game?.phaseHandler?.combat ?: return emptyList()
+        combat.attackConstraints.requirements[c]?.causesToAttack?.values()?.mapNotNull { it.hostCard?.name }?.distinct().orEmpty()
+    }.getOrDefault(emptyList())
+
+    /** The attack input this combat's required attackers were already declared for. */
+    private var preparedAttack: Any? = null
+
+    /** Declares the creatures that must attack, each at a defender it's allowed to attack. Game thread. */
+    private fun prepareRequiredAttackers() {
+        val input = currentInput() as? InputAttack ?: return
+        if (input === preparedAttack) return
+        preparedAttack = input
+        val controller = gameController as? PlayerControllerHuman ?: return
+        val combat = gameView?.game?.phaseHandler?.combat ?: return
+        runCatching {
+            requiredAttackers().forEach { (card, defender) ->
+                if (combat.isAttacking(card)) return@forEach
+                when (defender) {
+                    is Player -> controller.selectPlayer(defender.view, Tap)
+                    is Card -> controller.selectCard(defender.view, null, Tap)
+                    else -> {}
+                }
+                controller.selectCard(card.view, null, Tap)
+            }
+        }.onFailure { Log.w("Combat", "couldn't declare required attackers", it) }
     }
 
     override fun showErrorDialog(message: String?, title: String?) {

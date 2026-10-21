@@ -26,6 +26,8 @@ data class CardUi(
     val counters: List<Pair<String, Int>>,
     val attachedToId: Int?,
     val controllerId: Int?,
+    /** Goaded: it must attack each combat, and not the player who goaded it. Drawn with a red glow. */
+    val goaded: Boolean = false,
 ) {
     companion object {
         fun from(cv: CardView, visible: Boolean = true): CardUi {
