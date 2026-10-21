@@ -191,6 +191,12 @@
       "title": "New in v0.86.0",
       "body": "• Check for updates shows its result in the same clear green banner as backups (red if something went wrong).",
       "link": null
+    },
+    {
+      "id": "v0.87.0",
+      "title": "New in v0.87.0",
+      "body": "• Hold the card shown in the side panel (or the card sheet on phones) to see it even bigger.",
+      "link": null
     }
   ]
 }

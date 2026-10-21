@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.HoldZoom
+import io.github.nmanuelides.mtgreforged.ui.components.tapOrHold
 import io.github.nmanuelides.mtgreforged.ui.components.ZoomableCard
 import io.github.nmanuelides.mtgreforged.match.ZoneChoiceUi
 import androidx.compose.foundation.horizontalScroll
@@ -435,7 +437,12 @@ private fun CardDetailPanel(card: CardUi, onClose: () -> Unit) {
                 Icon(Icons.Default.Close, "Close", tint = Palette.TextSecondary)
             }
         }
-        CardTile(card, 240.dp, showTapped = false, onClick = onClose)
+        // Hold the card for an even bigger look (tap still closes the panel).
+        var held by remember(card.id) { mutableStateOf(false) }
+        Box(Modifier.tapOrHold(card.id, onTap = { onClose() }, onHold = { h, _ -> held = h })) {
+            CardTile(card, 240.dp, showTapped = false)
+            HoldZoom(card, held, width = 440.dp)
+        }
         Spacer(Modifier.height(8.dp))
         Text(card.name, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -778,7 +785,11 @@ private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CardTile(card, 260.dp, showTapped = false)
+            var held by remember(card.id) { mutableStateOf(false) }
+            Box(Modifier.tapOrHold(card.id, onTap = {}, onHold = { h, _ -> held = h })) {
+                CardTile(card, 260.dp, showTapped = false)
+                HoldZoom(card, held, width = 380.dp)
+            }
             Spacer(Modifier.height(12.dp))
             Text(card.name, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
             Row(verticalAlignment = Alignment.CenterVertically) {
