@@ -137,6 +137,12 @@
       "title": "New in v0.77.0",
       "body": "• Floating mana shows each colour's mana symbol, bigger, with the amount underneath (x3).",
       "link": null
+    },
+    {
+      "id": "v0.78.0",
+      "title": "New in v0.78.0",
+      "body": "• Cards in choice dialogs (ordering cards, picking cards, targets) show big while you press and hold them, or right-click them on Windows.",
+      "link": null
     }
   ]
 }

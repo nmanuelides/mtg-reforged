@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.prompts
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.Dp
+import io.github.nmanuelides.mtgreforged.match.CardUi
+import io.github.nmanuelides.mtgreforged.ui.components.HoldZoom
+import io.github.nmanuelides.mtgreforged.ui.components.tapOrHold
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -199,7 +204,7 @@ private fun ChooseDialog(p: Prompt.Choose, onDone: (List<Int>?) -> Unit) {
 @Composable
 private fun CardChoice(item: PromptItem, selected: Boolean, onClick: () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(150.dp)) {
-        CardTile(item.card!!, 150.dp, mark = if (selected) CardMark.Highlighted else CardMark.None, showTapped = false, onClick = onClick)
+        ZoomableTile(item.card!!, 150.dp, mark = if (selected) CardMark.Highlighted else CardMark.None, onTap = onClick)
         Spacer(Modifier.height(4.dp))
         Text(item.label, style = MaterialTheme.typography.bodySmall, maxLines = 2, textAlign = TextAlign.Center)
     }
@@ -228,7 +233,7 @@ private fun OrderDialog(p: Prompt.Order, onDone: (List<Int>) -> Unit) {
             itemsIndexed(order, key = { _, idx -> idx }) { pos, idx ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Text("${pos + 1}.", Modifier.width(28.dp), style = MaterialTheme.typography.titleMedium, color = Palette.Terracotta)
-                    p.items[idx].card?.let { CardTile(it, 48.dp, showTapped = false); Spacer(Modifier.width(10.dp)) }
+                    p.items[idx].card?.let { ZoomableTile(it, 48.dp); Spacer(Modifier.width(10.dp)) }
                     Text(p.items[idx].label, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyLarge)
                     IconButton(onClick = { if (pos > 0) order.add(pos - 1, order.removeAt(pos)) }, enabled = pos > 0) {
                         Icon(Icons.Default.KeyboardArrowUp, "Up", tint = Palette.Terracotta)
@@ -259,7 +264,7 @@ private fun DistributeDialog(p: Prompt.Distribute, onDone: (List<Int>?) -> Unit)
         LazyColumn(Modifier.heightIn(max = 380.dp)) {
             itemsIndexed(p.targets) { i, target ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    target.card?.let { CardTile(it, 48.dp, showTapped = false); Spacer(Modifier.width(10.dp)) }
+                    target.card?.let { ZoomableTile(it, 48.dp); Spacer(Modifier.width(10.dp)) }
                     Text(target.label, Modifier.weight(1f), maxLines = 2, style = MaterialTheme.typography.bodyLarge)
                     IconButton(onClick = { if (amounts[i] > 0) amounts[i]-- }) { Icon(Icons.Default.Remove, "Less", tint = Palette.Terracotta) }
                     Text("${amounts[i]}", Modifier.width(32.dp), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleLarge)
@@ -272,5 +277,15 @@ private fun DistributeDialog(p: Prompt.Distribute, onDone: (List<Int>?) -> Unit)
             if (p.maySkip) OrnateButton("Auto", { onDone(null) }, Modifier.weight(1f), accent = Palette.Slate)
             OrnateButton("Confirm", { onDone(amounts.toList()) }, Modifier.weight(1f), style = OrnateStyle.Primary, enabled = valid)
         }
+    }
+}
+
+/** A card in a dialog: tap does [onTap]; press and hold (or right-click) shows it big until released. */
+@Composable
+private fun ZoomableTile(card: CardUi, width: Dp, mark: CardMark = CardMark.None, onTap: (() -> Unit)? = null) {
+    var held by remember { mutableStateOf(false) }
+    Box(Modifier.tapOrHold(card.id, onTap = { onTap?.invoke() }, onHold = { h, _ -> held = h })) {
+        CardTile(card, width, mark = mark, showTapped = false)
+        HoldZoom(card, held)
     }
 }
