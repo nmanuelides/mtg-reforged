@@ -179,6 +179,12 @@
       "title": "New in v0.84.0",
       "body": "• Game log: every card it mentions has a thumbnail, mana and tap symbols are icons, mana lines show who made the mana, players show their real portraits, calmer cards and a clearer Go back button. Windows: a splash picture shows the moment the app starts.",
       "link": null
+    },
+    {
+      "id": "v0.85.0",
+      "title": "New in v0.85.0",
+      "body": "• Windows: cards in a match grow noticeably more as you make the window bigger (half of the window's growth).",
+      "link": null
     }
   ]
 }

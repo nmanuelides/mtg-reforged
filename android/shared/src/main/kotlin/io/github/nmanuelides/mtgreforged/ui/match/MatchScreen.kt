@@ -167,9 +167,10 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             .parchment(),
     ) {
         val tablet = maxWidth >= TABLET_MIN_WIDTH
-        // Bigger windows (Windows) get bigger cards, but only a third of the extra size, so the
-        // board still gains room: 1x up to 1280x800, at most 1.8x.
-        val cardScale = ((minOf(maxWidth / 1280.dp, maxHeight / 800.dp) - 1f) / 3f + 1f).coerceIn(1f, 1.8f)
+        // Bigger windows (Windows) get bigger cards: half of how much the window grew past
+        // 1000x700 (average of width and height), so the board still gains room. At most 1.8x.
+        val growth = kotlin.math.sqrt((maxWidth / 1000.dp) * (maxHeight / 700.dp))
+        val cardScale = if (!io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP) 1f else ((growth - 1f) / 2f + 1f).coerceIn(1f, 1.8f)
         androidx.compose.runtime.CompositionLocalProvider(LocalCardScale provides cardScale) {
         Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             if (tablet) {
