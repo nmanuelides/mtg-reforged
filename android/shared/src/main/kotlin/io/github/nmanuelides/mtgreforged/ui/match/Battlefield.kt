@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
@@ -132,7 +134,16 @@ internal fun Battlefield(
     maxCardWidth: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val items = remember(player.battlefield, mirrored) { buildItems(player.battlefield, mirrored) }
+    // Auras and equipment sit on what they're attached to, even when that's another player's
+    // permanent: those leave their controller's field and show up here, on top of their host.
+    val cards = remember(player.battlefield, state.players) {
+        val mine = player.battlefield.mapTo(HashSet()) { it.id }
+        val everywhere = state.players.flatMap { it.battlefield }.mapTo(HashSet()) { it.id }
+        val stay = player.battlefield.filter { it.attachedToId == null || it.attachedToId in mine || it.attachedToId !in everywhere }
+        val incoming = state.players.filter { it.id != player.id }.flatMap { it.battlefield }.filter { it.attachedToId in mine }
+        stay + incoming
+    }
+    val items = remember(cards, mirrored) { buildItems(cards, mirrored) }
     BoxWithConstraints(modifier) {
         val plan = remember(items, maxWidth, maxHeight, maxCardWidth) {
             plan(items, maxWidth.value, maxHeight.value, 28f, maxCardWidth.value)
@@ -145,7 +156,7 @@ internal fun Battlefield(
                 Modifier.offset(p.x.dp, (p.y + shiftY).dp).size(p.w.dp, p.h.dp),
                 contentAlignment = Alignment.BottomCenter,
             ) {
-                FieldItemView(p.item, plan.cardWidth.dp, state, actions)
+                FieldItemView(p.item, plan.cardWidth.dp, state, actions, player.id)
             }
         }
     }
@@ -156,7 +167,7 @@ private fun fanStep(count: Int, cardWidth: Float): Float =
     if (count <= 1) 0f else minOf(cardWidth * 0.3f, cardWidth * 1.6f / (count - 1))
 
 @Composable
-private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions) {
+private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions, fieldOwnerId: Int) {
     val cardHeight = cardWidth / CARD_ASPECT
     val slotWidth = if (item.tapped) cardHeight else cardWidth
     val step = fanStep(item.cards.size, cardWidth.value).dp
@@ -170,6 +181,17 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                     .tapOrHold(a.id, onTap = { actions.onCard(a.id) }, onHold = { h, _ -> held = h }),
             ) {
                 CardTile(a, cardWidth, mark = state.markFor(a))
+                // Someone else's aura or equipment on this permanent: their avatar in the corner.
+                if (a.controllerId != null && a.controllerId != fieldOwnerId) {
+                    state.players.firstOrNull { it.id == a.controllerId }?.let { owner ->
+                        io.github.nmanuelides.mtgreforged.ui.home.AvatarImage(
+                            owner.seat, owner.name,
+                            Modifier.align(Alignment.BottomEnd).padding(2.dp).size(cardWidth * 0.32f)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .border(1.5.dp, Palette.OnAccent, androidx.compose.foundation.shape.CircleShape),
+                        )
+                    }
+                }
                 HoldZoom(a, held)
             }
         }

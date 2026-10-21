@@ -161,6 +161,12 @@
       "title": "New in v0.81.0",
       "body": "• The game log is kept when you save and resume a match. Windows: cards in a match grow a little as you make the window bigger.",
       "link": null
+    },
+    {
+      "id": "v0.82.0",
+      "title": "New in v0.82.0",
+      "body": "• An aura or equipment on another player's permanent now sits on top of that permanent, with its controller's avatar in the corner, instead of on its controller's side.",
+      "link": null
     }
   ]
 }
