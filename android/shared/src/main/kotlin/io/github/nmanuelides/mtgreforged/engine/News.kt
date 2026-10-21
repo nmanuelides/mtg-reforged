@@ -51,7 +51,19 @@ object News {
                 connection.disconnect()
             }
         }.getOrNull() ?: return
-        _unseen.value = items.filter { it.id !in seen }
+        _unseen.value = items.filter { it.id !in seen && isForInstalledVersion(it.id) }
+    }
+
+    /**
+     * A changelog entry ("v0.82.0") belongs to that version: it shows only once that version (or a
+     * newer one) is installed, not on an older copy that downloads the newer news. Other messages
+     * always show.
+     */
+    private fun isForInstalledVersion(id: String): Boolean {
+        val entry = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)").find(id)?.groupValues?.drop(1)?.map { it.toInt() } ?: return true
+        val installed = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)").find(BuildConfig.VERSION_NAME)?.groupValues?.drop(1)?.map { it.toInt() } ?: return true
+        for (i in 0..2) if (entry[i] != installed[i]) return entry[i] < installed[i]
+        return true
     }
 
     fun markSeen(context: AppContext, item: Item) {

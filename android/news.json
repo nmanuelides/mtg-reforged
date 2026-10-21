@@ -167,6 +167,12 @@
       "title": "New in v0.82.0",
       "body": "• An aura or equipment on another player's permanent now sits on top of that permanent, with its controller's avatar in the corner, instead of on its controller's side.",
       "link": null
+    },
+    {
+      "id": "v0.83.0",
+      "title": "New in v0.83.0",
+      "body": "• What's new messages only show for the version you have installed (or older), not for newer versions you haven't installed yet.",
+      "link": null
     }
   ]
 }
