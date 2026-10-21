@@ -107,6 +107,12 @@
       "title": "New in v0.72.0",
       "body": "• Windows: installing an update from the app now opens the installer. If your copy still closes without installing, install this version once from the website; later updates will work from the app.",
       "link": null
+    },
+    {
+      "id": "v0.73.0",
+      "title": "New in v0.73.0",
+      "body": "• Windows: Google Drive backup and restore now work.",
+      "link": null
     }
   ]
 }
