@@ -149,6 +149,12 @@
       "title": "New in v0.79.0",
       "body": "• A richer game log: turns as headers, every play (spells, lands, attacks, damage) as a card with the player's avatar and card thumbnails you can hold to see big, and a Go back to before this button within the undo history. The card on the stack also shows big while you hold it.",
       "link": null
+    },
+    {
+      "id": "v0.80.0",
+      "title": "New in v0.80.0",
+      "body": "• Profile shows the app version and a Check for updates button that looks for a newer version right away.",
+      "link": null
     }
   ]
 }

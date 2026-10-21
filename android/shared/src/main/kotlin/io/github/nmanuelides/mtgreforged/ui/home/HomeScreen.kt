@@ -118,6 +118,7 @@ fun HomeScreen(
     decksFor: (Format) -> List<DeckEntry>,
     update: UpdateUi,
     onInstallUpdate: () -> Unit,
+    onCheckUpdate: suspend () -> UpdateUi,
     onBrowseDecks: (Format, DeckSlot, DeckEntry?) -> Unit,
     selections: Map<DeckSlot, DeckEntry>,
     onStart: (Format, DeckEntry, List<DeckEntry>) -> Unit,
@@ -248,7 +249,7 @@ fun HomeScreen(
                     }
                     if (offline) OfflineImagesDialog { offline = false }
                     if (backup) BackupDialog { backup = false }
-                    if (profile) ProfileDialog { profile = false }
+                    if (profile) ProfileDialog(onCheckUpdate, onInstallUpdate) { profile = false }
                     // News from the developer: one message at a time, each shown once.
                     val news by News.unseen.collectAsState()
                     if (chromeVisible) news.firstOrNull()?.let { item ->

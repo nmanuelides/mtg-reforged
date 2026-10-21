@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.BuildConfig
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Refresh
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Canvas
@@ -84,7 +87,7 @@ fun AvatarImage(seat: Int, fallback: String, modifier: Modifier) {
 
 /** Your name, your avatar and the opponents' avatars. */
 @Composable
-fun ProfileDialog(onDismiss: () -> Unit) {
+fun ProfileDialog(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(Profiles.name) }
     var editing by remember { mutableStateOf<Int?>(null) }
     OrnateDialog(onDismiss = { Profiles.name = name; onDismiss() }, maxWidth = 620.dp) {
@@ -105,6 +108,8 @@ fun ProfileDialog(onDismiss: () -> Unit) {
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+        UpdateCheck(onCheckUpdate, onInstallUpdate)
         Spacer(Modifier.height(16.dp))
         OrnateButton("Done", { Profiles.name = name; onDismiss() }, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
     }
@@ -249,4 +254,45 @@ private fun crop(image: ImageBitmap, viewport: Float, zoom: Float, offset: Offse
         paint = Paint().apply { filterQuality = FilterQuality.High },
     )
     return out
+}
+
+/** The app's version, and a button that looks for a newer one right now. */
+@Composable
+private fun UpdateCheck(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<UpdateUi?>(null) }
+    Text("App version", style = MaterialTheme.typography.labelMedium, color = Palette.InkSoft)
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("v${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.titleMedium, color = Palette.Ink, modifier = Modifier.weight(1f))
+        if (checking) CircularProgressIndicator(Modifier.size(22.dp), color = Palette.Terracotta, strokeWidth = 2.dp)
+        OrnateButton(
+            "Check for updates",
+            { checking = true; scope.launch { result = onCheckUpdate(); checking = false } },
+            icon = Icons.Default.Refresh, enabled = !checking, height = 42.dp,
+        )
+    }
+    when (val r = result) {
+        is UpdateUi.Available -> {
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("${r.name} is available.", style = MaterialTheme.typography.bodyMedium, color = Palette.Sage, modifier = Modifier.weight(1f))
+                OrnateButton("Install", onInstallUpdate, icon = Icons.Default.SystemUpdate, style = OrnateStyle.Primary, height = 42.dp)
+            }
+        }
+        UpdateUi.None -> {
+            Spacer(Modifier.height(8.dp))
+            Text("You have the latest version.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        }
+        is UpdateUi.Downloading -> {
+            Spacer(Modifier.height(8.dp))
+            Text("Downloading the update… ${(r.progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        }
+        is UpdateUi.Failed -> {
+            Spacer(Modifier.height(8.dp))
+            Text("Couldn't update: ${r.message}", style = MaterialTheme.typography.bodyMedium, color = Palette.Terracotta)
+        }
+        null -> {}
+    }
 }

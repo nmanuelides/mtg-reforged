@@ -137,6 +137,7 @@ fun ReforgedApp(model: AppModel) {
                     decksFor = { decks[it].orEmpty() },
                     update = update,
                     onInstallUpdate = model::installUpdate,
+                    onCheckUpdate = model::checkForUpdateNow,
                     onBrowseDecks = { fmt, slot, _ -> browsing = fmt to slot },
                     selections = selections,
                     onStart = Engine::startMatch,
@@ -208,6 +209,14 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
             Engine.decksVersion.collect { _decks.value = Engine.Format.entries.associateWith(Engine::decks) }
         }
+    }
+
+    /** Checks right now and returns what it found (the profile's Check for updates). */
+    suspend fun checkForUpdateNow(): UpdateUi {
+        if (_update.value is UpdateUi.Downloading) return _update.value
+        release = runCatching { updater.check() }.getOrNull()
+        _update.value = release?.let { UpdateUi.Available(it.name, it.notes) } ?: UpdateUi.None
+        return _update.value
     }
 
     fun checkForUpdate() {
