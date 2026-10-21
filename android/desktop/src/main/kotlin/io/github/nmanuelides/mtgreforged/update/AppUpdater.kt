@@ -70,14 +70,26 @@ class AppUpdater(private val context: AppContext) {
     fun openInstallPermissionSettings() = Unit
 
     /**
-     * Starts the installer and closes the app so it can replace the files. The installer is
-     * launched through `cmd /c start`, as a double-click would: started straight from the JVM it
-     * stays tied to the app's process and output pipes and dies when the app exits a moment later.
+     * Starts the installer and closes the app so it can replace the files; once the installer
+     * finishes, the app opens again. A small script does both: it waits for the installer, then
+     * starts the installed app (from wherever this copy runs). It is launched through
+     * `cmd /c start`, as a double-click would: started straight from the JVM it stays tied to the
+     * app's process and output pipes and dies when the app exits a moment later.
      */
     fun install(installer: File) {
-        Log.i("Update", "starting ${installer.absolutePath}")
+        val app = ProcessHandle.current().info().command().orElse(null)
+            ?.takeIf { it.endsWith(".exe", ignoreCase = true) && !it.endsWith("java.exe", ignoreCase = true) }
+        val script = File(installer.parentFile, "update-and-reopen.cmd")
+        script.writeText(
+            buildString {
+                append("@echo off\r\n")
+                append("start \"\" /wait \"${installer.absolutePath}\"\r\n")
+                if (app != null) append("start \"\" \"$app\"\r\n")
+            },
+        )
+        Log.i("Update", "starting ${installer.absolutePath}, then reopening ${app ?: "(unknown, not reopening)"}")
         // Java quotes the empty window title and the path (it has spaces) itself.
-        ProcessBuilder("cmd", "/c", "start", "", installer.absolutePath)
+        ProcessBuilder("cmd", "/c", "start", "", "/min", script.absolutePath)
             .redirectOutput(ProcessBuilder.Redirect.DISCARD)
             .redirectError(ProcessBuilder.Redirect.DISCARD)
             .start()

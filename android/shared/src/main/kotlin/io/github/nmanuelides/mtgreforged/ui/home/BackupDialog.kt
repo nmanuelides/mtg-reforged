@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -93,19 +102,21 @@ fun BackupDialog(onDismiss: () -> Unit) {
     // Plain-file fallback.
     val saveFile = rememberCreateDocument("application/json") { open ->
         if (open != null) scope.launch {
+            failed = false
             status = withContext(Dispatchers.IO) {
                 runCatching { open()?.use { it.write(Backup.export().toByteArray()) }; "Backup file saved." }
-                    .getOrElse { "Couldn't save: ${it.message}" }
+                    .getOrElse { failed = true; "Couldn't save: ${it.message}" }
             }
         }
     }
     val openFile = rememberOpenDocument { open ->
         if (open != null) scope.launch {
+            failed = false
             status = withContext(Dispatchers.IO) {
                 runCatching {
                     val text = open()?.use { it.readBytes().decodeToString() }.orEmpty()
                     restoredText(Backup.restore(text))
-                }.getOrElse { "Couldn't restore: ${it.message}" }
+                }.getOrElse { failed = true; "Couldn't restore: ${it.message}" }
             }
         }
     }
@@ -153,9 +164,8 @@ fun BackupDialog(onDismiss: () -> Unit) {
             }
         }
         status?.let {
-            Spacer(Modifier.height(10.dp))
-            // Problems in red, good news in green.
-            Text(it, style = MaterialTheme.typography.bodySmall, color = if (failed) Palette.Terracotta else Palette.Sage)
+            Spacer(Modifier.height(12.dp))
+            StatusBanner(it, failed)
         }
         Spacer(Modifier.height(14.dp))
         Text("Without Google Drive", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
@@ -197,3 +207,27 @@ private fun dateOf(entry: DriveBackup.Entry): String =
 
 private fun restoredText(r: Backup.Restored) =
     "Restored ${r.decks} deck(s)" + if (r.collection) " and your collection." else "."
+
+/** The outcome of a backup or restore, hard to miss: a full-width plaque, green with a tick or terracotta with a warning. */
+@Composable
+private fun StatusBanner(text: String, failed: Boolean) {
+    val shown = remember(text) { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(text) { shown.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 420f)) }
+    val fill = if (failed) Palette.Terracotta else Palette.Sage
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .graphicsLayer { scaleX = 0.92f + 0.08f * shown.value; scaleY = scaleX; alpha = shown.value.coerceIn(0f, 1f) }
+            .background(fill)
+            .border(1.5.dp, Palette.OnAccent.copy(alpha = 0.7f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            if (failed) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
+            contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(26.dp),
+        )
+        Text(text, color = Palette.OnAccent, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    }
+}

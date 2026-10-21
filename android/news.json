@@ -113,6 +113,13 @@
       "title": "New in v0.73.0",
       "body": "• Windows: Google Drive backup and restore now work.",
       "link": null
+    },
+    {
+      "id": "v0.74.0",
+      "title": "New in v0.74.0",
+      "body": "• Backup and restore show a clear green banner when they work (and a red one when they don't).
+• Windows: after updating from the app, MTG Reforged opens again by itself when the installer finishes.",
+      "link": null
     }
   ]
 }
