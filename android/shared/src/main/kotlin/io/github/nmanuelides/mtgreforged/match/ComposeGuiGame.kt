@@ -496,6 +496,9 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     @Volatile var resumeHistory: List<SavedGame.Position> = emptyList()
 
+    /** A resumed game's saved log, put back at its first prompt (SavedGame.log). */
+    @Volatile var resumeLog: List<Pair<String, String>> = emptyList()
+
     /** The resumed save carries no positions (made before v0.64): says why undo is off at first. */
     @Volatile var resumedWithoutHistory = false
 
@@ -550,6 +553,16 @@ class ComposeGuiGame : NetworkGuiGame() {
         startedPlay = false
         undoTarget?.let { restoreTo(it, input, game); return }
         promptInput = input
+        // A resumed game: its log starts with the saved one (the board set-up's own lines go).
+        if (resumeLog.isNotEmpty()) {
+            runCatching {
+                game.gameLog.truncateTo(0)
+                resumeLog.forEach { (type, message) ->
+                    game.gameLog.add(runCatching { GameLogEntryType.valueOf(type) }.getOrDefault(GameLogEntryType.INFORMATION), message)
+                }
+            }
+            resumeLog = emptyList()
+        }
         if (skipNextRecord) { skipNextRecord = false; return }
         runCatching { UndoEntry(recorder.capture(game), game.gameLog.size(), runCatching { SavedGames.position(game) }.getOrNull()) }
             .onSuccess {

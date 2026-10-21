@@ -167,6 +167,10 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             .parchment(),
     ) {
         val tablet = maxWidth >= TABLET_MIN_WIDTH
+        // Bigger windows (Windows) get bigger cards, but only a third of the extra size, so the
+        // board still gains room: 1x up to 1280x800, at most 1.8x.
+        val cardScale = ((minOf(maxWidth / 1280.dp, maxHeight / 800.dp) - 1f) / 3f + 1f).coerceIn(1f, 1.8f)
+        androidx.compose.runtime.CompositionLocalProvider(LocalCardScale provides cardScale) {
         Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             if (tablet) {
                 TabletLayout(
@@ -178,6 +182,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             } else {
                 PhoneLayout(state, actions, game, onLog = { showLog = true }, onConcede = { confirmLeave = true })
             }
+        }
         }
 
         YourTurnGlow(state)
@@ -229,6 +234,9 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
 
 // ---- Layouts -----------------------------------------------------------------------
 
+/** How much bigger than normal the match's cards are drawn (grows with large windows). */
+private val LocalCardScale = androidx.compose.runtime.compositionLocalOf { 1f }
+
 @Composable
 private fun TabletLayout(
     state: MatchUiState,
@@ -252,11 +260,11 @@ private fun TabletLayout(
             CenterDivider()
             state.me?.let { me ->
                 Battlefield(
-                    me, state, actions, mirrored = false, maxCardWidth = 110.dp,
+                    me, state, actions, mirrored = false, maxCardWidth = 110.dp * LocalCardScale.current,
                     modifier = Modifier.fillMaxWidth().weight(1f - topWeight).padding(horizontal = 8.dp),
                 )
                 PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                HandDock(me.hand, state, actions, cardWidth = 118.dp, height = 176.dp)
+                HandDock(me.hand, state, actions, cardWidth = 118.dp * LocalCardScale.current, height = 176.dp * LocalCardScale.current)
             }
         }
         SidePanel(state, game, actions, detail, onCloseDetail, onLog, onConcede, Modifier.width(320.dp).fillMaxHeight())
@@ -304,7 +312,7 @@ private fun OpponentArea(player: PlayerUi, state: MatchUiState, actions: BoardAc
     Column(modifier.alpha(if (player.hasLost) 0.4f else 1f).padding(horizontal = 6.dp, vertical = 4.dp)) {
         PlayerStrip(player, state, actions, compact = compact)
         Battlefield(
-            player, state, actions, mirrored = true, maxCardWidth = if (compact) 76.dp else 96.dp,
+            player, state, actions, mirrored = true, maxCardWidth = (if (compact) 76.dp else 96.dp) * LocalCardScale.current,
             modifier = Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp),
         )
     }

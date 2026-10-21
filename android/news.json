@@ -155,6 +155,12 @@
       "title": "New in v0.80.0",
       "body": "• Profile shows the app version and a Check for updates button that looks for a newer version right away.",
       "link": null
+    },
+    {
+      "id": "v0.81.0",
+      "title": "New in v0.81.0",
+      "body": "• The game log is kept when you save and resume a match. Windows: cards in a match grow a little as you make the window bigger.",
+      "link": null
     }
   ]
 }

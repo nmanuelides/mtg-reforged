@@ -22,6 +22,8 @@ data class SavedGame(
     val choices: String? = null,
     /** Positions at the player's last prompts before the save, oldest first: undo after resuming. */
     val history: List<Position> = emptyList(),
+    /** The game log at the save, oldest first, as (GameLogEntryType name, message) without card ids. */
+    val log: List<Pair<String, String>> = emptyList(),
 ) {
     /** A game position as GameState text plus the players permanents chose (GameState skips those). */
     data class Position(val state: String, val choices: String?)
@@ -55,7 +57,11 @@ object SavedGames {
                     list!!.getJSONObject(i).run { SavedGame.Position(getString("state"), optString("choices").takeIf { c -> c.isNotBlank() }) }
                 }
                 // Saves without a history: the state before the player's spells on the stack, if any.
-                saved.copy(history = history.ifEmpty { listOfNotNull(saved.undoState?.let { u -> SavedGame.Position(u, saved.choices) }) })
+                val logArray = json.optJSONArray("log")
+                val log = (0 until (logArray?.length() ?: 0)).mapNotNull { i ->
+                    logArray!!.optJSONArray(i)?.let { e -> e.optString(0) to e.optString(1) }
+                }
+                saved.copy(history = history.ifEmpty { listOfNotNull(saved.undoState?.let { u -> SavedGame.Position(u, saved.choices) }) }, log = log)
             }
     }.getOrNull()
 
@@ -248,6 +254,12 @@ object SavedGames {
                 .put("savedAt", System.currentTimeMillis())
                 .apply { if (undoState != null) put("undoState", undoState) }
                 .apply { if (choices != null) put("choices", choices) }
+                // The log, oldest first; card ids are dropped since cards get new ids on resume.
+                .put("log", JSONArray().apply {
+                    game.gameLog.allEntries.takeLast(400).forEach { e ->
+                        put(JSONArray().put(e.type().name).put(e.message().replace(Regex("\\s*\\(\\d+\\)"), "")))
+                    }
+                })
                 .put("history", JSONArray().apply {
                     history.forEach { put(JSONObject().put("state", it.state).apply { if (it.choices != null) put("choices", it.choices) }) }
                 })
