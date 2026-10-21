@@ -119,6 +119,12 @@
       "title": "New in v0.74.0",
       "body": "• Backup and restore show a clear green banner when they work (and a red one when they don't).\n• Windows: after updating from the app, MTG Reforged opens again by itself when the installer finishes.",
       "link": null
+    },
+    {
+      "id": "v0.75.0",
+      "title": "New in v0.75.0",
+      "body": "• Windows: Ctrl + mouse wheel zooms the card grids in decks and the collection, like pinch to zoom on Android.",
+      "link": null
     }
   ]
 }

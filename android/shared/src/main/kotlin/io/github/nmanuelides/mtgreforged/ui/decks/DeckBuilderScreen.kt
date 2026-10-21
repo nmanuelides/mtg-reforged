@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.foundation.horizontalScroll
 import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
@@ -814,12 +816,27 @@ private fun OwnedBadge(name: String, modifier: Modifier) {
     }
 }
 
-/** Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. */
+/**
+ * Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. With a mouse,
+ * Ctrl + wheel does the same (wheel up: fewer, bigger cards); the plain wheel still scrolls.
+ */
 private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = composed {
     // The gesture loop lives across recompositions; read the newest callbacks, not the first ones.
     val zoomIn by rememberUpdatedState(onZoomIn)
     val zoomOut by rememberUpdatedState(onZoomOut)
     pointerInput(Unit) { pinchLoop({ zoomIn() }, { zoomOut() }) }
+        .pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    // Initial pass: take Ctrl + wheel before the grid scrolls with it.
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    if (event.type != PointerEventType.Scroll || !event.keyboardModifiers.isCtrlPressed) continue
+                    val dy = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                    if (dy < 0f) zoomIn() else if (dy > 0f) zoomOut()
+                    event.changes.forEach { it.consume() }
+                }
+            }
+        }
 }
 
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.pinchLoop(onZoomIn: () -> Unit, onZoomOut: () -> Unit) {
