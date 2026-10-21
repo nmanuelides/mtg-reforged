@@ -101,6 +101,12 @@
       "title": "New in v0.71.0",
       "body": "• A Support the developer button on the home screen, with how to help keep MTG Reforged growing.",
       "link": null
+    },
+    {
+      "id": "v0.72.0",
+      "title": "New in v0.72.0",
+      "body": "• Windows: installing an update from the app now opens the installer. If your copy still closes without installing, install this version once from the website; later updates will work from the app.",
+      "link": null
     }
   ]
 }

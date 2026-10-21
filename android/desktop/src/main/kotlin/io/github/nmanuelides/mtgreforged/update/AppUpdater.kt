@@ -2,6 +2,7 @@ package io.github.nmanuelides.mtgreforged.update
 
 import io.github.nmanuelides.mtgreforged.BuildConfig
 import io.github.nmanuelides.mtgreforged.platform.AppContext
+import io.github.nmanuelides.mtgreforged.platform.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -68,9 +69,21 @@ class AppUpdater(private val context: AppContext) {
 
     fun openInstallPermissionSettings() = Unit
 
-    /** Starts the installer and closes the app so it can replace the files. */
+    /**
+     * Starts the installer and closes the app so it can replace the files. The installer is
+     * launched through `cmd /c start`, as a double-click would: started straight from the JVM it
+     * stays tied to the app's process and output pipes and dies when the app exits a moment later.
+     */
     fun install(installer: File) {
-        ProcessBuilder(installer.absolutePath).start()
+        Log.i("Update", "starting ${installer.absolutePath}")
+        // Java quotes the empty window title and the path (it has spaces) itself.
+        ProcessBuilder("cmd", "/c", "start", "", installer.absolutePath)
+            .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+            .redirectError(ProcessBuilder.Redirect.DISCARD)
+            .start()
+            .waitFor()
+        // Give Windows a moment to bring the installer up before the app's files unlock.
+        Thread.sleep(1500)
         exitProcess(0)
     }
 
