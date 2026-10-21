@@ -131,6 +131,12 @@
       "title": "New in v0.76.0",
       "body": "• Creatures that must attack (goaded, or that attack each combat if able) are marked as attackers for you, and if an attack isn't allowed the message says which creature has to attack and why. Goaded creatures glow red.",
       "link": null
+    },
+    {
+      "id": "v0.77.0",
+      "title": "New in v0.77.0",
+      "body": "• Floating mana shows each colour's mana symbol, bigger, with the amount underneath (x3).",
+      "link": null
     }
   ]
 }

@@ -641,13 +641,27 @@ private fun ZoneButton(icon: androidx.compose.ui.graphics.vector.ImageVector, la
     }
 }
 
+/** Floating mana: each colour's symbol on its disc, and how much of it underneath ("x3"). */
 @Composable
 private fun ManaPool(mana: Map<Byte, Int>) {
     if (mana.isEmpty()) return
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(horizontal = 6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 6.dp)) {
         mana.forEach { (color, amount) ->
-            Box(Modifier.size(20.dp).background(manaColor(color), CircleShape), contentAlignment = Alignment.Center) {
-                Text("$amount", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF101218))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier.size(26.dp).background(manaColor(color), CircleShape).border(1.dp, Palette.Ink.copy(alpha = 0.3f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Dark glyph on the light discs (white, colourless), light glyph on the others.
+                    val light = color == MagicColor.WHITE || color == MagicColor.COLORLESS
+                    androidx.compose.foundation.Image(
+                        io.github.nmanuelides.mtgreforged.platform.painterRes(io.github.nmanuelides.mtgreforged.ui.components.ManaPip.of(color).glyph),
+                        contentDescription = io.github.nmanuelides.mtgreforged.ui.components.ManaPip.of(color).label,
+                        modifier = Modifier.size(20.dp),
+                        colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(if (light) Color(0xFF3B2A1E) else Palette.OnAccent),
+                    )
+                }
+                Text("x$amount", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
     }
