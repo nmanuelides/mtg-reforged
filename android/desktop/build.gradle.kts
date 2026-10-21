@@ -93,6 +93,8 @@ tasks.processResources {
 apply(from = rootProject.file("engine-data.gradle.kts"))
 val stageEngineData by tasks.registering(Sync::class) {
     from(tasks.named("packageEngineData"))
+    // Shown by the JVM the instant the app starts, before the window is ready (see -splash below).
+    from(rootProject.file("branding/splash.png"))
     into(layout.buildDirectory.dir("appResources/common"))
 }
 
@@ -115,6 +117,9 @@ compose.desktop {
         mainClass = "io.github.nmanuelides.mtgreforged.MainKt"
         // Forge holds every card script in memory, and multiplayer AI searches are hungry.
         jvmArgs += listOf("-Xms512m", "-Xmx4g", "-XX:+UseG1GC", "-Dfile.encoding=UTF-8", "-Dsun.java2d.d3d=false")
+        // A picture right away while the JVM and Compose start (seconds with nothing on screen
+        // otherwise, e.g. after an update); it closes when the first window opens.
+        jvmArgs += "-splash:\$APPDIR/resources/splash.png"
 
         buildTypes.release.proguard {
             // Forge loads a lot through reflection; shrinking would need a long keep list.

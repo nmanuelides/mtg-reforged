@@ -183,6 +183,8 @@ data class LogEntryUi(
     val text: String,
     val playerSeat: Int?,
     val playerName: String?,
+    /** The player's commander, for their portrait when they have no avatar picture. */
+    val playerCommander: String?,
     val cards: List<CardUi>,
     /** The game can go back to just before this line (it's within the undo history). */
     val canRewind: Boolean,

@@ -173,6 +173,12 @@
       "title": "New in v0.83.0",
       "body": "• What's new messages only show for the version you have installed (or older), not for newer versions you haven't installed yet.",
       "link": null
+    },
+    {
+      "id": "v0.84.0",
+      "title": "New in v0.84.0",
+      "body": "• Game log: every card it mentions has a thumbnail, mana and tap symbols are icons, mana lines show who made the mana, players show their real portraits, calmer cards and a clearer Go back button. Windows: a splash picture shows the moment the app starts.",
+      "link": null
     }
   ]
 }

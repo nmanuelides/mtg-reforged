@@ -555,15 +555,7 @@ private fun PlayerStrip(player: PlayerUi, state: MatchUiState, actions: BoardAct
             Modifier.size(if (compact) 34.dp else 42.dp).trackPosition("p${player.id}").background(ring, CircleShape).padding(2.dp),
             contentAlignment = Alignment.Center,
         ) {
-            val avatarVersion by Profiles.version.collectAsState()
-            val avatar = remember(player.seat, avatarVersion) { Profiles.avatar(player.seat) }
-            if (avatar != null) {
-                AvatarImage(player.seat, player.name, Modifier.fillMaxSize())
-            } else if (portrait != null) {
-                ArtImage(portrait, Modifier.fillMaxSize().clip(CircleShape), placeholder = ring, alignment = Alignment.Center)
-            } else {
-                Text(player.name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.OnAccent)
-            }
+            PlayerPortrait(player.seat, player.name, portrait, ring, Modifier.fillMaxSize())
         }
         Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1181,6 +1173,24 @@ private fun LifeCounter(life: Int, compact: Boolean) {
                 fontSize = if (compact) 24.sp else 30.sp,
                 color = if (delta < 0) Palette.Life else Palette.Sage,
             )
+        }
+    }
+}
+
+/** A player's portrait: their avatar picture, otherwise their commander's art, otherwise their initial. */
+@Composable
+internal fun PlayerPortrait(seat: Int, name: String, commander: String?, ring: Color, modifier: Modifier = Modifier) {
+    val avatarVersion by Profiles.version.collectAsState()
+    val avatar = remember(seat, avatarVersion) { Profiles.avatar(seat) }
+    Box(modifier.clip(CircleShape), contentAlignment = Alignment.Center) {
+        if (avatar != null) {
+            AvatarImage(seat, name, Modifier.fillMaxSize())
+        } else if (commander != null) {
+            ArtImage(commander, Modifier.fillMaxSize().clip(CircleShape), placeholder = ring, alignment = Alignment.Center)
+        } else {
+            Box(Modifier.fillMaxSize().background(ring, CircleShape), contentAlignment = Alignment.Center) {
+                Text(name.take(1).uppercase(), fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.OnAccent)
+            }
         }
     }
 }

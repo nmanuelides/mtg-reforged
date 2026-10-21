@@ -891,28 +891,61 @@ class ComposeGuiGame : NetworkGuiGame() {
     private val logCardId = Regex("\\((\\d+)\\)")
     private val logCardIdText = Regex("\\s*\\(\\d+\\)")
 
+    private val logDebugTail = Regex("\\s*\\[Card:.*\\]\\s*$")
+
     /** The newest log lines with their player and cards resolved; [entries] come newest first. */
     private fun logEntries(view: GameView, entries: List<forge.game.GameLogEntry>, cards: Map<Int, CardView>): List<LogEntryUi> {
         val total = entries.size
         val players = view.players.orEmpty().toList()
         val byName = players.withIndex().sortedByDescending { it.value.name.length }
         val game = gameView?.game
+        // Cards that can be named in the log, by name; public zones win over hidden ones.
+        val known = LinkedHashMap<String, CardView>()
+        runCatching {
+            val publicZones = setOf(ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Stack, ZoneType.Command)
+            val all = game?.cardsInGame?.map { it.view }.orEmpty() + cards.values
+            all.sortedBy { if (it.zone in publicZones) 0 else 1 }.forEach { cv ->
+                val name = cv.currentState?.name ?: cv.name
+                if (!name.isNullOrBlank() && name.length >= 3) known.putIfAbsent(name, cv)
+            }
+        }
+        val names = known.keys.sortedByDescending { it.length }
+        val playerNames = players.mapTo(HashSet()) { it.name }
         return entries.take(150).mapIndexed { i, e ->
             val index = total - 1 - i
-            val text = e.message()
-            val cardUis = logCardId.findAll(text).map { it.groupValues[1].toInt() }.distinct().mapNotNull { id ->
-                val cv = cards[id] ?: runCatching { game?.findById(id)?.view }.getOrNull()
-                cv?.let { CardUi.from(it, mayView(it)) }
-            }.take(4).toList()
-            val who = byName.firstOrNull { it.value.name.isNotBlank() && it.value.name in text }
+            val raw = e.message()
+            val byId = logCardId.findAll(raw).map { it.groupValues[1].toInt() }.mapNotNull { id ->
+                cards[id] ?: runCatching { game?.findById(id)?.view }.getOrNull()
+            }.toList()
+            val text = raw.replace(logCardIdText, "").replace(logDebugTail, "")
+            // Cards named in the text (Forge often writes just the name), longest names first.
+            val taken = ArrayList<IntRange>()
+            val byNameCards = names.filter { it !in playerNames }.mapNotNull { name ->
+                val at = text.indexOf(name)
+                if (at < 0) return@mapNotNull null
+                val range = at until at + name.length
+                if (taken.any { it.first <= range.last && range.first <= it.last }) return@mapNotNull null
+                taken += range
+                known[name]
+            }
+            val cardViews = (byId + byNameCards).distinctBy { it.id }.take(4)
+            val kind = logKind(e.type())
+            var who: Pair<Int, PlayerView>? = byName.firstOrNull { it.value.name.isNotBlank() && it.value.name in text }?.let { it.index to it.value }
+            // Mana lines name only the card that made the mana: its controller did it.
+            if (who == null && kind == LogKind.Mana) {
+                val controller = cardViews.firstOrNull()?.controller
+                val seat = players.indexOfFirst { it.id == controller?.id }
+                if (seat >= 0) who = seat to players[seat]
+            }
             LogEntryUi(
                 index = index,
-                kind = logKind(e.type()),
-                text = text.replace(logCardIdText, ""),
-                playerSeat = who?.index,
-                playerName = who?.value?.name,
-                cards = cardUis,
-                canRewind = rewindTarget(index) != null,
+                kind = kind,
+                text = text,
+                playerSeat = who?.first,
+                playerName = who?.second?.name,
+                playerCommander = who?.second?.commanders?.firstOrNull()?.name,
+                cards = cardViews.map { CardUi.from(it, mayView(it)) },
+                canRewind = kind != LogKind.Mana && kind != LogKind.Phase && rewindTarget(index) != null,
             )
         }
     }
