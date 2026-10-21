@@ -275,23 +275,22 @@ private fun UpdateCheck(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: 
     }
     when (val r = result) {
         is UpdateUi.Available -> {
+            Spacer(Modifier.height(10.dp))
+            StatusBanner("${r.name} is available.", failed = false)
             Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${r.name} is available.", style = MaterialTheme.typography.bodyMedium, color = Palette.Sage, modifier = Modifier.weight(1f))
-                OrnateButton("Install", onInstallUpdate, icon = Icons.Default.SystemUpdate, style = OrnateStyle.Primary, height = 42.dp)
-            }
+            OrnateButton("Install", onInstallUpdate, Modifier.fillMaxWidth(), icon = Icons.Default.SystemUpdate, style = OrnateStyle.Primary, height = 44.dp)
         }
         UpdateUi.None -> {
-            Spacer(Modifier.height(8.dp))
-            Text("You have the latest version.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+            Spacer(Modifier.height(10.dp))
+            StatusBanner("You have the latest version.", failed = false)
         }
         is UpdateUi.Downloading -> {
             Spacer(Modifier.height(8.dp))
             Text("Downloading the update… ${(r.progress * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
         }
         is UpdateUi.Failed -> {
-            Spacer(Modifier.height(8.dp))
-            Text("Couldn't update: ${r.message}", style = MaterialTheme.typography.bodyMedium, color = Palette.Terracotta)
+            Spacer(Modifier.height(10.dp))
+            StatusBanner("Couldn't update: ${r.message}", failed = true)
         }
         null -> {}
     }

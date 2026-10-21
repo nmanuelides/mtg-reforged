@@ -185,6 +185,12 @@
       "title": "New in v0.85.0",
       "body": "• Windows: cards in a match grow noticeably more as you make the window bigger (half of the window's growth).",
       "link": null
+    },
+    {
+      "id": "v0.86.0",
+      "title": "New in v0.86.0",
+      "body": "• Check for updates shows its result in the same clear green banner as backups (red if something went wrong).",
+      "link": null
     }
   ]
 }

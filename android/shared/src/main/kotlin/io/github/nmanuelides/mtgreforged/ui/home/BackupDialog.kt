@@ -210,7 +210,7 @@ private fun restoredText(r: Backup.Restored) =
 
 /** The outcome of a backup or restore, hard to miss: a full-width plaque, green with a tick or terracotta with a warning. */
 @Composable
-private fun StatusBanner(text: String, failed: Boolean) {
+internal fun StatusBanner(text: String, failed: Boolean) {
     val shown = remember(text) { androidx.compose.animation.core.Animatable(0f) }
     LaunchedEffect(text) { shown.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.55f, stiffness = 420f)) }
     val fill = if (failed) Palette.Terracotta else Palette.Sage
