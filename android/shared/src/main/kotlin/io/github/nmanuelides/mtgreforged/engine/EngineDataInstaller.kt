@@ -19,6 +19,11 @@ class EngineDataInstaller(private val context: AppContext, val forgeDir: File) {
     private val resDir = File(forgeDir, "res")
     private val installedManifest = File(forgeDir, "engine-data.properties")
 
+    /** Makes the next start extract the data again (after a start-up that failed on it, e.g. damaged files). */
+    fun invalidate() {
+        installedManifest.delete()
+    }
+
     /** Installed data is stamped with the app version that installed it. */
     fun isUpToDate(): Boolean {
         if (!resDir.isDirectory || !installedManifest.isFile) return false

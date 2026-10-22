@@ -48,7 +48,8 @@ object Engine {
      * on slower devices. Once Ready, progress updates are ignored.
      */
     private fun reportProgress(status: Status) {
-        _status.update { current -> if (current == Status.Ready) current else status }
+        // Once ready or failed, late progress ticks must not cover that up.
+        _status.update { current -> if (current == Status.Ready || current is Status.Failed) current else status }
     }
 
     private lateinit var gui: ReforgedGui
@@ -64,7 +65,13 @@ object Engine {
         Thread({
             runCatching { boot(app) }.onFailure {
                 Log.e("Engine", "Boot failed", it)
-                _status.value = Status.Failed(it.message ?: it.toString())
+                // Damaged card data (a crash or power cut while it was written) fails start-up the
+                // same way every time: have the next start extract it again.
+                runCatching { EngineDataInstaller(app, File(app.filesDir, "forge")).invalidate() }
+                _status.value = Status.Failed(
+                    "MTG Reforged couldn't start (${it.message ?: it.javaClass.simpleName}). Close it and open it again: " +
+                        "the card data will be reinstalled.",
+                )
             }
         }, "Game Boot").start()
     }

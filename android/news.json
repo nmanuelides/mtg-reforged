@@ -197,6 +197,12 @@
       "title": "New in v0.87.0",
       "body": "• Hold the card shown in the side panel (or the card sheet on phones) to see it even bigger.",
       "link": null
+    },
+    {
+      "id": "v0.88.0",
+      "title": "New in v0.88.0",
+      "body": "• If start-up fails (for example card data damaged by a crash or power cut), the app now says so instead of staying at the loading bar, and reinstalls the card data the next time you open it.",
+      "link": null
     }
   ]
 }
