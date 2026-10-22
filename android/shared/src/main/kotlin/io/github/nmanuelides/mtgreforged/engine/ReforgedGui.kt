@@ -41,6 +41,8 @@ class ReforgedGui(private val context: AppContext, private val assetsDir: String
     override fun isRunningOnDesktop() = false
     override fun isLibgdxPort() = true // Forge uses this to pick the mobile code paths.
     override fun getCurrentVersion(): String = BuildConfig.VERSION_NAME
+    // What Forge sends to image and data servers (Scryfall asks for a descriptive one).
+    override fun getUserAgent(): String = "MTGReforged/${BuildConfig.VERSION_NAME}"
     override fun getAssetsDir() = assetsDir
 
     override fun invokeInEdtNow(runnable: Runnable) = runnable.run()
