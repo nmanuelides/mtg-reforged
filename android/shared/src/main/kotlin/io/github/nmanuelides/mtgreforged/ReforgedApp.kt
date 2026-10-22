@@ -161,6 +161,7 @@ fun ReforgedApp(model: AppModel) {
             if (!booted) {
                 BootScreen(
                     status, onRetry = { Engine.start(context) }, art = landingArt,
+                    update = update, onCheckUpdate = model::checkForUpdate, onInstallUpdate = model::installUpdate,
                     reveal = reveal.value, window = bootWindow, target = landingArea,
                     onWindowBounds = { if (reveal.value == 0f) bootWindow = it },
                 )

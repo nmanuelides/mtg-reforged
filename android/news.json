@@ -203,6 +203,12 @@
       "title": "New in v0.88.0",
       "body": "• If start-up fails (for example card data damaged by a crash or power cut), the app now says so instead of staying at the loading bar, and reinstalls the card data the next time you open it.",
       "link": null
+    },
+    {
+      "id": "v0.89.0",
+      "title": "New in v0.89.0",
+      "body": "• If the app can't start, it now looks for a newer version right away and offers to install it from the start-up screen.",
+      "link": null
     }
   ]
 }

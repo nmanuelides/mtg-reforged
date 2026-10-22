@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.runtime.LaunchedEffect
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
@@ -57,6 +58,10 @@ fun BootScreen(
     status: Engine.Status,
     onRetry: () -> Unit,
     art: LocalArt,
+    /** Updates still work when the engine doesn't start: a fixed version is the way out. */
+    update: UpdateUi = UpdateUi.None,
+    onCheckUpdate: () -> Unit = {},
+    onInstallUpdate: () -> Unit = {},
     reveal: Float = 0f,
     window: Rect? = null,
     target: Rect? = null,
@@ -108,9 +113,26 @@ fun BootScreen(
                         ProgressRule(status.progress, accent)
                     }
                     is Engine.Status.Failed -> {
+                        // Look for a newer version straight away: it may well fix what broke here.
+                        LaunchedEffect(status) { onCheckUpdate() }
                         Caption("The engine could not start")
                         Text(status.message, color = Palette.InkSoft, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
-                        OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
+                        when (update) {
+                            is UpdateUi.Available -> {
+                                StatusBanner("${update.name} is available. It may fix this.", failed = false)
+                                OrnateButton("Install update", onInstallUpdate, style = OrnateStyle.Primary)
+                                OrnateButton("Retry", onRetry)
+                            }
+                            is UpdateUi.Downloading -> {
+                                Caption("Downloading the update…")
+                                ProgressRule(update.progress, accent)
+                            }
+                            is UpdateUi.Failed -> {
+                                StatusBanner("Couldn't update: ${update.message}", failed = true)
+                                OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
+                            }
+                            UpdateUi.None -> OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
+                        }
                     }
                     Engine.Status.Ready -> {
                         Caption("Ready")
