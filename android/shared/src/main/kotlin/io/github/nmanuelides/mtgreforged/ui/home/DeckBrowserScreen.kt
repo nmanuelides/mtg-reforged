@@ -252,10 +252,11 @@ fun DeckBrowserScreen(
                 onSelect = { onSelect(entry) },
                 onEdit = { onEdit(entry) },
                 onOpenArt = { carousel = index },
+                onNew = onNew,
+                onMyDecks = { mineOnly = true; searching = true },
+                hasMyDecks = decks.any { it.custom },
                 menu = listOfNotNull(
-                    MenuItem("New deck", Icons.Default.Add, Palette.Sage, onClick = onNew),
                     MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
-                    MenuItem("My decks", Icons.Default.Style, Palette.Plum, enabled = decks.any { it.custom }) { mineOnly = true; searching = true },
                     if (entry.custom) MenuItem("Delete deck", Icons.Default.Delete, Palette.Terracotta) { onDelete(entry) } else null,
                 ),
                 modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(10.dp),
@@ -444,6 +445,9 @@ private fun PhoneDeckSheet(
     onSelect: () -> Unit,
     onEdit: () -> Unit,
     onOpenArt: () -> Unit,
+    onNew: () -> Unit,
+    onMyDecks: () -> Unit,
+    hasMyDecks: Boolean,
     menu: List<MenuItem>,
     modifier: Modifier,
 ) {
@@ -473,7 +477,7 @@ private fun PhoneDeckSheet(
             }
             summary?.let { s ->
                 Spacer(Modifier.height(12.dp))
-                Box(Modifier.landIn(2)) { DeckFacts(s) }
+                Box(Modifier.landIn(2)) { PhoneDeckFacts(s) }
                 Spacer(Modifier.height(12.dp))
                 var viewing by remember { mutableStateOf<Int?>(null) }
                 Row(Modifier.landIn(3), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -491,6 +495,11 @@ private fun PhoneDeckSheet(
         }
         Spacer(Modifier.height(8.dp))
         Row(Modifier.landIn(5), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OrnateButton("New deck", onNew, Modifier.weight(1f), icon = Icons.Default.Add, accent = Palette.Sage, frameColor = Palette.Sage, height = 46.dp)
+            OrnateButton("My decks", onMyDecks, Modifier.weight(1f), icon = Icons.Default.Style, accent = Palette.Plum, frameColor = Palette.Plum, height = 46.dp, enabled = hasMyDecks)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.landIn(6), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (custom) {
                 OrnateButton("Edit", onEdit, Modifier.weight(1f), icon = Icons.Default.Edit, accent = Palette.Ochre, frameColor = Palette.Ochre, height = 52.dp)
             }
@@ -511,6 +520,37 @@ private fun SheetHeader(title: String, summary: DeckSummary?) {
             textAlign = TextAlign.Center,
             maxLines = 2,
         )
+    }
+}
+
+/** Phones: commander and colours on the left, the deck's value in the top-right corner. */
+@Composable
+private fun PhoneDeckFacts(s: DeckSummary) {
+    Row(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 3.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            s.commander?.let {
+                Column {
+                    Text("COMMANDER", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                    Text(it, style = MaterialTheme.typography.titleMedium, color = Palette.Slate, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (s.colors.isEmpty()) ManaSymbol(ManaPip.Colorless, 24.dp)
+                s.colors.forEach { ManaSymbol(ManaPip.of(it), 24.dp) }
+            }
+        }
+        s.value?.takeIf { it > 0 }?.let { value ->
+            Column(horizontalAlignment = Alignment.End) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(CardPrice.usd(value), style = MaterialTheme.typography.titleLarge, color = Palette.Slate)
+                    if (CardPrices.stale) StalePriceWarning()
+                }
+                Text("Card Kingdom", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+            }
+        }
     }
 }
 

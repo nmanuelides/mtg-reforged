@@ -215,7 +215,7 @@ fun OrnateButton(
         contentAlignment = Alignment.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (style == OrnateStyle.Primary) Text("✦", color = ink.copy(alpha = 0.7f), fontSize = 10.sp)
+            if (style == OrnateStyle.Primary && text.isNotEmpty()) Text("✦", color = ink.copy(alpha = 0.7f), fontSize = 10.sp)
             if (icon != null) {
                 Spacer(Modifier.width(6.dp))
                 Icon(icon, null, tint = if (style == OrnateStyle.Primary) ink else accent, modifier = Modifier.size(18.dp))
@@ -229,7 +229,7 @@ fun OrnateButton(
                 softWrap = false,
                 autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = textStyle.fontSize, stepSize = 0.5.sp),
             )
-            if (style == OrnateStyle.Primary) Text("✦", color = ink.copy(alpha = 0.7f), fontSize = 10.sp)
+            if (style == OrnateStyle.Primary && text.isNotEmpty()) Text("✦", color = ink.copy(alpha = 0.7f), fontSize = 10.sp)
         }
     }
 }

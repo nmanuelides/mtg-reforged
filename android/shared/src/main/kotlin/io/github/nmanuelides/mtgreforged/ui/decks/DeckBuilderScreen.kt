@@ -502,7 +502,7 @@ private fun Header(
         // Phones: back, name and Save stay; import / export / cheapest go in the menu.
         val collection = LocalCollectionMode.current
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OrnateButton("", onBack, Modifier.width(44.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+            OrnateButton("", onBack, Modifier.width(44.dp).padding(top = 8.dp), icon = Icons.AutoMirrored.Filled.ArrowBack, height = 56.dp)
             OutlinedTextField(
                 name, onName, singleLine = true,
                 textStyle = MaterialTheme.typography.titleMedium,
@@ -511,8 +511,9 @@ private fun Header(
                 colors = fieldColors(),
                 modifier = Modifier.weight(1f),
             )
-            OrnateButton("", onSave, Modifier.width(48.dp), style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
+            OrnateButton("", onSave, Modifier.width(48.dp).padding(top = 8.dp), style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave, height = 56.dp)
             OverflowMenu(
+                modifier = Modifier.padding(top = 8.dp), height = 56.dp, items =
                 listOfNotNull(
                     MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
                     MenuItem("Export", Icons.Default.IosShare, Palette.Slate, enabled = canExport, onClick = onExport),
@@ -610,7 +611,31 @@ private fun CardSearch(
         }
     }
 
-    Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(12.dp)) {
+    val compactSearch = LocalCompactBuilder.current
+    Column(modifier.paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(if (compactSearch) 10.dp else 12.dp)) {
+        if (compactSearch) {
+            CompactSearchTop(draft, format, problem, listOpen, onOpenList, filter.activeCount, onOpenFilters, query, { query = it }, filter.exactName)
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.landIn(3), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                ManaPip.WUBRG.forEach { pip ->
+                    val color = pip.color
+                    ManaChip(pip, color in filter.colors, size = 30.dp) {
+                        onFilter(filter.copy(colors = if (color in filter.colors) filter.colors - color else filter.colors + color))
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.landIn(3).horizontalDragScroll(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                QUICK_TYPES.forEach { type ->
+                    Chip(type.take(5), type in filter.types.values && filter.types.mode != GroupMode.Not) {
+                        onFilter(filter.copy(types = filter.types.toggle(type)))
+                    }
+                }
+            }
+        } else {
         Box(Modifier.landIn(1)) { DeckStatus(draft, format, problem, listOpen, onOpenList) }
         Spacer(Modifier.height(10.dp))
         Row(Modifier.landIn(2), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -660,6 +685,7 @@ private fun CardSearch(
                     onFilter(filter.copy(types = filter.types.toggle(type)))
                 }
             }
+        }
         }
         Spacer(Modifier.height(6.dp))
         val idle = query.isBlank() && filter.activeCount == 0
@@ -796,6 +822,74 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 }
 
 private enum class SidePanel { Filters, List }
+
+/**
+ * Phones: legality with Filters and List on one line, then a one-line search with the card
+ * count and value beside it (where Filters sits on wide screens).
+ */
+@Composable
+private fun CompactSearchTop(
+    draft: DeckDraft,
+    format: Engine.Format,
+    problem: String?,
+    listOpen: Boolean,
+    onList: () -> Unit,
+    activeFilters: Int,
+    onFilters: () -> Unit,
+    query: String,
+    onQuery: (String) -> Unit,
+    exactName: Boolean,
+) {
+    val commander = format == Engine.Format.Commander
+    val target = if (commander) 100 else 60
+    val prices by CardPrices.version.collectAsState()
+    val value = remember(prices, draft.commander.toMap(), draft.main.toMap()) {
+        CardPrices.deckValue(draft.commander.entries + draft.main.entries)
+    }
+    val collectionMode = LocalCollectionMode.current
+    Row(Modifier.landIn(1), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            if (collectionMode) "${draft.main.size} different cards" else problem ?: "Legal ✓",
+            Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (problem == null) Palette.Sage else Palette.Terracotta,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+        if (collectionMode) ClearCollectionButton(iconOnly = true)
+        OrnateButton(
+            if (activeFilters > 0) "$activeFilters" else "", onFilters, if (activeFilters > 0) Modifier else Modifier.width(48.dp),
+            icon = Icons.Default.Tune, accent = Palette.Plum, frameColor = Palette.Plum, height = 42.dp,
+        )
+        OrnateButton(
+            "", onList, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.List,
+            style = if (listOpen) OrnateStyle.Primary else OrnateStyle.Secondary,
+            accent = Palette.Slate, frameColor = Palette.Slate, height = 42.dp,
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(Modifier.landIn(2), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+            query, onQuery, singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { onQuery("") }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) }
+                }
+            },
+            placeholder = { Text(if (exactName) "Exact name" else "Search cards", style = MaterialTheme.typography.bodyMedium, maxLines = 1) },
+            textStyle = MaterialTheme.typography.bodyLarge,
+            colors = fieldColors(),
+            modifier = Modifier.weight(1f),
+        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                if (collectionMode) "${draft.total}" else "${draft.total}/$target", fontFamily = Cinzel, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                color = if (!collectionMode && (draft.total == target || (!commander && draft.total >= target))) Palette.Sage else Palette.Ink,
+            )
+            if (value > 0) Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
+        }
+    }
+}
 
 /** True on narrow screens (phones in portrait): the builder packs its controls tighter. */
 internal val LocalCompactBuilder = staticCompositionLocalOf { false }

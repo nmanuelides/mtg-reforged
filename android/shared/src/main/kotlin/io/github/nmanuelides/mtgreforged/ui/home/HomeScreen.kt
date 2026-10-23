@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Favorite
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.News
@@ -163,7 +166,8 @@ fun HomeScreen(
                 val allCards by Engine.allCardsLoaded.collectAsState()
                 var support by remember { mutableStateOf(false) }
                 Row(
-                    Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                    // Phones: above the card search pill, which spans the bottom of the art.
+                    Modifier.align(Alignment.BottomEnd).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = if (phone) 96.dp else 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -181,7 +185,8 @@ fun HomeScreen(
                             Text("Loading all cards…", color = Palette.InkSoft, fontSize = 13.sp)
                         }
                     }
-                    Row(
+                    // Phones show it as a tab at the top instead (here the card search would cover it).
+                    if (!phone) Row(
                         Modifier
                             .paperShadow(offsetY = 3.dp, blur = 10.dp)
                             .paper(Palette.Paper)
@@ -235,6 +240,17 @@ fun HomeScreen(
                                 tint = accent,
                             )
                         }
+                        if (phone) {
+                            Box(
+                                Modifier
+                                    .paperShadow(offsetY = 3.dp, blur = 10.dp)
+                                    .paper(Palette.Paper)
+                                    .clickable { support = true }
+                                    .padding(10.dp),
+                            ) {
+                                Icon(Icons.Default.Favorite, contentDescription = "Support the developer", tint = Palette.Terracotta)
+                            }
+                        }
                         Box(
                             Modifier
                                 .paperShadow(offsetY = 3.dp, blur = 10.dp)
@@ -271,6 +287,7 @@ fun HomeScreen(
                             }
                         }
                     }
+                    if (phone) Spacer(Modifier.height(18.dp))
                     Box(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
@@ -326,13 +343,12 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(12.dp))
 
+                // Mode, opponents and their decks live together in Game settings.
                 val buttons: List<@Composable (Modifier) -> Unit> = listOf(
-                    { m -> OrnateButton(format.label, { onFormat(Format.entries[(format.ordinal + 1) % Format.entries.size]) }, m, icon = Icons.Default.Style) },
-                    { m -> OrnateButton("${opponentCount} opponent${if (opponentCount > 1) "s" else ""}", { opponentCount = opponentCount % 3 + 1 }, m, icon = Icons.Default.Groups, accent = Palette.Slate) },
-                    { m -> OrnateButton("Decks", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage) },
-                    { m -> OrnateButton("Opponents", { showRivals = true }, m, icon = Icons.Default.Shield, accent = Palette.Ochre) },
-                    { m -> OrnateButton("Collection", onCollection, m, icon = Icons.Default.CollectionsBookmark, accent = Palette.Plum) },
-                    { m -> OrnateButton("Friends", onFriends, m, icon = Icons.Default.Wifi, accent = Palette.Sage) },
+                    { m -> OrnateButton("Game settings", { showRivals = true }, m, icon = Icons.Default.Tune, accent = Palette.Terracotta, height = 50.dp) },
+                    { m -> OrnateButton("Decks", { onBrowseDecks(format, -1, mine) }, m, icon = Icons.Default.AutoStories, accent = Palette.Sage, height = 50.dp) },
+                    { m -> OrnateButton("Collection", onCollection, m, icon = Icons.Default.CollectionsBookmark, accent = Palette.Plum, height = 50.dp) },
+                    { m -> OrnateButton("Friends", onFriends, m, icon = Icons.Default.Wifi, accent = Palette.Slate, height = 50.dp) },
                 )
                 if (wide) {
                     Row(Modifier.widthIn(max = 1000.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -340,14 +356,14 @@ fun HomeScreen(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        buttons.chunked(if (phone) 3 else 2).forEach { row ->
+                        buttons.chunked(2).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { row.forEach { it(Modifier.weight(1f)) } }
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Playing " + (mine?.name ?: "a random deck"),
+                    "${format.label} · $opponentCount opponent${if (opponentCount > 1) "s" else ""} · playing " + (mine?.name ?: "a random deck"),
                     style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
@@ -359,8 +375,11 @@ fun HomeScreen(
     }
 
     if (showRivals) {
-        RivalsDialog(
+        GameSettingsDialog(
+            format = format,
+            onFormat = onFormat,
             count = opponentCount,
+            onCount = { opponentCount = it },
             selections = selections,
             onPick = { slot -> showRivals = false; onBrowseDecks(format, slot, selections[slot]) },
             onDismiss = { showRivals = false },
@@ -423,21 +442,52 @@ private fun UpdateBanner(update: UpdateUi, onInstall: () -> Unit) {
     }
 }
 
+/** Game mode, how many opponents, and the deck each of them plays. */
 @Composable
-private fun RivalsDialog(count: Int, selections: Map<DeckSlot, DeckEntry>, onPick: (DeckSlot) -> Unit, onDismiss: () -> Unit) {
+private fun GameSettingsDialog(
+    format: Format,
+    onFormat: (Format) -> Unit,
+    count: Int,
+    onCount: (Int) -> Unit,
+    selections: Map<DeckSlot, DeckEntry>,
+    onPick: (DeckSlot) -> Unit,
+    onDismiss: () -> Unit,
+) {
     OrnateDialog(onDismiss = onDismiss) {
-        SectionLabel("Opponents")
-        Spacer(Modifier.height(12.dp))
+        SectionLabel("Game settings")
+        Spacer(Modifier.height(14.dp))
+        Text("Game mode", style = MaterialTheme.typography.labelLarge, color = Palette.InkSoft)
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Format.entries.forEach { f ->
+                OrnateButton(
+                    f.label, { onFormat(f) }, Modifier.weight(1f),
+                    style = if (f == format) OrnateStyle.Primary else OrnateStyle.Secondary, height = 46.dp,
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Opponents", style = MaterialTheme.typography.labelLarge, color = Palette.InkSoft)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            OrnateButton("", { onCount(count - 1) }, Modifier.width(52.dp), icon = Icons.Default.Remove, enabled = count > 1, height = 46.dp)
+            Text("$count", style = MaterialTheme.typography.headlineMedium, color = Palette.Ink)
+            OrnateButton("", { onCount(count + 1) }, Modifier.width(52.dp), icon = Icons.Default.Add, enabled = count < 3, height = 46.dp)
+        }
+        Spacer(Modifier.height(16.dp))
+        Text("Their decks", style = MaterialTheme.typography.labelLarge, color = Palette.InkSoft)
+        Spacer(Modifier.height(6.dp))
         repeat(count) { i ->
             OrnateButton(
-                "Opponent ${i + 1}: " + (selections[i]?.name ?: "random"),
+                "Opponent ${i + 1}: " + (selections[i]?.name ?: "random deck"),
                 { onPick(i) },
                 Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                icon = Icons.Default.AutoStories,
                 accent = Palette.Slate,
                 textStyle = MaterialTheme.typography.labelMedium,
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         OrnateButton("Done", onDismiss, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
     }
 }
