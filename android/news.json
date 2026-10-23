@@ -209,6 +209,12 @@
       "title": "New in v0.89.0",
       "body": "• If the app can't start, it now looks for a newer version right away and offers to install it from the start-up screen.",
       "link": null
+    },
+    {
+      "id": "v0.90.0",
+      "title": "New in v0.90.0",
+      "body": "• Phones in portrait: the deck screen is redesigned with Edit and Select always in reach and the rest in a menu; the deck builder and collection keep name and Save up front, move Import / Export / Cheapest to a menu and use icon buttons; the card viewer bar fits in two rows; the home screen and dialogs use the space better.",
+      "link": null
     }
   ]
 }

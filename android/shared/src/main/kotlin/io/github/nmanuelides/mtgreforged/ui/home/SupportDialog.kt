@@ -86,7 +86,7 @@ fun SupportDialog(onDismiss: () -> Unit) {
             // The Mercado Pago logo opens their site.
             Image(
                 imageRes(R.drawable.mercadopago_logo), contentDescription = "Mercado Pago",
-                modifier = Modifier.width(120.dp).clickable { context.openUrl("https://www.mercadopago.com.ar") },
+                modifier = Modifier.width(96.dp).clickable { context.openUrl("https://www.mercadopago.com.ar") },
             )
         }
     }

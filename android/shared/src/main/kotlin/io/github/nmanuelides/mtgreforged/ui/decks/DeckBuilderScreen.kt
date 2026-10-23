@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
+import io.github.nmanuelides.mtgreforged.ui.components.OverflowMenu
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.runtime.derivedStateOf
@@ -376,7 +378,8 @@ fun DeckBuilderScreen(
         val wide = maxWidth > maxHeight
         wideLayout = wide
         val compactHeader = maxWidth < 600.dp
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(12.dp)) {
+        CompositionLocalProvider(LocalCompactBuilder provides compactHeader) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(if (compactHeader) 8.dp else 12.dp)) {
             Box(Modifier.landIn(0)) {
             Header(
                 name = name, onName = { name = it }, format = format,
@@ -436,6 +439,7 @@ fun DeckBuilderScreen(
                 cards(Modifier.fillMaxSize())
             }
         }
+        }
     }
 
     }
@@ -494,6 +498,30 @@ private fun Header(
     canSave: Boolean,
     saveLabel: String,
 ) {
+    if (compact) {
+        // Phones: back, name and Save stay; import / export / cheapest go in the menu.
+        val collection = LocalCollectionMode.current
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OrnateButton("", onBack, Modifier.width(44.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+            OutlinedTextField(
+                name, onName, singleLine = true,
+                textStyle = MaterialTheme.typography.titleMedium,
+                label = { Text(if (collection) "Collection" else "${format.label} deck", style = MaterialTheme.typography.labelSmall) },
+                readOnly = collection,
+                colors = fieldColors(),
+                modifier = Modifier.weight(1f),
+            )
+            OrnateButton("", onSave, Modifier.width(48.dp), style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)
+            OverflowMenu(
+                listOfNotNull(
+                    MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
+                    MenuItem("Export", Icons.Default.IosShare, Palette.Slate, enabled = canExport, onClick = onExport),
+                    if (!collection) MenuItem("Switch to cheapest printings", Icons.Default.Savings, Palette.Sage, enabled = canExport, onClick = onCheapest) else null,
+                ),
+            )
+        }
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OrnateButton("", onBack, Modifier.width(52.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
         OutlinedTextField(
@@ -602,8 +630,13 @@ private fun CardSearch(
                 modifier = Modifier.weight(1f),
             )
             val active = filter.activeCount
+            val compact = LocalCompactBuilder.current
             OrnateButton(
-                if (active > 0) "Filters · $active" else "Filters", onOpenFilters,
+                when {
+                    compact -> if (active > 0) "$active" else ""
+                    active > 0 -> "Filters · $active"
+                    else -> "Filters"
+                }, onOpenFilters,
                 icon = Icons.Default.Tune, accent = Palette.Plum, frameColor = Palette.Plum, height = 56.dp,
                 // Long press: put the results aside and look at the deck.
                 onLongClick = { showDeck = true },
@@ -633,7 +666,8 @@ private fun CardSearch(
         // Pinch to zoom the card grids: fewer, bigger cards (down to 5 columns on a wide screen).
         var zoomSteps by remember { mutableIntStateOf(0) }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-        val base = ((maxWidth + 8.dp) / 126.dp).toInt().coerceAtLeast(1)
+        // Phones fit a third column (narrower tiles) instead of two big ones.
+        val base = ((maxWidth + 8.dp) / (if (LocalCompactBuilder.current) 108.dp else 126.dp)).toInt().coerceAtLeast(1)
         val fewest = if (base > 5) 5 else (base - 2).coerceAtLeast(2).coerceAtMost(base)
         val columns = (base - zoomSteps).coerceIn(fewest, base)
         val tile = (maxWidth - 8.dp * (columns - 1)) / columns
@@ -763,6 +797,9 @@ internal fun Chip(label: String, selected: Boolean, fontSize: Int = 11, onClick:
 
 private enum class SidePanel { Filters, List }
 
+/** True on narrow screens (phones in portrait): the builder packs its controls tighter. */
+internal val LocalCompactBuilder = staticCompositionLocalOf { false }
+
 /** True while the builder edits the collection rather than a deck. */
 internal val LocalCollectionMode = staticCompositionLocalOf { false }
 
@@ -770,10 +807,13 @@ internal val LocalCollectionMode = staticCompositionLocalOf { false }
 internal val LocalClearCollection = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
-private fun ClearCollectionButton() {
+private fun ClearCollectionButton(iconOnly: Boolean = false) {
     val clear = LocalClearCollection.current ?: return
     var step by remember { mutableIntStateOf(0) }
-    OrnateButton("Delete all", { step = 1 }, icon = Icons.Default.DeleteForever, accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 44.dp)
+    OrnateButton(
+        if (iconOnly) "" else "Delete all", { step = 1 }, if (iconOnly) Modifier.width(48.dp) else Modifier,
+        icon = Icons.Default.DeleteForever, accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = if (iconOnly) 42.dp else 44.dp,
+    )
     if (step > 0) {
         OrnateDialog(onDismiss = { step = 0 }, maxWidth = 480.dp) {
             SectionLabel(if (step == 1) "Delete your collection?" else "Are you sure?")
@@ -1002,6 +1042,32 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
         CardPrices.deckValue(draft.commander.entries + draft.main.entries)
     }
     val collectionMode = LocalCollectionMode.current
+    if (LocalCompactBuilder.current) {
+        // Phones: count, value and icon-only buttons on one line, legality under it.
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    if (collectionMode) "${draft.total} cards" else "${draft.total} / $target", fontFamily = Cinzel, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    color = if (!collectionMode && (draft.total == target || (!commander && draft.total >= target))) Palette.Sage else Palette.Ink,
+                )
+                if (value > 0) Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
+                Spacer(Modifier.weight(1f))
+                if (collectionMode) ClearCollectionButton(iconOnly = true)
+                OrnateButton(
+                    "", onList, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.List,
+                    style = if (listOpen) OrnateStyle.Primary else OrnateStyle.Secondary,
+                    accent = Palette.Slate, frameColor = Palette.Slate, height = 42.dp,
+                )
+            }
+            Text(
+                if (collectionMode) "${draft.main.size} different cards" else problem ?: "Legal ✓",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (problem == null) Palette.Sage else Palette.Terracotta,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             if (collectionMode) "${draft.total} cards" else "${draft.total} / $target", fontFamily = Cinzel, fontSize = 22.sp, fontWeight = FontWeight.Bold,

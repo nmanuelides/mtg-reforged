@@ -152,6 +152,8 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize()) {
     BoxWithConstraints(Modifier.fillMaxSize().blur(blur).parchment()) {
         val wide = maxWidth > maxHeight
+        // Phones in portrait: tighter margins, a smaller title, three buttons per row.
+        val phone = !wide && maxWidth < 600.dp
         Column(Modifier.fillMaxSize()) {
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
             Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -189,7 +191,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Terracotta, modifier = Modifier.size(18.dp))
-                        Text("Support the developer", color = Palette.Ink, fontSize = 14.sp, fontFamily = io.github.nmanuelides.mtgreforged.ui.theme.Cinzel, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                        Text(if (phone) "Support" else "Support the developer", color = Palette.Ink, fontSize = 14.sp, fontFamily = io.github.nmanuelides.mtgreforged.ui.theme.Cinzel, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                     }
                 }
                 if (support) SupportDialog { support = false }
@@ -273,8 +275,8 @@ fun HomeScreen(
                         Modifier
                             .paperShadow(offsetY = 6.dp, blur = 16.dp)
                             .paper(Palette.Paper)
-                            .padding(horizontal = 36.dp, vertical = 10.dp),
-                    ) { Title(accent) }
+                            .padding(horizontal = if (phone) 18.dp else 36.dp, vertical = 10.dp),
+                    ) { Title(accent, compact = phone) }
                 }
                 // Card lookup, on the wallpaper right above Play.
                 if (!lookup) {
@@ -296,7 +298,7 @@ fun HomeScreen(
                     .parchment()
                     .drawBehind { drawRect(Palette.LineStrong, size = Size(size.width, 2.dp.toPx())) }
                     .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                    .padding(horizontal = if (phone) 12.dp else 24.dp, vertical = if (phone) 10.dp else 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (saved != null) {
@@ -338,7 +340,7 @@ fun HomeScreen(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        buttons.chunked(2).forEach { row ->
+                        buttons.chunked(if (phone) 3 else 2).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { row.forEach { it(Modifier.weight(1f)) } }
                         }
                     }
@@ -367,12 +369,12 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Title(color: Color) {
+private fun Title(color: Color, compact: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(vertical = 4.dp)) {
-        OrnateDivider(width = 260.dp, color = color)
+        OrnateDivider(width = if (compact) 200.dp else 260.dp, color = color)
         Text(
             "MTG Reforged",
-            style = MaterialTheme.typography.displayLarge,
+            style = if (compact) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.displayLarge,
             color = color,
             textAlign = TextAlign.Center,
         )

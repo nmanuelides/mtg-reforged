@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
+import io.github.nmanuelides.mtgreforged.ui.components.OverflowMenu
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.StartOffset
@@ -234,7 +236,31 @@ fun DeckBrowserScreen(
                 },
             )
         }
-        if (wide) {
+        if (!wide && maxWidth < 600.dp) {
+            // Phones in portrait: their own layout, with the everyday actions always in reach.
+            PhoneDeckSheet(
+                title = title,
+                summary = summary,
+                position = "${index + 1} / ${decks.size}",
+                custom = entry.custom,
+                favorite = if (format != null) favorite else null,
+                onToggleFavorite = { if (format != null) Favorites.toggle(format, entry) },
+                onPrev = { index = (index - 1 + decks.size) % decks.size },
+                onNext = { index = (index + 1) % decks.size },
+                onSearch = { mineOnly = false; searching = true },
+                onBack = onBack,
+                onSelect = { onSelect(entry) },
+                onEdit = { onEdit(entry) },
+                onOpenArt = { carousel = index },
+                menu = listOfNotNull(
+                    MenuItem("New deck", Icons.Default.Add, Palette.Sage, onClick = onNew),
+                    MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
+                    MenuItem("My decks", Icons.Default.Style, Palette.Plum, enabled = decks.any { it.custom }) { mineOnly = true; searching = true },
+                    if (entry.custom) MenuItem("Delete deck", Icons.Default.Delete, Palette.Terracotta) { onDelete(entry) } else null,
+                ),
+                modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(10.dp),
+            )
+        } else if (wide) {
             Row(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(14.dp)) {
                 // A narrow portrait of the deck's art; the sheet gets the rest of the width.
                 content(Modifier, Modifier.fillMaxSize())
@@ -394,6 +420,81 @@ private fun DeckSheet(
         Spacer(Modifier.height(10.dp))
         Row(Modifier.landIn(10), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             OrnateButton("Select", onSelect, Modifier.weight(1.3f), style = OrnateStyle.Primary, height = 54.dp, enabled = summary != null)
+        }
+    }
+}
+
+/**
+ * Phones in portrait: a top bar (back, deck name, favourite, a menu with New / Import / My decks /
+ * Delete), the deck's card and facts in the middle, and the browse row plus Edit and Select
+ * always on screen at the bottom.
+ */
+@Composable
+private fun PhoneDeckSheet(
+    title: String,
+    summary: DeckSummary?,
+    position: String,
+    custom: Boolean,
+    favorite: Boolean?,
+    onToggleFavorite: () -> Unit,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onSearch: () -> Unit,
+    onBack: () -> Unit,
+    onSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onOpenArt: () -> Unit,
+    menu: List<MenuItem>,
+    modifier: Modifier,
+) {
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth().landIn(0), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("", onBack, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.ArrowBack)
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                SectionLabel(title)
+                Text(
+                    summary?.title ?: "…", style = MaterialTheme.typography.headlineSmall, color = Palette.Terracotta,
+                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (favorite != null) {
+                OrnateButton(
+                    "", onToggleFavorite, Modifier.width(48.dp),
+                    icon = if (favorite) Icons.Default.Star else Icons.Default.StarBorder, accent = Palette.Ochre, frameColor = Palette.Ochre,
+                )
+            }
+            OverflowMenu(menu)
+        }
+        Spacer(Modifier.height(10.dp))
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.fillMaxWidth().landIn(1), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                ArtPanel(summary, Modifier.weight(0.46f).aspectRatio(0.66f), onOpen = onOpenArt)
+                Box(Modifier.weight(0.54f)) { summary?.let { SheetStats(it) } }
+            }
+            summary?.let { s ->
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.landIn(2)) { DeckFacts(s) }
+                Spacer(Modifier.height(12.dp))
+                var viewing by remember { mutableStateOf<Int?>(null) }
+                Row(Modifier.landIn(3), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    s.featured.forEachIndexed { i, card -> FeaturedCard(card, Modifier.weight(1f).clickable { viewing = i }) }
+                }
+                viewing?.let { start -> KeyCardsViewer(s.featured, start) { viewing = null } }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.landIn(4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OrnateButton("", onPrev, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft)
+            OrnateButton(position, onSearch, Modifier.weight(1f), icon = Icons.Default.Search, style = OrnateStyle.Quiet)
+            OrnateButton("", onNext, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.KeyboardArrowRight)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.landIn(5), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (custom) {
+                OrnateButton("Edit", onEdit, Modifier.weight(1f), icon = Icons.Default.Edit, accent = Palette.Ochre, frameColor = Palette.Ochre, height = 52.dp)
+            }
+            OrnateButton("Select", onSelect, Modifier.weight(1.4f), style = OrnateStyle.Primary, height = 52.dp, enabled = summary != null)
         }
     }
 }

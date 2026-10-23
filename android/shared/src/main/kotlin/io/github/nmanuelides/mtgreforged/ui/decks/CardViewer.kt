@@ -231,20 +231,11 @@ private fun ViewerBar(
     // The collection counts this exact printing; a deck counts the card whatever the printing.
     val count = if (collectionMode) draft.main[card] ?: 0 else draft.countOf(card.name)
     val total = draft.countOf(card.name)
-    Row(
-        Modifier
-            .widthIn(max = 720.dp)
-            .padding(horizontal = 16.dp)
-            .paperShadow(offsetY = 4.dp, blur = 12.dp, cover = Palette.PaperLight)
-            .paper(Palette.PaperLight)
-            .ornateFrame(inset = 3.dp)
-            // Taps on the bar shouldn't close the viewer.
-            .clickable(remember { MutableInteractionSource() }, indication = null) {}
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
+    // Phones get two rows: what the card is (name, count, price, close), then what to do with it.
+    BoxWithConstraints(Modifier.widthIn(max = 720.dp).padding(horizontal = 16.dp)) {
+    val compact = maxWidth < 560.dp
+    val info: @Composable (Modifier) -> Unit = { m ->
+        Column(m) {
             Text(card.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
                 when {
@@ -254,16 +245,16 @@ private fun ViewerBar(
                     else -> "$count in deck · another printing (+ / − switch to this one)"
                 },
                 style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
         }
-        PriceTag(price)
+    }
+    val actions: @Composable () -> Unit = {
         // Finish: the printing on screen, regular or foil (the deck follows the choice when the card is in it).
         // Always offered: Forge allows any printing as foil; the price just shows "—" if Card Kingdom has none.
-        run {
-            Chip(if (card.isFoil) "✦ Foil" else "Regular", card.isFoil, fontSize = 12) { onFinish(if (card.isFoil) card.unFoiled else card.foiled) }
-        }
+        Chip(if (card.isFoil) "✦ Foil" else "Regular", card.isFoil, fontSize = 12) { onFinish(if (card.isFoil) card.unFoiled else card.foiled) }
         // Building a deck: one tap adds a card you don't own yet to your collection.
-        if (!LocalCollectionMode.current) {
+        if (!collectionMode) {
             val owned by CardCollection.version.collectAsState()
             val has = remember(card.name, owned) { CardCollection.owns(card.name) }
             val scope = rememberCoroutineScope()
@@ -292,6 +283,8 @@ private fun ViewerBar(
                 Icon(if (isCommander) Icons.Default.Star else Icons.Default.StarBorder, "Commander", tint = Palette.Ochre)
             }
         }
+    }
+    val counter: @Composable () -> Unit = {
         IconButton(onClick = {
             if (!collectionMode) draft.usePrinting(card)
             draft.remove(card, fromCommander = isCommander && (draft.main[card] ?: 0) == 0)
@@ -304,7 +297,36 @@ private fun ViewerBar(
         IconButton(onClick = { if (!collectionMode) draft.usePrinting(card); draft.add(card) }, enabled = !isCommander) {
             Icon(Icons.Default.Add, "Add one", tint = if (!isCommander) Palette.Sage else Palette.Line)
         }
-        Spacer(Modifier.width(4.dp))
-        IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close", tint = Palette.InkSoft) }
+    }
+    val frame = Modifier
+        .paperShadow(offsetY = 4.dp, blur = 12.dp, cover = Palette.PaperLight)
+        .paper(Palette.PaperLight)
+        .ornateFrame(inset = 3.dp)
+        // Taps on the bar shouldn't close the viewer.
+        .clickable(remember { MutableInteractionSource() }, indication = null) {}
+        .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = 8.dp)
+    if (compact) {
+        Column(frame) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                info(Modifier.weight(1f))
+                PriceTag(price)
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close", tint = Palette.InkSoft) }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                actions()
+                Spacer(Modifier.weight(1f))
+                counter()
+            }
+        }
+    } else {
+        Row(frame, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            info(Modifier.weight(1f))
+            PriceTag(price)
+            actions()
+            counter()
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close", tint = Palette.InkSoft) }
+        }
+    }
     }
 }

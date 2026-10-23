@@ -29,16 +29,20 @@ fun OrnateDialog(
             usePlatformDefaultWidth = false,
         ),
     ) {
-        Column(
-            Modifier
-                .padding(24.dp)
-                .widthIn(max = maxWidth)
-                .fillMaxWidth()
-                .parchment()
-                .ornateFrame(inset = 5.dp, topGem = true)
-                .padding(horizontal = 24.dp, vertical = 22.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            content = content,
-        )
+        // Phones: less margin around and inside the dialog, so its content keeps its width.
+        androidx.compose.foundation.layout.BoxWithConstraints(contentAlignment = Alignment.Center) {
+            val narrow = this.maxWidth < 480.dp
+            Column(
+                Modifier
+                    .padding(if (narrow) 10.dp else 24.dp)
+                    .widthIn(max = maxWidth)
+                    .fillMaxWidth()
+                    .parchment()
+                    .ornateFrame(inset = 5.dp, topGem = true)
+                    .padding(horizontal = if (narrow) 14.dp else 24.dp, vertical = if (narrow) 16.dp else 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                content = content,
+            )
+        }
     }
 }
