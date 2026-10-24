@@ -137,7 +137,7 @@ fun HomeScreen(
     onFriends: () -> Unit = {},
 ) {
     // 0 until the player picks: phones then start 1 on 1 (more opponents make every board small), others with 3.
-    var chosenCount by rememberSaveable { mutableStateOf(0) }
+    var chosenCount by ChosenOpponents
     var showRivals by remember { mutableStateOf(false) }
     val decks = decksFor(format)
     val favoriteVersion by Favorites.version.collectAsState()
@@ -390,6 +390,9 @@ fun HomeScreen(
     }
 
 }
+
+/** Kept outside HomeScreen: picking a deck leaves the home screen, and its own state would reset. */
+private val ChosenOpponents = mutableStateOf(0)
 
 @Composable
 private fun Title(color: Color, compact: Boolean = false) {

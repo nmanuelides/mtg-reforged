@@ -497,8 +497,9 @@ private fun ThumbPromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -
             .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Text(
-            p.message.ifBlank { "Waiting…" },
-            Modifier.fillMaxWidth().heightIn(max = 44.dp).verticalScroll(rememberScrollState()),
+            // Forge splits its prompts with blank lines; one line break is enough here.
+            p.message.ifBlank { "Waiting…" }.replace(Regex("\n\\s*\n+"), "\n"),
+            Modifier.fillMaxWidth().heightIn(max = 96.dp).verticalScroll(rememberScrollState()),
             style = MaterialTheme.typography.bodySmall,
         )
         Spacer(Modifier.height(6.dp))
