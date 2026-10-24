@@ -57,7 +57,7 @@ private const val GAP_DP = 6f
 private fun groupKey(c: CardUi) =
     listOf(c.name, c.tapped, c.sick, c.power, c.toughness, c.damage, c.counters, c.token, c.faceDown, c.goaded)
 
-private fun buildItems(cards: List<CardUi>, mirrored: Boolean): List<FieldItem> {
+private fun buildItems(cards: List<CardUi>, mirrored: Boolean, extraKey: ((CardUi) -> Any?)? = null): List<FieldItem> {
     val ids = cards.mapTo(HashSet()) { it.id }
     val attached = cards.filter { it.attachedToId != null && it.attachedToId in ids }.groupBy { it.attachedToId }
     val roots = cards.filter { it.attachedToId == null || it.attachedToId !in ids }
@@ -72,7 +72,7 @@ private fun buildItems(cards: List<CardUi>, mirrored: Boolean): List<FieldItem> 
     roots.groupBy { section(it) }.toSortedMap().forEach { (sec, inSection) ->
         // Only bare permanents are stacked; anything with attachments stays on its own.
         val (plain, decorated) = inSection.partition { attached[it.id].isNullOrEmpty() }
-        plain.groupBy(::groupKey).values.forEach { items += FieldItem(it, emptyList(), sec) }
+        plain.groupBy { groupKey(it) + listOf(extraKey?.invoke(it)) }.values.forEach { items += FieldItem(it, emptyList(), sec) }
         decorated.forEach { items += FieldItem(listOf(it), attached[it.id].orEmpty(), sec) }
     }
     return items
@@ -82,14 +82,14 @@ private class Placement(val item: FieldItem, val x: Float, val y: Float, val w: 
 private class Plan(val cardWidth: Float, val placements: List<Placement>)
 
 /** Finds the largest card width at which every item fits, packing rows section by section. */
-private fun plan(items: List<FieldItem>, maxW: Float, maxH: Float, minCard: Float, maxCard: Float): Plan {
+private fun plan(items: List<FieldItem>, maxW: Float, maxH: Float, minCard: Float, maxCard: Float, pile: Boolean): Plan {
     fun layout(cardW: Float): Pair<Float, List<Placement>> {
         val cardH = cardW / CARD_ASPECT
         val rows = ArrayList<MutableList<Pair<FieldItem, Pair<Float, Float>>>>()
         var rowWidth = 0f
         var lastSection = -1
         for (item in items) {
-            val w = (if (item.tapped) cardH else cardW) + fanStep(item.cards.size, cardW) * (item.cards.size - 1)
+            val w = (if (item.tapped) cardH else cardW) + (if (pile) 0f else fanStep(item.cards.size, cardW)) * (item.cards.size - 1)
             val h = cardH * (1 + ATTACH_PEEK * item.attachments.size)
             val newRow = rows.isEmpty() || item.section != lastSection || rowWidth + GAP_DP + w > maxW
             if (newRow) {
@@ -133,6 +133,8 @@ internal fun Battlefield(
     mirrored: Boolean,
     maxCardWidth: Dp,
     modifier: Modifier = Modifier,
+    /** Phones: identical permanents show as one card with a count instead of fanning out. */
+    pile: Boolean = false,
 ) {
     // Auras and equipment sit on what they're attached to, even when that's another player's
     // permanent: those leave their controller's field and show up here, on top of their host.
@@ -143,10 +145,13 @@ internal fun Battlefield(
         val incoming = state.players.filter { it.id != player.id }.flatMap { it.battlefield }.filter { it.attachedToId in mine }
         stay + incoming
     }
-    val items = remember(cards, mirrored) { buildItems(cards, mirrored) }
+    // A pile only holds copies marked alike (attacking, selectable...), so no copy's state is hidden.
+    val items = remember(cards, mirrored, if (pile) state else null) {
+        buildItems(cards, mirrored, if (pile) { c -> state.markFor(c) } else null)
+    }
     BoxWithConstraints(modifier) {
-        val plan = remember(items, maxWidth, maxHeight, maxCardWidth) {
-            plan(items, maxWidth.value, maxHeight.value, 28f, maxCardWidth.value)
+        val plan = remember(items, maxWidth, maxHeight, maxCardWidth, pile) {
+            plan(items, maxWidth.value, maxHeight.value, 28f, maxCardWidth.value, pile)
         }
         // Opponents' fields hug the top edge of their area, ours the bottom one.
         val usedHeight = plan.placements.maxOfOrNull { it.y + it.h } ?: 0f
@@ -156,7 +161,7 @@ internal fun Battlefield(
                 Modifier.offset(p.x.dp, (p.y + shiftY).dp).size(p.w.dp, p.h.dp),
                 contentAlignment = Alignment.BottomCenter,
             ) {
-                FieldItemView(p.item, plan.cardWidth.dp, state, actions, player.id)
+                FieldItemView(p.item, plan.cardWidth.dp, state, actions, player.id, pile)
             }
         }
     }
@@ -167,10 +172,10 @@ private fun fanStep(count: Int, cardWidth: Float): Float =
     if (count <= 1) 0f else minOf(cardWidth * 0.3f, cardWidth * 1.6f / (count - 1))
 
 @Composable
-private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions, fieldOwnerId: Int) {
+private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, actions: BoardActions, fieldOwnerId: Int, pile: Boolean) {
     val cardHeight = cardWidth / CARD_ASPECT
     val slotWidth = if (item.tapped) cardHeight else cardWidth
-    val step = fanStep(item.cards.size, cardWidth.value).dp
+    val step = if (pile) 0.dp else fanStep(item.cards.size, cardWidth.value).dp
 
     Box(contentAlignment = Alignment.BottomStart) {
         item.attachments.forEachIndexed { i, a ->
@@ -201,6 +206,8 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
         var focus by remember(item.cards.size) { mutableStateOf<Int?>(null) }
         val stepPx = with(LocalDensity.current) { step.toPx() }
         item.cards.forEachIndexed { i, card ->
+            // A pile draws only its top copy; taps go to it, and the copies are alike anyway.
+            if (pile && i < item.cards.lastIndex) return@forEachIndexed
             Box(
                 Modifier
                     .offset(x = step * i)
@@ -229,6 +236,17 @@ private fun FieldItemView(item: FieldItem, cardWidth: Dp, state: MatchUiState, a
                         fontWeight = FontWeight.Bold,
                         color = Palette.OnAccent,
                         maxLines = 1,
+                    )
+                }
+                if (pile && item.cards.size > 1) {
+                    Text(
+                        "×${item.cards.size}",
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(2.dp)
+                            .background(Palette.Ink.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 1.dp),
+                        fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Palette.OnAccent,
                     )
                 }
                 HoldZoom(card, focus == i, caption = zoomInfo(card))

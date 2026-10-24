@@ -136,7 +136,8 @@ fun HomeScreen(
     onCollection: () -> Unit = {},
     onFriends: () -> Unit = {},
 ) {
-    var opponentCount by rememberSaveable { mutableStateOf(3) }
+    // 0 until the player picks: phones then start 1 on 1 (more opponents make every board small), others with 3.
+    var chosenCount by rememberSaveable { mutableStateOf(0) }
     var showRivals by remember { mutableStateOf(false) }
     val decks = decksFor(format)
     val favoriteVersion by Favorites.version.collectAsState()
@@ -157,6 +158,7 @@ fun HomeScreen(
         val wide = maxWidth > maxHeight
         // Phones in portrait: tighter margins, a smaller title, three buttons per row.
         val phone = !wide && maxWidth < 600.dp
+        val opponentCount = if (chosenCount > 0) chosenCount else if (phone) 1 else 3
         Column(Modifier.fillMaxSize()) {
             // Top ~3/4: the artwork edge to edge, the title on a cream plaque.
             Box(Modifier.fillMaxWidth().weight(1f)) {
@@ -369,22 +371,24 @@ fun HomeScreen(
                 )
             }
         }
+
+        if (showRivals) {
+            GameSettingsDialog(
+                format = format,
+                onFormat = onFormat,
+                count = opponentCount,
+                onCount = { chosenCount = it },
+                phone = phone,
+                selections = selections,
+                onPick = { slot -> showRivals = false; onBrowseDecks(format, slot, selections[slot]) },
+                onDismiss = { showRivals = false },
+            )
+        }
     }
 
     if (lookup) CardLookupOverlay(pillBounds) { lookup = false }
     }
 
-    if (showRivals) {
-        GameSettingsDialog(
-            format = format,
-            onFormat = onFormat,
-            count = opponentCount,
-            onCount = { opponentCount = it },
-            selections = selections,
-            onPick = { slot -> showRivals = false; onBrowseDecks(format, slot, selections[slot]) },
-            onDismiss = { showRivals = false },
-        )
-    }
 }
 
 @Composable
@@ -449,6 +453,7 @@ private fun GameSettingsDialog(
     onFormat: (Format) -> Unit,
     count: Int,
     onCount: (Int) -> Unit,
+    phone: Boolean,
     selections: Map<DeckSlot, DeckEntry>,
     onPick: (DeckSlot) -> Unit,
     onDismiss: () -> Unit,
@@ -473,6 +478,13 @@ private fun GameSettingsDialog(
             OrnateButton("", { onCount(count - 1) }, Modifier.width(52.dp), icon = Icons.Default.Remove, enabled = count > 1, height = 46.dp)
             Text("$count", style = MaterialTheme.typography.headlineMedium, color = Palette.Ink)
             OrnateButton("", { onCount(count + 1) }, Modifier.width(52.dp), icon = Icons.Default.Add, enabled = count < 3, height = 46.dp)
+        }
+        if (phone && count > 1) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "On a phone, each extra opponent makes the boards smaller: 1 on 1 plays best.",
+                style = MaterialTheme.typography.bodySmall, color = Palette.Terracotta,
+            )
         }
         Spacer(Modifier.height(16.dp))
         Text("Their decks", style = MaterialTheme.typography.labelLarge, color = Palette.InkSoft)

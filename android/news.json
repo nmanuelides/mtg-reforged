@@ -221,6 +221,12 @@
       "title": "New in v0.91.0",
       "body": "• Phones: one Game settings button on the home screen (game mode, opponents and their decks), the Support button sits at the top, and the title has more room.\n• Phones, deck screen: New deck and My decks sit next to Edit and Select, and the commander, colours and price box is smaller.\n• Phones, deck builder and collection: Filters and List together at the top, a slimmer search with the card count and price beside it, mana and card type filters on two rows, and header buttons as tall as the name box.\n• Icon-only buttons have their icon centred.",
       "link": null
+    },
+    {
+      "id": "v0.92.0",
+      "title": "New in v0.92.0",
+      "body": "• Phones get a match screen of their own: identical permanents pile up as one card with a count, each opponent has a tab with their life and cards (the one whose turn it is comes forward), the stack fits in one line (tap it for the full list), the hand is a low row you open by swiping its handle up, and the buttons are big and at the bottom.\n• Phones: when you can't play anything, priority passes by itself.\n• Phones start 1 on 1, and Game settings warns that more opponents make the boards smaller.\n• Every search box has an X to clear it; the card lookup closes by tapping outside it.\n• Tablets keep their match screen as it was.",
+      "link": null
     }
   ]
 }

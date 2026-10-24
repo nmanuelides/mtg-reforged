@@ -48,6 +48,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -169,6 +170,9 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
             .parchment(),
     ) {
         val tablet = maxWidth >= TABLET_MIN_WIDTH
+        // Phones (either way round); tablets in portrait keep the stacked layout below.
+        val phone = !tablet && minOf(maxWidth, maxHeight) < 600.dp
+        LaunchedEffect(game, phone) { game.passWhenStuck = phone }
         // Bigger windows (Windows) get bigger cards: half of how much the window grew past
         // 1000x700 (average of width and height), so the board still gains room. At most 1.8x.
         val growth = kotlin.math.sqrt((maxWidth / 1000.dp) * (maxHeight / 700.dp))
@@ -182,6 +186,8 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
                     onLog = { showLog = true },
                     onConcede = { confirmLeave = true },
                 )
+            } else if (phone) {
+                SmartphoneLayout(state, actions, game, onLog = { showLog = true }, onConcede = { confirmLeave = true })
             } else {
                 PhoneLayout(state, actions, game, onLog = { showLog = true }, onConcede = { confirmLeave = true })
             }
@@ -307,6 +313,211 @@ private fun PhoneLayout(
         }
         PhaseTrack(state.phase, Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp))
         PromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel, onPlayer = game::tapPlayer)
+    }
+}
+
+/**
+ * Phones: one opponent's board at a time (tabs to switch, the one whose turn it is comes
+ * forward), identical permanents piled, the stack and hand tucked away until wanted, and
+ * big buttons at the bottom under the thumb.
+ */
+@Composable
+private fun SmartphoneLayout(
+    state: MatchUiState,
+    actions: BoardActions,
+    game: ComposeGuiGame,
+    onLog: () -> Unit,
+    onConcede: () -> Unit,
+) {
+    var showStack by remember { mutableStateOf(false) }
+    var handOpen by remember { mutableStateOf(false) }
+    val opponents = state.opponents
+    var shownId by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(state.activePlayerId) {
+        if (opponents.any { it.id == state.activePlayerId }) shownId = state.activePlayerId
+    }
+    val shown = opponents.firstOrNull { it.id == shownId } ?: opponents.firstOrNull()
+    Column(Modifier.fillMaxSize()) {
+        TopBar(state, onLog, onConcede, game::undo)
+        if (opponents.size > 1) OpponentTabs(opponents, shown?.id, state, actions) { shownId = it }
+        shown?.let { opp ->
+            PlayerStrip(opp, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp).alpha(if (opp.hasLost) 0.4f else 1f), compact = true)
+            Battlefield(
+                opp, state, actions, mirrored = true, maxCardWidth = 72.dp, pile = true,
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp),
+            )
+        }
+        StackChip(state.stack, actions) { showStack = true }
+        state.me?.let { me ->
+            Battlefield(
+                me, state, actions, mirrored = false, maxCardWidth = 72.dp, pile = true,
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp),
+            )
+            PlayerStrip(me, state, actions, Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            HandDrawer(me.hand, state, actions, handOpen) { handOpen = it }
+        }
+        PhaseTrack(state.phase, Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp))
+        ThumbPromptBar(state, onOk = game::pressOk, onCancel = game::pressCancel, onPlayer = game::tapPlayer)
+    }
+    if (showStack && state.stack.isNotEmpty()) StackSheet(state.stack, actions) { showStack = false }
+}
+
+/** Phones with several opponents: each one's life and cards at a glance; tap to see their board. */
+@Composable
+private fun OpponentTabs(opponents: List<PlayerUi>, shownId: Int?, state: MatchUiState, actions: BoardActions, onShow: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        opponents.forEach { p ->
+            val targetable = p.id in state.highlightedIds || p.id in state.choosablePlayerIds
+            val selected = p.id == shownId
+            Row(
+                Modifier
+                    .weight(1f)
+                    .alpha(if (p.hasLost) 0.4f else 1f)
+                    .background(if (selected) Palette.PaperLight else Palette.Paper.copy(alpha = 0.6f))
+                    .ornateFrame(
+                        when {
+                            p.id == state.attackTargetId -> Palette.Attacking
+                            targetable -> Palette.Selectable
+                            selected -> Palette.Terracotta
+                            else -> Palette.Line
+                        },
+                        inset = 2.dp, corners = false,
+                    )
+                    // Choosing a player (a target): the tab picks them; otherwise it shows their board.
+                    .clickable { if (targetable) actions.onPlayer(p.id) else onShow(p.id) }
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val ring = if (p.isAi) Palette.Slate else Palette.Terracotta
+                Box(
+                    Modifier.size(26.dp).then(if (selected) Modifier else Modifier.trackPosition("p${p.id}"))
+                        .background(ring, CircleShape).padding(1.5.dp),
+                ) {
+                    PlayerPortrait(p.seat, p.name, p.command.firstOrNull()?.name, ring, Modifier.fillMaxSize())
+                }
+                Spacer(Modifier.width(6.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "♥ ${p.life}", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1,
+                        color = if (p.isActive) Palette.Terracotta else Palette.Ink,
+                    )
+                    Text(
+                        "✋ ${p.handSize} · ${p.battlefield.size} in play", fontSize = 10.sp, color = Palette.InkSoft,
+                        maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Phones: the stack as one line (top item and how many); tap for the whole list. */
+@Composable
+private fun StackChip(stack: List<StackItemUi>, actions: BoardActions, onOpen: () -> Unit) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 6.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.Outline))
+        val top = stack.firstOrNull() ?: return@Box
+        Row(
+            Modifier.paper(Palette.PaperLight).ornateFrame(Palette.Slate, inset = 3.dp).clickable(onClick = onOpen)
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Stack · ${stack.size}", style = MaterialTheme.typography.labelSmall, color = Palette.Slate)
+            top.source?.let { ZoomableCard(it, 30.dp, onTap = onOpen) }
+            Text(
+                top.source?.name ?: top.text, Modifier.widthIn(max = 180.dp),
+                style = MaterialTheme.typography.labelMedium, color = Palette.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StackSheet(stack: List<StackItemUi>, actions: BoardActions, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
+        Text("Stack (top first)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+            items(stack, key = { it.id }) { item ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    item.source?.let { ZoomableCard(it, 64.dp, onTap = { actions.onInspect(it) }) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(item.controllerName, style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                        Text(item.text, style = MaterialTheme.typography.bodyMedium, color = Palette.Ink)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** Phones: the hand as a low row of cards; tap or swipe its handle up to open it big, down to close. */
+@Composable
+private fun HandDrawer(cards: List<CardUi>, state: MatchUiState, actions: BoardActions, open: Boolean, onOpen: (Boolean) -> Unit) {
+    var drag by remember { mutableStateOf(0f) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .pointerInput(open) {
+                detectVerticalDragGestures(
+                    onDragStart = { drag = 0f },
+                    onDragEnd = { if (drag < -20f) onOpen(true) else if (drag > 20f) onOpen(false) },
+                ) { _, dy -> drag += dy }
+            }
+            .clickable { onOpen(!open) }
+            .padding(vertical = 5.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(36.dp, 4.dp).background(Palette.Line, RoundedCornerShape(2.dp)))
+        Spacer(Modifier.width(8.dp))
+        Text("Hand · ${cards.size}", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.size(36.dp, 4.dp).background(Palette.Line, RoundedCornerShape(2.dp)))
+    }
+    if (open) HandDock(cards, state, actions, cardWidth = 100.dp, height = 150.dp, maxScale = 1.9f)
+    else HandDock(cards, state, actions, cardWidth = 60.dp, height = 88.dp, maxScale = 2.8f)
+}
+
+/** Phones: the prompt on its own line and big buttons below it, the main one on the right. */
+@Composable
+private fun ThumbPromptBar(state: MatchUiState, onOk: () -> Unit, onCancel: () -> Unit, onPlayer: (Int) -> Unit) {
+    val p = state.prompt
+    if (state.choosablePlayerIds.isNotEmpty()) {
+        Box(Modifier.fillMaxWidth().paper(Palette.PaperDeep).padding(horizontal = 14.dp, vertical = 6.dp)) {
+            PlayerChoices(state, onPlayer)
+        }
+    }
+    Column(
+        Modifier.fillMaxWidth().paper(Palette.PaperDeep).ornateFrame(Palette.Line, inset = 3.dp, corners = false)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(
+            p.message.ifBlank { "Waiting…" },
+            Modifier.fillMaxWidth().heightIn(max = 44.dp).verticalScroll(rememberScrollState()),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (p.cancelLabel.isNotBlank()) {
+                if (p.passesPriority) {
+                    SwipeToConfirm(p.cancelLabel, { NextStep.press(); onCancel() }, Modifier.weight(1f), enabled = p.cancelEnabled, height = 52.dp, fill = Palette.Slate)
+                } else {
+                    OrnateButton(p.cancelLabel, onCancel, Modifier.weight(1f), enabled = p.cancelEnabled, accent = Palette.Slate, height = 52.dp)
+                }
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            if (p.passesPriority) {
+                SwipeToConfirm(passLabel(state), { NextStep.press(); onOk() }, Modifier.weight(1.3f), enabled = p.okEnabled, height = 52.dp)
+            } else {
+                OrnateButton(p.okLabel.ifBlank { "OK" }, onOk, Modifier.weight(1.3f), enabled = p.okEnabled, style = OrnateStyle.Primary, height = 52.dp)
+            }
+        }
     }
 }
 

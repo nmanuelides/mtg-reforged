@@ -201,6 +201,7 @@ private fun DeckPicker(decks: List<Engine.DeckEntry>, onPick: (Engine.DeckEntry)
         OutlinedTextField(
             query, { query = it }, singleLine = true, colors = fieldColors(),
             leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) } },
             placeholder = { Text("Search ${decks.size} decks") }, modifier = Modifier.fillMaxWidth(),
         )
         LazyColumn(Modifier.fillMaxWidth().height(460.dp).padding(top = 8.dp)) {

@@ -83,6 +83,9 @@ class ComposeGuiGame : NetworkGuiGame() {
      */
     @Volatile var autoStart = false
 
+    /** Phones: a priority stop where the player can't play anything passes by itself. */
+    @Volatile var passWhenStuck = false
+
     @Volatile private var prompt = PromptBarUi()
     @Volatile private var gameOver: GameOverUi? = null
     @Volatile private var refreshQueued = false
@@ -573,7 +576,16 @@ class ComposeGuiGame : NetworkGuiGame() {
             }
             .onFailure { Log.w("Undo", "recording failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
+        // After the recording, so undo still reaches this stop (the restored prompt isn't auto-passed).
+        if (passWhenStuck && !resolveAll && nothingToPlay(game)) gameController?.selectButtonOk()
     }
+
+    /** No spell, land or ability (mana abilities aside) the player could use now, and no floating mana. */
+    private fun nothingToPlay(game: forge.game.Game): Boolean = runCatching {
+        val me = (gameController as? PlayerControllerHuman)?.player ?: return false
+        if (!me.manaPool.isEmpty) return false
+        game.cardsInGame.none { c -> c.getAllPossibleAbilities(me, true).any { !it.isManaAbility } }
+    }.getOrDefault(false)
 
     fun undo() = onGameThread {
         // Tapping again while it waits for its moment calls the undo off.

@@ -136,7 +136,7 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.62f * rise.value))
-            .clickable(remember { MutableInteractionSource() }, indication = null) {},
+            .clickable(remember { MutableInteractionSource() }, indication = null, onClick = close),
     ) {
         val density = LocalDensity.current
         val topY = with(density) { 24.dp.toPx() }
@@ -173,9 +173,13 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
                             inner()
                         },
                     )
-                }
-                IconButton(onClick = close, Modifier.background(Palette.PaperLight, RoundedCornerShape(50))) {
-                    Icon(Icons.Default.Close, "Close", tint = Palette.Ink)
+                    if (query.isNotEmpty()) {
+                        Icon(
+                            Icons.Default.Close, "Clear search",
+                            Modifier.clickable { query = ""; picked = null; focus.requestFocus() }.padding(4.dp),
+                            tint = Palette.InkSoft,
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(14.dp))

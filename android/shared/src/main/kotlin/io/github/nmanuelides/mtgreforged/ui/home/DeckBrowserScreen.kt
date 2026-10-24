@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Close
 import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
 import io.github.nmanuelides.mtgreforged.ui.components.OverflowMenu
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -651,6 +653,7 @@ private fun DeckSearchDialog(
         OutlinedTextField(
             query, { query = it },
             leadingIcon = { Icon(Icons.Default.Search, null, tint = Palette.InkSoft) },
+            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) } },
             placeholder = { Text("Search ${decks.size} decks", style = MaterialTheme.typography.bodyMedium) },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge,
