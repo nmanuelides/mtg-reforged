@@ -24,6 +24,7 @@ import forge.ai.AiCardMemory.MemorySet;
 import forge.ai.ability.ChangeZoneAi;
 import forge.ai.ability.LearnAi;
 import forge.ai.simulation.FlatMonteCarloPicker;
+import forge.ai.simulation.SimAudit;
 import forge.ai.simulation.FlatMonteCarloStats;
 import forge.ai.simulation.GameStateEvaluator;
 import forge.ai.simulation.OnePlaySafetyChecker;
@@ -634,7 +635,8 @@ public class AiController {
                             return land;
                         }
                         for (final SpellAbility m : ComputerUtilMana.getAIPlayableMana(land)) {
-                            if (m.canProduce(color.getShortName())) {
+                            // before the first land drop there is usually nothing to pay for a filter
+                            if (!m.getPayCosts().hasManaCost() && m.canProduce(color.getShortName())) {
                                 return land;
                             }
                         }
@@ -1436,7 +1438,14 @@ public class AiController {
         AITimeoutTracker.begin(id, timeoutNanos);
         final Object limit = AITimeoutTracker.arm(AITimeoutTracker.deadlineNanos(id, timeoutNanos), false);
         try {
-            return chooseSpellAbilityToPlayImpl();
+            if (SimAudit.ENABLED) {
+                SimAudit.checkpoint(game, player);
+            }
+            final List<SpellAbility> chosen = chooseSpellAbilityToPlayImpl();
+            if (SimAudit.ENABLED) {
+                SimAudit.afterChoice(game, player, chosen);
+            }
+            return chosen;
         } catch (AITimeoutTracker.Expired e) {
             return null; // out of time: pass priority
         } finally {
