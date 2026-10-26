@@ -3,12 +3,13 @@ package io.github.nmanuelides.mtgreforged.engine
 import forge.StaticData
 import forge.item.PaperCard
 import java.text.Normalizer
+import kotlin.math.abs
 
 /**
  * One line of text the camera read: how far down the picture it sits (0 top, 1 bottom) and
  * how tall its letters are, both as a share of the picture's height.
  */
-data class ScannedLine(val text: String, val y: Float, val height: Float = 0f)
+data class ScannedLine(val text: String, val y: Float, val height: Float = 0f, val x: Float = 0.5f)
 
 /**
  * A card recognised in a frame. [nameRead]: its name was read (not only the set code and
@@ -33,6 +34,8 @@ object CardScan {
         val byNumber: Map<String, PaperCard>,
         /** Each set's card names, normalised, for scanning a single set. */
         val bySet: Map<String, List<Pair<String, String>>>,
+        /** Alternative names printed on some cards ("The Dead Marshes" is an Urborg) to that printing. */
+        val flavor: Map<String, PaperCard>,
     )
 
     @Volatile private var index: Index? = null
@@ -52,7 +55,14 @@ object CardScan {
         }
         val byNumber = HashMap<String, PaperCard>()
         val bySet = HashMap<String, HashMap<String, String>>()
+        val flavor = HashMap<String, PaperCard>()
         cards.forEach { c ->
+            if (c.hasFlavorName()) {
+                val key = norm(c.displayName)
+                flavor.putIfAbsent(key, c)
+                byName.putIfAbsent(key, c.name)
+                bySet.getOrPut(c.edition.uppercase()) { HashMap() }.putIfAbsent(key, c.name)
+            }
             val edition = db.getCardEdition(c.edition)
             val codes = listOfNotNull(c.edition, edition?.code2, edition?.scryfallCode).map { it.uppercase() }.distinct()
             c.collectorNumber?.takeIf { it.isNotBlank() }?.let { n -> codes.forEach { byNumber.putIfAbsent("$it#${numKey(n)}", c) } }
@@ -65,6 +75,7 @@ object CardScan {
             byName.entries.groupBy({ it.key.length }, { it.key to it.value }),
             byNumber,
             bySet.mapValues { (_, m) -> m.entries.map { it.key to it.value } },
+            flavor,
         )
     }
 
@@ -81,12 +92,22 @@ object CardScan {
     /** What the lines of one frame show, if anything; [set] limits it to that set's cards. */
     fun read(lines: List<ScannedLine>, set: String?): ScanHit? {
         val idx = index ?: return null
-        val code = set?.uppercase() ?: setCode(lines)
-        val byNumber = code?.let { c -> number(lines)?.let { idx.byNumber["$c#$it"] } }
-        val name = name(titleLines(lines), idx, set?.uppercase())
+        val title = name(titleLines(lines), idx, set?.uppercase())
+        // Other cards around it (a binder page) show their bottom lines too: take the one under
+        // this card's title, or without a title the one where the frame's bottom edge is.
+        val bottoms = bottoms(lines)
+        val bottom = if (title != null) {
+            bottoms.filter { it.y > title.line.y }.minByOrNull { (it.y - title.line.y) + abs(it.x - title.line.x) }
+        } else {
+            bottoms.minByOrNull { abs(it.y - 0.7f) + abs(it.x - 0.5f) }
+        }
+        val code = set?.uppercase() ?: bottom?.code
+        val byNumber = if (bottom != null && code != null) idx.byNumber["$code#${bottom.number}"] else null
+        val name = title?.name
         return when {
             byNumber != null && (name == null || name == byNumber.name) -> ScanHit(byNumber, name != null, true)
-            name != null -> defaultPrinting(name, set)?.let { ScanHit(it, true, false) }
+            title != null -> (title.printing?.takeIf { set == null || it.edition.equals(set, ignoreCase = true) } ?: defaultPrinting(title.name, set))
+                ?.let { ScanHit(it, true, false) }
             else -> null
         }
     }
@@ -125,45 +146,49 @@ object CardScan {
         "Legendary", "Basic Land", "Tribal", "Kindred", "Snow", "Token", "World Enchantment", "Conspiracy",
     )
 
+    /** A name read on [line]; [printing]: the one printing that carries it, for an alternative name. */
+    private class NameMatch(val name: String, val line: ScannedLine, val printing: PaperCard?)
+
     /** The first of [lines] that is (or nearly is) a card name. */
-    private fun name(lines: List<ScannedLine>, idx: Index, set: String?): String? {
+    private fun name(lines: List<ScannedLine>, idx: Index, set: String?): NameMatch? {
         for (line in lines) {
             val n = norm(line.text)
             if (n.length < 3) continue
-            if (set == null) idx.byName[n]?.let { return it }
+            if (set == null) idx.byName[n]?.let { return NameMatch(it, line, idx.flavor[n]) }
             val pool = if (set != null) idx.bySet[set].orEmpty()
             else (n.length - 2..n.length + 2).flatMap { idx.byLength[it].orEmpty() }
             // Within one set a looser match is still unambiguous.
             val allowed = if (set != null) maxOf(2, n.length / 4) else maxOf(1, n.length / 7)
-            var best: String? = null
+            var best: Pair<String, String>? = null
             var bestDistance = allowed + 1
-            for ((key, real) in pool) {
-                if (kotlin.math.abs(key.length - n.length) > allowed) continue
-                val d = distance(n, key, bestDistance)
-                if (d < bestDistance) { bestDistance = d; best = real; if (d == 0) break }
+            for (entry in pool) {
+                if (abs(entry.first.length - n.length) > allowed) continue
+                val d = distance(n, entry.first, bestDistance)
+                if (d < bestDistance) { bestDistance = d; best = entry; if (d == 0) break }
             }
-            if (best != null) return best
+            if (best != null) return NameMatch(best.second, line, idx.flavor[best.first])
         }
         return null
     }
 
-    /** The collector number from the bottom line ("R 0090", "0090 R" or the older "123/249"). */
-    private fun number(lines: List<ScannedLine>): String? {
-        for (line in lines.sortedByDescending { it.y }) {
-            val t = line.text.trim()
-            RARITY_NUMBER.find(t)?.let { return numKey(it.groupValues[1]) }
-            NUMBER_RARITY.find(t)?.let { return numKey(it.groupValues[1]) }
-            OF_TOTAL.find(t)?.let { return numKey(it.groupValues[1]) }
-        }
-        return null
-    }
+    /** A collector number read, with the set code printed beside or under it (if read). */
+    private class Bottom(val number: String, val code: String?, val y: Float, val x: Float)
 
-    /** The set code from the bottom line ("FRA • EN"). */
-    private fun setCode(lines: List<ScannedLine>): String? {
-        for (line in lines.sortedByDescending { it.y }) {
-            SET_LANGUAGE.find(line.text.trim())?.let { return it.groupValues[1].uppercase() }
+    /**
+     * Every collector number read ("R 0090", "0090 R" or the older "123/249"), each paired with
+     * the set code ("FRA • EN") on its own line or the one right below it, so the number and
+     * code of one card don't get mixed with a neighbour's.
+     */
+    private fun bottoms(lines: List<ScannedLine>): List<Bottom> {
+        val codes = lines.mapNotNull { l -> SET_LANGUAGE.find(l.text.trim())?.let { l to it.groupValues[1].uppercase() } }
+        return lines.mapNotNull { l ->
+            val t = l.text.trim()
+            val number = (RARITY_NUMBER.find(t) ?: NUMBER_RARITY.find(t) ?: OF_TOTAL.find(t))?.groupValues?.get(1) ?: return@mapNotNull null
+            val code = codes
+                .filter { (c, _) -> c.y - l.y in -0.005f..0.06f && abs(c.x - l.x) < 0.3f }
+                .minByOrNull { (c, _) -> abs(c.y - l.y) + abs(c.x - l.x) }?.second
+            Bottom(numKey(number), code, l.y, l.x)
         }
-        return null
     }
 
     private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s+0*(\d{1,4}[a-z]?)\b""")
