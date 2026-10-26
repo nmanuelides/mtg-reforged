@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.platform.CAN_SCAN_CARDS
+import io.github.nmanuelides.mtgreforged.ui.decks.CardScanner
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Tune
@@ -150,6 +152,7 @@ fun HomeScreen(
     val chrome by animateFloatAsState(if (chromeVisible) 1f else 0f, tween(550, easing = FastOutSlowInEasing), label = "chrome")
 
     var lookup by remember { mutableStateOf(false) }
+    var priceScan by remember { mutableStateOf(false) }
     var pillBounds by remember { mutableStateOf<Rect?>(null) }
     // While the card lookup is open, the home screen blurs behind it (Android 12+).
     val blur by androidx.compose.animation.core.animateDpAsState(if (lookup) 18.dp else 0.dp, label = "blur")
@@ -304,6 +307,7 @@ fun HomeScreen(
                         Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 18.dp)
                             .onGloballyPositioned { pillBounds = it.boundsInRoot() }
                             .graphicsLayer { alpha = chrome },
+                        onScan = if (CAN_SCAN_CARDS) ({ priceScan = true }) else null,
                     )
                 }
             }
@@ -387,6 +391,7 @@ fun HomeScreen(
     }
 
     if (lookup) CardLookupOverlay(pillBounds) { lookup = false }
+    if (priceScan) CardScanner(onSave = {}, onClose = { priceScan = false }, lookup = true)
     }
 
 }

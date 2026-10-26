@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -55,6 +56,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import forge.item.PaperCard
+import io.github.nmanuelides.mtgreforged.engine.CardPrice
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.engine.CardScan
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.ScanHit
@@ -106,7 +109,7 @@ private const val AWAY_MS = 1500L
  * many (the small ones too), and the Foil chip for foil. Nothing is added until Save.
  */
 @Composable
-internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> Unit) {
+internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> Unit, lookup: Boolean = false) {
     val context = LocalAppContext.current
     val prefs = remember { context.prefs("scanner") }
     val haptics = LocalHapticFeedback.current
@@ -164,7 +167,14 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         holdingSeen = now
         streak = 0
         val existing = items.firstOrNull { it.name == name }
-        if (existing != null) {
+        if (lookup) {
+            val printings = printingsOf(card)
+            val item = Scanned(printings, printings.indexOf(card).coerceAtLeast(0))
+            item.guessed = numbered == null
+            items.clear()
+            items.add(item)
+            focus = item
+        } else if (existing != null) {
             existing.quantity++
             if (numbered != null) usePrinting(existing, numbered)
             focus = existing
@@ -178,7 +188,7 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
-    BackHandler { if (items.isEmpty()) onClose() else confirmLeave = true }
+    BackHandler { if (items.isEmpty() || lookup) onClose() else confirmLeave = true }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         CameraTextView(
@@ -198,13 +208,13 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
 
         // Where to hold the card.
         Box(
-            Modifier.align(Alignment.Center).padding(bottom = 120.dp).fillMaxWidth(0.72f).aspectRatio(63f / 88f)
+            Modifier.align(Alignment.Center).padding(bottom = if (lookup) 300.dp else 120.dp).fillMaxWidth(if (lookup) 0.5f else 0.72f).aspectRatio(63f / 88f)
                 .border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)),
         )
 
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OrnateButton("", { if (items.isEmpty()) onClose() else confirmLeave = true }, Modifier.width(48.dp), icon = Icons.Default.Close)
+                OrnateButton("", { if (items.isEmpty() || lookup) onClose() else confirmLeave = true }, Modifier.width(48.dp), icon = Icons.Default.Close)
                 OrnateButton(
                     sets.firstOrNull { it.code == set }?.name ?: "Any set", { pickingSet = true }, Modifier.weight(1f),
                     accent = Palette.Plum, frameColor = Palette.Plum, textStyle = MaterialTheme.typography.labelMedium,
@@ -222,9 +232,9 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
             )
             Spacer(Modifier.weight(1f))
             // A tapped card comes back to the front, as if just scanned.
-            ScanTray(items, focus, onFocus = { items.remove(it); items.add(0, it); focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
+            ScanTray(items, focus, lookup, onFocus = { items.remove(it); items.add(0, it); focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
             val total = items.sumOf { it.quantity }
-            OrnateButton(
+            if (lookup) Spacer(Modifier.height(12.dp)) else OrnateButton(
                 if (total == 0) "Save" else "Save $total card${if (total > 1) "s" else ""}",
                 {
                     val cards = HashMap<PaperCard, Int>()
@@ -260,7 +270,7 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
 
 /** The scanned cards: the one in focus big (with its gestures), the rest small beside it. */
 @Composable
-private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -> Unit, onRemove: (Scanned) -> Unit) {
+private fun ScanTray(items: List<Scanned>, focus: Scanned?, lookup: Boolean, onFocus: (Scanned) -> Unit, onRemove: (Scanned) -> Unit) {
     val current = focus ?: items.firstOrNull() ?: return
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp).paper(Palette.PaperLight).ornateFrame(inset = 3.dp).padding(10.dp),
@@ -280,7 +290,7 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                                     val n = current.printings.size
                                     current.index = (current.index + if (dx < 0) 1 else -1 + n) % n
                                     current.guessed = false
-                                } else if (abs(dy) > step) {
+                                } else if (abs(dy) > step && !lookup) {
                                     current.quantity += if (dy < 0) 1 else -1
                                     if (current.quantity <= 0) onRemove(current)
                                 }
@@ -289,8 +299,8 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                     },
             ) {
                 // The tile takes the tap itself (an outer clickable never sees it).
-                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, 96.dp, showTapped = false, onClick = { current.foil = !current.foil })
-                Text(
+                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, if (lookup) 150.dp else 96.dp, showTapped = false, onClick = { current.foil = !current.foil })
+                if (!lookup) Text(
                     "×${current.quantity}",
                     Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Palette.Ink.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 1.dp),
@@ -308,10 +318,17 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                     Chip(if (current.foil) "✦ Foil" else "Regular", current.foil, fontSize = 12) { current.foil = !current.foil }
                     Text("Printing ${current.index + 1} of ${current.printings.size}", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
                 }
-                Text("↔ printing  ·  ↕ copies", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                val prices by CardPrices.version.collectAsState()
+                val price = remember(current.card, current.foil, prices) { CardPrices.of(current.card)?.takeIf { it.exact } }
+                Text(
+                    price?.let { CardPrice.usd(it.retail) } ?: "No price",
+                    style = if (lookup) MaterialTheme.typography.displaySmall else MaterialTheme.typography.titleMedium,
+                    color = Palette.Ochre, fontWeight = FontWeight.Bold,
+                )
+                Text(if (lookup) "↔ printing  ·  tap: foil" else "↔ printing  ·  ↕ copies", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
             }
         }
-        val others = items.filter { it !== current }
+        val others = if (lookup) emptyList() else items.filter { it !== current }
         if (others.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

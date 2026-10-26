@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,7 +76,7 @@ import io.github.nmanuelides.mtgreforged.platform.BackHandler
 
 /** The closed search box sitting on the wallpaper, just above Play. */
 @Composable
-fun CardSearchPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
+fun CardSearchPill(onOpen: () -> Unit, modifier: Modifier = Modifier, onScan: (() -> Unit)? = null) {
     Row(
         modifier
             .widthIn(max = 520.dp)
@@ -85,12 +86,15 @@ fun CardSearchPill(onOpen: () -> Unit, modifier: Modifier = Modifier) {
             // Same corner ornaments as the Play plaque.
             .ornateFrame(Palette.LineStrong, inset = 3.dp)
             .clickable(onClick = onOpen)
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+            .padding(start = 18.dp, end = if (onScan != null) 8.dp else 18.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Default.Search, null, tint = Palette.InkSoft)
         Spacer(Modifier.width(10.dp))
-        Text("Look up a card…", style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft)
+        Text("Look up a card…", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft)
+        if (onScan != null) {
+            Icon(Icons.Default.PhotoCamera, "Scan a card", Modifier.clickable(onClick = onScan).padding(horizontal = 10.dp), tint = Palette.InkSoft)
+        }
     }
 }
 

@@ -269,6 +269,12 @@
       "title": "New in v0.99.0",
       "body": "• Card scanner: tapping a small card in the carousel now really brings it to the front, and tapping the big card switches it between regular and foil.",
       "link": null
+    },
+    {
+      "id": "v1.00.0",
+      "title": "New in v1.00.0",
+      "body": "• Price check by camera: the camera button in the home search box scans a card and shows it big with its price; swipe for other printings, tap for foil.\n• Collection scanner: shows the price of the card in front.",
+      "link": null
     }
   ]
 }
