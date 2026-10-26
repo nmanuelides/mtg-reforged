@@ -94,11 +94,23 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
                     val rotation = proxy.imageInfo.rotationDegrees
                     val height = (if (rotation % 180 == 0) proxy.height else proxy.width).toFloat()
                     val width = (if (rotation % 180 == 0) proxy.width else proxy.height).toFloat()
+                    // The preview fills the screen and crops the camera's picture (FILL_CENTER):
+                    // only text inside that visible part counts, measured against it.
+                    val viewW = view.width.toFloat()
+                    val viewH = view.height.toFloat()
+                    val scale = if (viewW > 0f && viewH > 0f) maxOf(viewW / width, viewH / height) else 1f
+                    val visW = if (viewW > 0f) viewW / scale else width
+                    val visH = if (viewH > 0f) viewH / scale else height
+                    val left = (width - visW) / 2
+                    val top = (height - visH) / 2
                     recognizer.process(InputImage.fromMediaImage(media, rotation))
                         .addOnSuccessListener { text ->
-                            latest(text.textBlocks.flatMap { it.lines }.map { line ->
-                                val box = line.boundingBox
-                                ScannedLine(line.text, (box?.centerY() ?: 0) / height, (box?.height() ?: 0) / height, (box?.centerX() ?: 0) / width)
+                            latest(text.textBlocks.flatMap { it.lines }.mapNotNull { line ->
+                                val box = line.boundingBox ?: return@mapNotNull null
+                                // Whole line on screen (a little slack at the edges).
+                                val slack = visW * 0.02f
+                                if (box.left < left - slack || box.right > left + visW + slack || box.top < top || box.bottom > top + visH) return@mapNotNull null
+                                ScannedLine(line.text, (box.exactCenterY() - top) / visH, box.height() / visH, (box.exactCenterX() - left) / visW)
                             })
                         }
                         .addOnCompleteListener { proxy.close() }

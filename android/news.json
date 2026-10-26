@@ -251,6 +251,12 @@
       "title": "New in v0.96.0",
       "body": "• Card scanner: recognises cards printed with an alternative name (like The Dead Marshes, a Lord of the Rings Urborg, Tomb of Yawgmoth) and picks that printing.\n• Card scanner: with other cards in view (a binder page), the set code and number are taken from the card being scanned, not a neighbour's.",
       "link": null
+    },
+    {
+      "id": "v0.97.0",
+      "title": "New in v0.97.0",
+      "body": "• Card scanner: only reads what you see on screen; cards the camera catches beyond the edges of the picture are ignored.",
+      "link": null
     }
   ]
 }
