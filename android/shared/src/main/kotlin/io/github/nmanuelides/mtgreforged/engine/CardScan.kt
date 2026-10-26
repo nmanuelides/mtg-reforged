@@ -4,11 +4,17 @@ import forge.StaticData
 import forge.item.PaperCard
 import java.text.Normalizer
 
-/** One line of text the camera read, and how far down the picture it sits (0 top, 1 bottom). */
-data class ScannedLine(val text: String, val y: Float)
+/**
+ * One line of text the camera read: how far down the picture it sits (0 top, 1 bottom) and
+ * how tall its letters are, both as a share of the picture's height.
+ */
+data class ScannedLine(val text: String, val y: Float, val height: Float = 0f)
 
-/** A card recognised in a frame; [nameRead] is false when only the set code and number were read. */
-class ScanHit(val card: PaperCard, val nameRead: Boolean)
+/**
+ * A card recognised in a frame. [nameRead]: its name was read (not only the set code and
+ * number); [numbered]: the printing comes from the set code and number, not a guess.
+ */
+class ScanHit(val card: PaperCard, val nameRead: Boolean, val numbered: Boolean)
 
 /** A set to scan from: code and name, newest first in [CardScan.sets]. */
 class ScanSet(val code: String, val name: String)
@@ -77,11 +83,10 @@ object CardScan {
         val idx = index ?: return null
         val code = set?.uppercase() ?: setCode(lines)
         val byNumber = code?.let { c -> number(lines)?.let { idx.byNumber["$c#$it"] } }
-        // The name is printed along the top; lower lines are rules text that may mention other cards.
-        val name = name(lines.filter { it.y < 0.6f }.sortedBy { it.y }, idx, set?.uppercase())
+        val name = name(titleLines(lines), idx, set?.uppercase())
         return when {
-            byNumber != null && (name == null || name == byNumber.name) -> ScanHit(byNumber, name != null)
-            name != null -> defaultPrinting(name, set)?.let { ScanHit(it, true) }
+            byNumber != null && (name == null || name == byNumber.name) -> ScanHit(byNumber, name != null, true)
+            name != null -> defaultPrinting(name, set)?.let { ScanHit(it, true, false) }
             else -> null
         }
     }
@@ -95,7 +100,32 @@ object CardScan {
         return dated.firstOrNull { db.getCardEdition(it.edition)?.type?.name !in SKIPPED_TYPES } ?: dated.firstOrNull()
     }
 
-    /** The topmost line that is (or nearly is) a card name. */
+    /**
+     * The lines that can be the card's title: set in the card's largest type (rules text, which
+     * may name other cards, is smaller), shaped like a name (no sentence, not a type line) and
+     * at the top of the card. Topmost first; only the top two are tried.
+     */
+    private fun titleLines(lines: List<ScannedLine>): List<ScannedLine> {
+        val named = lines.filter { looksLikeName(it.text) }
+        val tallest = named.maxOfOrNull { it.height } ?: return emptyList()
+        return named.filter { it.height >= tallest * 0.75f }.sortedBy { it.y }.take(2)
+    }
+
+    private fun looksLikeName(text: String): Boolean {
+        val t = text.trim()
+        if (t.length > 40 || t.count { it.isLetter() } < 3) return false
+        if (!t.first().isLetter() || t.first().isLowerCase()) return false
+        if (t.any { it in ".:;()\"•—" } || " - " in t) return false
+        return TYPE_WORDS.none { t.startsWith(it, ignoreCase = true) }
+    }
+
+    /** The first word of a type line ("Legendary Creature — Elf"), never of a name. */
+    private val TYPE_WORDS = listOf(
+        "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Land ", "Planeswalker", "Battle",
+        "Legendary", "Basic Land", "Tribal", "Kindred", "Snow", "Token", "World Enchantment", "Conspiracy",
+    )
+
+    /** The first of [lines] that is (or nearly is) a card name. */
     private fun name(lines: List<ScannedLine>, idx: Index, set: String?): String? {
         for (line in lines) {
             val n = norm(line.text)
@@ -138,7 +168,7 @@ object CardScan {
 
     private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s+0*(\d{1,4}[a-z]?)\b""")
     private val NUMBER_RARITY = Regex("""^0*(\d{1,4}[a-z]?)\s+[CURMLSTP]\b""")
-    private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*/\s*\d{1,4}\b""")
+    private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*/\s*\d{2,4}\b""")
     private val SET_LANGUAGE = Regex("""\b([A-Z0-9]{3,5})\s*[•·★*.\-]?\s*(EN|ES|FR|DE|IT|PT|JA|JP|KO|RU|ZH|CS|CT|PH)\b""")
     private val SKIPPED_TYPES = setOf("ONLINE", "FUNNY", "THIRDPARTY", "CUSTOM_SET")
 

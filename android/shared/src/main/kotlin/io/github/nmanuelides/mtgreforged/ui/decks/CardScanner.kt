@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -83,8 +84,17 @@ private class Scanned(val printings: List<PaperCard>, index: Int) {
     var index by mutableIntStateOf(index)
     var quantity by mutableIntStateOf(1)
     var foil by mutableStateOf(false)
+    /** The printing is a guess from the name: a later read of its set code and number may correct it. */
+    var guessed = true
     val name: String get() = printings[0].name
     val card: PaperCard get() = printings[index].let { if (foil) it.foiled else it }
+}
+
+/** Switches a guessed printing to the one its set code and number say (a manual pick stays). */
+private fun usePrinting(item: Scanned, card: PaperCard) {
+    if (!item.guessed) return
+    val i = item.printings.indexOfFirst { it.edition == card.edition && it.collectorNumber == card.collectorNumber }
+    if (i >= 0) { item.index = i; item.guessed = false }
 }
 
 /** A recognised card has to show this long out of frame before it can be scanned again. */
@@ -93,7 +103,7 @@ private const val AWAY_MS = 1500L
 /**
  * Collection: point the camera at cards one after another. Each card recognised shows up in
  * the carousel at the bottom: swipe it left / right for another printing, up / down for how
- * many, tap it for foil. Nothing is added until Save.
+ * many (the small ones too), and the Foil chip for foil. Nothing is added until Save.
  */
 @Composable
 internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> Unit) {
@@ -120,32 +130,48 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         ready = true
     }
 
-    // Recognition: the same card in a row of frames (2 with its name read, 3 from the number
-    // alone) before it counts; then it's ignored until it has been out of frame for a moment.
+    // Recognition: the same card in a row of frames before it counts (2 once its set code and
+    // number are read too; with the name alone it waits a few more frames for them, as that
+    // small print is read less often); then it's ignored until out of frame for a moment, but
+    // a set code and number read meanwhile still correct a guessed printing.
     val busy = remember { AtomicBoolean(false) }
     var streakKey by remember { mutableStateOf<String?>(null) }
     var streak by remember { mutableIntStateOf(0) }
+    var streakPrinting by remember { mutableStateOf<PaperCard?>(null) }
     var holding by remember { mutableStateOf<String?>(null) }
     var holdingSeen by remember { mutableStateOf(0L) }
     fun consider(hit: ScanHit?) {
         val now = System.currentTimeMillis()
         if (holding != null && now - holdingSeen > AWAY_MS) holding = null
         if (hit == null) { streakKey = null; streak = 0; return }
-        val card = hit.card
-        if (card.name == holding) { holdingSeen = now; return }
-        val key = "${card.name}|${card.edition}|${card.collectorNumber}"
-        if (key == streakKey) streak++ else { streakKey = key; streak = 1 }
-        if (streak < if (hit.nameRead) 2 else 3) return
-        holding = card.name
+        val name = hit.card.name
+        if (name == holding) {
+            holdingSeen = now
+            if (hit.numbered) items.firstOrNull { it.name == name }?.let { usePrinting(it, hit.card) }
+            return
+        }
+        if (name == streakKey) streak++ else { streakKey = name; streak = 1; streakPrinting = null }
+        if (hit.numbered) streakPrinting = hit.card
+        val numbered = streakPrinting
+        val needed = when {
+            !hit.nameRead -> 3
+            numbered != null -> 2
+            else -> 6
+        }
+        if (streak < needed) return
+        val card = numbered ?: hit.card
+        holding = name
         holdingSeen = now
         streak = 0
-        val existing = items.firstOrNull { it.name == card.name }
+        val existing = items.firstOrNull { it.name == name }
         if (existing != null) {
             existing.quantity++
+            if (numbered != null) usePrinting(existing, numbered)
             focus = existing
         } else {
             val printings = printingsOf(card)
             val item = Scanned(printings, printings.indexOf(card).coerceAtLeast(0))
+            item.guessed = numbered == null
             items.add(0, item)
             focus = item
         }
@@ -252,6 +278,7 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                                     // Left: the next (older) printing; right: back to newer ones.
                                     val n = current.printings.size
                                     current.index = (current.index + if (dx < 0) 1 else -1 + n) % n
+                                    current.guessed = false
                                 } else if (abs(dy) > step) {
                                     current.quantity += if (dy < 0) 1 else -1
                                     if (current.quantity <= 0) onRemove(current)
@@ -261,7 +288,7 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                     }
                     .clickable { current.foil = !current.foil },
             ) {
-                CardTile(remember(current.card) { CardUi.fromPaper(current.card) }, 96.dp, showTapped = false)
+                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, 96.dp, showTapped = false)
                 Text(
                     "×${current.quantity}",
                     Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Palette.Ink.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
@@ -276,11 +303,11 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                     editionLabel(current.card) + (current.card.collectorNumber?.let { " · #$it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    "Printing ${current.index + 1} of ${current.printings.size}" + if (current.foil) "  ·  ✦ Foil" else "",
-                    style = MaterialTheme.typography.labelSmall, color = if (current.foil) Palette.Ochre else Palette.InkSoft,
-                )
-                Text("↔ printing  ·  ↕ copies  ·  tap: foil", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Chip(if (current.foil) "✦ Foil" else "Regular", current.foil, fontSize = 12) { current.foil = !current.foil }
+                    Text("Printing ${current.index + 1} of ${current.printings.size}", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                }
+                Text("↔ printing  ·  ↕ copies", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
             }
         }
         val others = items.filter { it !== current }
@@ -288,13 +315,28 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(others, key = { it.name }) { item ->
-                    Box(Modifier.clickable { onFocus(item) }) {
-                        CardTile(remember(item.card) { CardUi.fromPaper(item.card) }, 44.dp, showTapped = false)
-                        if (item.quantity > 1) {
+                    Box(
+                        Modifier
+                            .pointerInput(item) {
+                                var dy = 0f
+                                detectVerticalDragGestures(
+                                    onDragStart = { dy = 0f },
+                                    onDragEnd = {
+                                        if (abs(dy) > 24.dp.toPx()) {
+                                            item.quantity += if (dy < 0) 1 else -1
+                                            if (item.quantity <= 0) onRemove(item)
+                                        }
+                                    },
+                                ) { change, amount -> change.consume(); dy += amount }
+                            }
+                            .clickable { onFocus(item) },
+                    ) {
+                        CardTile(remember(item.card, item.foil) { CardUi.fromPaper(item.card) }, 56.dp, showTapped = false)
+                        if (item.quantity > 0) {
                             Text(
                                 "×${item.quantity}",
                                 Modifier.align(Alignment.BottomEnd).background(Palette.Ink.copy(alpha = 0.85f)).padding(horizontal = 3.dp),
-                                fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Palette.OnAccent,
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Palette.OnAccent,
                             )
                         }
                     }

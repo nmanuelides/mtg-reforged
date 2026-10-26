@@ -95,7 +95,10 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
                     val height = (if (rotation % 180 == 0) proxy.height else proxy.width).toFloat()
                     recognizer.process(InputImage.fromMediaImage(media, rotation))
                         .addOnSuccessListener { text ->
-                            latest(text.textBlocks.flatMap { it.lines }.map { ScannedLine(it.text, (it.boundingBox?.centerY() ?: 0) / height) })
+                            latest(text.textBlocks.flatMap { it.lines }.map { line ->
+                                val box = line.boundingBox
+                                ScannedLine(line.text, (box?.centerY() ?: 0) / height, (box?.height() ?: 0) / height)
+                            })
                         }
                         .addOnCompleteListener { proxy.close() }
                 }
