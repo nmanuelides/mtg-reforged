@@ -286,10 +286,10 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                                 }
                             },
                         ) { change, amount -> change.consume(); dx += amount.x; dy += amount.y }
-                    }
-                    .clickable { current.foil = !current.foil },
+                    },
             ) {
-                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, 96.dp, showTapped = false)
+                // The tile takes the tap itself (an outer clickable never sees it).
+                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, 96.dp, showTapped = false, onClick = { current.foil = !current.foil })
                 Text(
                     "×${current.quantity}",
                     Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Palette.Ink.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
@@ -329,10 +329,9 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, onFocus: (Scanned) -
                                         }
                                     },
                                 ) { change, amount -> change.consume(); dy += amount }
-                            }
-                            .clickable { onFocus(item) },
+                            },
                     ) {
-                        CardTile(remember(item.card, item.foil) { CardUi.fromPaper(item.card) }, 56.dp, showTapped = false)
+                        CardTile(remember(item.card, item.foil) { CardUi.fromPaper(item.card) }, 56.dp, showTapped = false, onClick = { onFocus(item) })
                         if (item.quantity > 0) {
                             Text(
                                 "×${item.quantity}",
