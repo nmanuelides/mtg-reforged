@@ -577,7 +577,19 @@ class ComposeGuiGame : NetworkGuiGame() {
             .onFailure { Log.w("Undo", "recording failed", it); undoError = it.message ?: it.javaClass.simpleName }
         requestRefresh()
         // After the recording, so undo still reaches this stop (the restored prompt isn't auto-passed).
-        if (passWhenStuck && !resolveAll && nothingToPlay(game)) gameController?.selectButtonOk()
+        if (passWhenStuck && !resolveAll && nothingToPlay(game)) {
+            // Not at once, or the AI's turns fly by: a spell waiting on the stack stays up long
+            // enough to read, and each step of an opponent's turn shows for a moment.
+            val me = (gameController as? PlayerControllerHuman)?.player
+            val wait = when {
+                !game.stack.isEmpty -> 1800
+                game.phaseHandler.playerTurn != me -> 700
+                else -> 300
+            }
+            ThreadUtil.delay(wait) {
+                onGameThread { if (currentInput() === input && passWhenStuck && !undoPending) gameController?.selectButtonOk() }
+            }
+        }
     }
 
     /** No spell, land or ability (mana abilities aside) the player could use now, and no floating mana. */

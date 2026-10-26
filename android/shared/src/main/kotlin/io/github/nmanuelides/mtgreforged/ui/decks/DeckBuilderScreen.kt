@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.platform.CAN_SCAN_CARDS
+import androidx.compose.material.icons.filled.PhotoCamera
 import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
 import io.github.nmanuelides.mtgreforged.ui.components.OverflowMenu
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -283,6 +285,7 @@ fun DeckBuilderScreen(
 ) {
     val draft = remember { DeckDraft(mutableStateMapOf(), mutableStateMapOf()) }
     var name by remember { mutableStateOf(initial?.name ?: "New deck") }
+    var scanning by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(importFirst) }
     var exporting by remember { mutableStateOf(false) }
     var cheapening by remember { mutableStateOf(false) }
@@ -356,6 +359,18 @@ fun DeckBuilderScreen(
             after()
         }
     }
+    if (scanning) {
+        // Scanned cards join the collection and it's saved right away.
+        CardScanner(
+            onSave = { cards ->
+                cards.forEach { (card, n) -> draft.main[card] = (draft.main[card] ?: 0) + n }
+                scanning = false
+                saveNow()
+            },
+            onClose = { scanning = false },
+        )
+        return@EntranceScope
+    }
     if (confirmExit) {
         OrnateDialog(onDismiss = { confirmExit = false }, maxWidth = 480.dp) {
             SectionLabel("Unsaved changes")
@@ -390,6 +405,7 @@ fun DeckBuilderScreen(
                 compact = compactHeader,
                 canExport = draft.total > 0,
                 onSave = { saveNow() },
+                onScan = if (collection && CAN_SCAN_CARDS) ({ scanning = true }) else null,
                 canSave = draft.total > 0 && dirty,
                 saveLabel = when {
                     justSaved -> "Saved ✓"
@@ -497,6 +513,8 @@ private fun Header(
     onSave: () -> Unit,
     canSave: Boolean,
     saveLabel: String,
+    /** Collection on Android: opens the card scanner. */
+    onScan: (() -> Unit)? = null,
 ) {
     if (compact) {
         // Phones: back, name and Save stay; import / export / cheapest go in the menu.
@@ -511,6 +529,7 @@ private fun Header(
                 colors = fieldColors(),
                 modifier = Modifier.weight(1f),
             )
+            onScan?.let { OrnateButton("", it, Modifier.width(48.dp).padding(top = 8.dp), icon = Icons.Default.PhotoCamera, accent = Palette.Sage, frameColor = Palette.Sage, height = 56.dp) }
             OrnateButton("", onSave, Modifier.width(48.dp).padding(top = 8.dp), style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave, height = 56.dp)
             OverflowMenu(
                 modifier = Modifier.padding(top = 8.dp), height = 56.dp, items =
@@ -533,6 +552,7 @@ private fun Header(
             colors = fieldColors(),
             modifier = Modifier.weight(1f),
         )
+        onScan?.let { OrnateButton("Scan", it, icon = Icons.Default.PhotoCamera, accent = Palette.Sage, frameColor = Palette.Sage) }
         OrnateButton(if (compact) "" else "Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
         OrnateButton(if (compact) "" else "Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
         if (!LocalCollectionMode.current) {

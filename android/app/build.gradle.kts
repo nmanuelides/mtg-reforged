@@ -116,6 +116,12 @@ dependencies {
     implementation(project(":engine:forge-gui"))
     // Google sign-in / authorization for Drive backups (drive.appdata scope only).
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // Collection card scanner: camera preview / frames, and on-device text reading. The model comes
+    // with Google Play services (the bundled one added ~44 MB to the APK).
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

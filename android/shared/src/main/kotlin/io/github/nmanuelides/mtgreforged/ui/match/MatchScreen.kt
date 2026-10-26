@@ -195,7 +195,7 @@ fun MatchScreen(game: ComposeGuiGame, onLeave: () -> Unit) {
         }
 
         YourTurnGlow(state)
-        TurnBanner(state)
+        TurnBanner(state, small = phone)
         ImpactAnimations(state)
         state.boardChoice?.let { BoardChoiceDialog(state, it, game) }
         state.zoneChoice?.let { ZoneChoiceDialog(state, it, game) }
@@ -1043,7 +1043,7 @@ private fun ZoneSheet(title: String, cards: List<CardUi>, onInspect: (CardUi) ->
 
 /** A plaque that announces each new turn for a moment, without blocking the board. */
 @Composable
-private fun TurnBanner(state: MatchUiState) {
+private fun TurnBanner(state: MatchUiState, small: Boolean = false) {
     val active = state.players.firstOrNull { it.isActive }
     var shown by remember { mutableStateOf<PlayerUi?>(null) }
     val haptics = LocalHapticFeedback.current
@@ -1058,7 +1058,7 @@ private fun TurnBanner(state: MatchUiState) {
         // The player's own turn arrives big, from in front of the glass; others' turns stay modest.
         AnimatedVisibility(
             shown != null,
-            enter = fadeIn(tween(260)) + scaleIn(tween(420, easing = FastOutSlowInEasing), initialScale = if (shown?.isLocal == true) 1.6f else 0.85f),
+            enter = fadeIn(tween(260)) + scaleIn(tween(420, easing = FastOutSlowInEasing), initialScale = if (shown?.isLocal == true) (if (small) 1.2f else 1.6f) else 0.85f),
             exit = fadeOut(tween(400)),
         ) {
             val p = shown ?: return@AnimatedVisibility
@@ -1066,13 +1066,18 @@ private fun TurnBanner(state: MatchUiState) {
                 Modifier
                     .paper(Palette.PaperLight)
                     .ornateFrame(if (p.isLocal) Palette.Terracotta else Palette.Slate, inset = 5.dp, topGem = true)
-                    .padding(horizontal = 48.dp, vertical = 20.dp),
+                    .padding(horizontal = if (small) 24.dp else 48.dp, vertical = if (small) 10.dp else 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 SectionLabel("Turn ${state.turn}", color = if (p.isLocal) Palette.Terracotta else Palette.Slate)
                 Text(
                     if (p.isLocal) "Your turn" else "${p.name}'s turn",
-                    style = if (p.isLocal) MaterialTheme.typography.displayLarge else MaterialTheme.typography.headlineLarge,
+                    // Phones: a plaque that fits, not one that covers the board.
+                    style = when {
+                        small -> if (p.isLocal) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge
+                        p.isLocal -> MaterialTheme.typography.displayLarge
+                        else -> MaterialTheme.typography.headlineLarge
+                    },
                     color = if (p.isLocal) Palette.Terracotta else Palette.Slate,
                 )
             }

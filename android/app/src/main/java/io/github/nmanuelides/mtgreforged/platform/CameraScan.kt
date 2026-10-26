@@ -1,0 +1,111 @@
+package io.github.nmanuelides.mtgreforged.platform
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.util.Size
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import io.github.nmanuelides.mtgreforged.engine.ScannedLine
+import java.util.concurrent.Executors
+
+/** Android can scan cards with the camera. */
+const val CAN_SCAN_CARDS = true
+
+/**
+ * The back camera, reading text on the device (ML Kit) from each frame it can keep up with;
+ * [onLines] gets every line read, on the main thread. Asks for the camera permission first.
+ */
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
+@Composable
+fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLine>) -> Unit, onDenied: () -> Unit) {
+    val context = LocalContext.current
+    val owner = LocalLifecycleOwner.current
+    var granted by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        granted = ok
+        if (!ok) onDenied()
+    }
+    LaunchedEffect(Unit) { if (!granted) ask.launch(Manifest.permission.CAMERA) }
+    if (!granted) {
+        Box(modifier.background(Color.Black))
+        return
+    }
+    val latest by rememberUpdatedState(onLines)
+    val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
+            recognizer.close()
+            executor.shutdown()
+        }
+    }
+    LaunchedEffect(camera, torch) { camera?.cameraControl?.enableTorch(torch) }
+    AndroidView(
+        factory = { ctx ->
+            val view = PreviewView(ctx)
+            val future = ProcessCameraProvider.getInstance(ctx)
+            future.addListener({
+                val provider = future.get()
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
+                // 720p is plenty for printed text and keeps each read quick.
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setResolutionSelector(
+                        ResolutionSelector.Builder()
+                            .setResolutionStrategy(ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                            .build(),
+                    )
+                    .build()
+                analysis.setAnalyzer(executor) { proxy ->
+                    val media = proxy.image
+                    if (media == null) { proxy.close(); return@setAnalyzer }
+                    val rotation = proxy.imageInfo.rotationDegrees
+                    val height = (if (rotation % 180 == 0) proxy.height else proxy.width).toFloat()
+                    recognizer.process(InputImage.fromMediaImage(media, rotation))
+                        .addOnSuccessListener { text ->
+                            latest(text.textBlocks.flatMap { it.lines }.map { ScannedLine(it.text, (it.boundingBox?.centerY() ?: 0) / height) })
+                        }
+                        .addOnCompleteListener { proxy.close() }
+                }
+                runCatching {
+                    provider.unbindAll()
+                    camera = provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                }
+            }, ContextCompat.getMainExecutor(ctx))
+            view
+        },
+        modifier = modifier,
+    )
+}

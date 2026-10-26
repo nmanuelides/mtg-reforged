@@ -197,7 +197,7 @@ internal fun CardViewer(
 }
 
 /** Every printing of [card]'s name, newest first. */
-private fun printingsOf(card: PaperCard): List<PaperCard> {
+internal fun printingsOf(card: PaperCard): List<PaperCard> {
     val db = StaticData.instance()
     val all = runCatching { db.commonCards.getAllCards(card.name) }.getOrNull().orEmpty()
     return all.ifEmpty { listOf(card) }
@@ -206,7 +206,7 @@ private fun printingsOf(card: PaperCard): List<PaperCard> {
         .let { if (card in it) it else listOf(card) + it }
 }
 
-private fun editionLabel(card: PaperCard): String {
+internal fun editionLabel(card: PaperCard): String {
     val edition = StaticData.instance().getCardEdition(card.edition)
     val year = edition?.date?.let { java.text.SimpleDateFormat("yyyy", java.util.Locale.US).format(it) }
     return (edition?.name ?: card.edition) + (year?.let { " ($it)" } ?: "")

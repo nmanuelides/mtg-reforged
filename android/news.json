@@ -233,6 +233,12 @@
       "title": "New in v0.93.0",
       "body": "• The number of opponents you choose is kept after picking their decks (it went back to the default).\n• Phones: the message above the match buttons shows in full.",
       "link": null
+    },
+    {
+      "id": "v0.94.0",
+      "title": "New in v0.94.0",
+      "body": "• Android: scan cards into your collection with the camera (camera button in the collection). It reads the name and the set code and number, so it picks the right printing; you can also scan from a single set. Each card shows up at the bottom: swipe sideways for another printing, up or down for how many, tap for foil, and Save adds them all.\n• Phones: opponents' turns no longer fly by when you can't respond, and the turn banner is smaller.",
+      "link": null
     }
   ]
 }
