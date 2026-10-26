@@ -206,12 +206,6 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
             onDenied = { denied = true },
         )
 
-        // Where to hold the card.
-        Box(
-            Modifier.align(Alignment.Center).padding(bottom = if (lookup) 300.dp else 120.dp).fillMaxWidth(if (lookup) 0.5f else 0.72f).aspectRatio(63f / 88f)
-                .border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)),
-        )
-
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OrnateButton("", { if (items.isEmpty() || lookup) onClose() else confirmLeave = true }, Modifier.width(48.dp), icon = Icons.Default.Close)
@@ -230,7 +224,10 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium,
             )
-            Spacer(Modifier.weight(1f))
+            // Where to hold the card: as big as fits between the hint and the tray.
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.aspectRatio(63f / 88f).border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)))
+            }
             // A tapped card comes back to the front, as if just scanned.
             ScanTray(items, focus, lookup, onFocus = { items.remove(it); items.add(0, it); focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
             val total = items.sumOf { it.quantity }
@@ -299,7 +296,7 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, lookup: Boolean, onF
                     },
             ) {
                 // The tile takes the tap itself (an outer clickable never sees it).
-                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, if (lookup) 150.dp else 96.dp, showTapped = false, onClick = { current.foil = !current.foil })
+                CardTile(remember(current.card, current.foil) { CardUi.fromPaper(current.card) }, if (lookup) 190.dp else 96.dp, showTapped = false, onClick = { current.foil = !current.foil })
                 if (!lookup) Text(
                     "×${current.quantity}",
                     Modifier.align(Alignment.BottomEnd).padding(3.dp).background(Palette.Ink.copy(alpha = 0.85f), RoundedCornerShape(4.dp))

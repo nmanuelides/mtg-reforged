@@ -275,6 +275,12 @@
       "title": "New in v1.00.0",
       "body": "• Price check by camera: the camera button in the home search box scans a card and shows it big with its price; swipe for other printings, tap for foil.\n• Collection scanner: shows the price of the card in front.",
       "link": null
+    },
+    {
+      "id": "v1.01.0",
+      "title": "New in v1.01.0",
+      "body": "• Card scanner: the frame fills all the room between the top and the cards below, and the price check shows the card bigger.",
+      "link": null
     }
   ]
 }
