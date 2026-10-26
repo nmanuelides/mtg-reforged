@@ -257,6 +257,12 @@
       "title": "New in v0.97.0",
       "body": "• Card scanner: only reads what you see on screen; cards the camera catches beyond the edges of the picture are ignored.",
       "link": null
+    },
+    {
+      "id": "v0.98.0",
+      "title": "New in v0.98.0",
+      "body": "• Card scanner: tapping a card in the carousel brings it back to the front, big, to change its printing or make it foil.",
+      "link": null
     }
   ]
 }

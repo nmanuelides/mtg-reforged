@@ -221,7 +221,8 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
                 color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.weight(1f))
-            ScanTray(items, focus, onFocus = { focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
+            // A tapped card comes back to the front, as if just scanned.
+            ScanTray(items, focus, onFocus = { items.remove(it); items.add(0, it); focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
             val total = items.sumOf { it.quantity }
             OrnateButton(
                 if (total == 0) "Save" else "Save $total card${if (total > 1) "s" else ""}",
