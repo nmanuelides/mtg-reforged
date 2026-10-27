@@ -231,7 +231,7 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
     /** Checks right now and returns what it found (the profile's Check for updates). */
     suspend fun checkForUpdateNow(): UpdateUi {
         if (_update.value is UpdateUi.Downloading) return _update.value
-        return lookUp()
+        return lookUp(builds = true)
     }
 
     fun checkForUpdate() {
@@ -242,13 +242,14 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
     private var watching: Job? = null
 
     /**
-     * A published release, or else a newer version still being built. While one builds, looks
-     * again once it should be done (and every minute and a half after) until the release is out.
+     * A published release, or else (only when the player asked, [builds]) a newer version still
+     * being built. While one builds, looks again once it should be done (and every minute and a
+     * half after) until the release is out.
      */
-    private suspend fun lookUp(): UpdateUi {
+    private suspend fun lookUp(builds: Boolean = false): UpdateUi {
         release = runCatching { updater.check() }.getOrNull()
         val found = release?.let { UpdateUi.Available(it.name, it.notes) }
-            ?: runCatching { UpdateBuilds.current() }.getOrNull()?.let { UpdateUi.Building(it) }
+            ?: (if (builds) runCatching { UpdateBuilds.current() }.getOrNull() else null)?.let { UpdateUi.Building(it) }
             ?: UpdateUi.None
         _update.value = found
         if (found is UpdateUi.Building && watching?.isActive != true) {
@@ -258,7 +259,7 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
                     val left = building.build.startedAt + building.build.expectedMs - System.currentTimeMillis()
                     delay(maxOf(90_000L, left))
                     if (_update.value !is UpdateUi.Building) break
-                    lookUp()
+                    lookUp(builds = true)
                 }
             }
         }

@@ -454,19 +454,8 @@ private fun UpdateBanner(update: UpdateUi, onInstall: () -> Unit) {
             )
         }
         is UpdateUi.Failed -> Text("Update failed: ${update.message}", color = Palette.Terracotta, style = MaterialTheme.typography.bodySmall)
-        is UpdateUi.Building -> Column(Modifier.widthIn(max = 640.dp).fillMaxWidth()) {
-            val progress = buildProgress(update.build)
-            Text(
-                "New update building${update.build.version?.let { " ($it)" } ?: ""}… ${(progress * 100).toInt()}%",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                color = Palette.Ochre,
-                trackColor = Palette.PaperDeep,
-            )
-        }
+        // A version still building shows only in the profile's Check for updates.
+        is UpdateUi.Building -> Unit
     }
 }
 

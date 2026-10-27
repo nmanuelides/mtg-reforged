@@ -131,13 +131,7 @@ fun BootScreen(
                                 StatusBanner("Couldn't update: ${update.message}", failed = true)
                                 OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
                             }
-                            is UpdateUi.Building -> {
-                                val progress = buildProgress(update.build)
-                                Caption("A new update is building… ${(progress * 100).toInt()}%")
-                                ProgressRule(progress, accent)
-                                OrnateButton("Retry", onRetry)
-                            }
-                            UpdateUi.None -> OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
+                            is UpdateUi.Building, UpdateUi.None -> OrnateButton("Retry", onRetry, style = OrnateStyle.Primary)
                         }
                     }
                     Engine.Status.Ready -> {

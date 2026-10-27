@@ -299,6 +299,12 @@
       "title": "New in v1.04.0",
       "body": "• Dark mode: the paper grain is softer, a sandy tea-with-milk tone instead of bright cream.",
       "link": null
+    },
+    {
+      "id": "v1.05.0",
+      "title": "New in v1.05.0",
+      "body": "• Updates: a version still being built shows only when you tap Check for updates in your profile, not on the home screen.",
+      "link": null
     }
   ]
 }
