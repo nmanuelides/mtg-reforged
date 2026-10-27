@@ -78,6 +78,8 @@ fun ReforgedApp(model: AppModel) {
     var friends by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Triple<Engine.Format, Engine.DeckEntry?, Boolean>?>(null) }
     var deleting by remember { mutableStateOf<Pair<Engine.Format, Engine.DeckEntry>?>(null) }
+    // New deck: the player picks its format first (not the one in the game settings).
+    var choosingFormat by remember { mutableStateOf(false) }
 
     // The boot window shows the same art the landing will open on, then grows
     // into it ("stepping through the window"). Later landings rotate the art.
@@ -109,9 +111,9 @@ fun ReforgedApp(model: AppModel) {
             val (fmt, entry, importFirst) = editing!!
             DeckBuilderScreen(fmt, entry, importFirst) { saved ->
                 editing = null
-                // Freshly saved decks become the player's pick for that slot.
+                // Freshly saved decks become the player's pick for that slot (if they fit its format).
                 val slot = browsing?.second
-                if (saved != null && slot != null) selections = selections + (slot to saved)
+                if (saved != null && slot != null && browsing?.first == fmt) selections = selections + (slot to saved)
             }
         }
         browsing != null -> {
@@ -123,7 +125,7 @@ fun ReforgedApp(model: AppModel) {
                 initial = selections[slot] ?: Favorites.of(fmt, decks[fmt].orEmpty()).takeIf { slot < 0 },
                 onSelect = { selections = selections + (slot to it); browsing = null; nextLanding() },
                 onBack = { browsing = null; nextLanding() },
-                onNew = { editing = Triple(fmt, null, false) },
+                onNew = { choosingFormat = true },
                 onImport = { editing = Triple(fmt, null, true) },
                 onEdit = { editing = Triple(fmt, it, false) },
                 onDelete = { deleting = fmt to it },
@@ -169,6 +171,18 @@ fun ReforgedApp(model: AppModel) {
         }
     }
     prompt?.let { PromptDialog(it) }
+    if (choosingFormat) {
+        OrnateDialog(onDismiss = { choosingFormat = false }) {
+            SectionLabel("New deck")
+            Spacer(Modifier.height(12.dp))
+            Text("What kind of deck?", style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OrnateButton("60 cards", { choosingFormat = false; editing = Triple(Engine.Format.Constructed, null, false) }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton("Commander", { choosingFormat = false; editing = Triple(Engine.Format.Commander, null, false) }, Modifier.weight(1f), accent = Palette.Plum)
+            }
+        }
+    }
     deleting?.let { (fmt, entry) ->
         OrnateDialog(onDismiss = { deleting = null }) {
             SectionLabel("Delete deck")

@@ -281,6 +281,12 @@
       "title": "New in v1.01.0",
       "body": "• Card scanner: the frame fills all the room between the top and the cards below, and the price check shows the card bigger.",
       "link": null
+    },
+    {
+      "id": "v1.02.0",
+      "title": "New in v1.02.0",
+      "body": "• Decks: New asks whether you're building a 60-card deck or a Commander deck, whatever the game settings say.",
+      "link": null
     }
   ]
 }
