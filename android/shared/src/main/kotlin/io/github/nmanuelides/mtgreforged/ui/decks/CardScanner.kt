@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -191,15 +193,30 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
 
     BackHandler { if (items.isEmpty() || lookup) onClose() else confirmLeave = true }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    // Where the white frame is on the camera picture (shares of its width / height): only text
+    // inside it (give or take a little) is read, so other cards around it don't count.
+    var screen by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var frame by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    Box(Modifier.fillMaxSize().background(Color.Black).onGloballyPositioned { screen = it.boundsInRoot() }) {
         CameraTextView(
             Modifier.fillMaxSize(), torch,
             onLines = { lines ->
                 if (ready && !pickingSet && busy.compareAndSet(false, true)) {
                     val within = set
                     val known = holding ?: streakKey
+                    val area = frame
+                    val whole = screen
+                    val inFrame = if (area == null || whole == null || whole.width <= 0f || whole.height <= 0f) lines else {
+                        val left = (area.left - whole.left) / whole.width
+                        val right = (area.right - whole.left) / whole.width
+                        val top = (area.top - whole.top) / whole.height
+                        val bottom = (area.bottom - whole.top) / whole.height
+                        val slackX = (right - left) * 0.08f
+                        val slackY = (bottom - top) * 0.1f
+                        lines.filter { it.x in (left - slackX)..(right + slackX) && it.y in (top - slackY)..(bottom + slackY) }
+                    }
                     scope.launch {
-                        val hit = withContext(Dispatchers.Default) { runCatching { CardScan.read(lines, within, known) }.getOrNull() }
+                        val hit = withContext(Dispatchers.Default) { runCatching { CardScan.read(inFrame, within, known) }.getOrNull() }
                         busy.set(false)
                         if (CardScan.smallPrint != null || hit == null) smallPrint = CardScan.smallPrint
                         consider(hit)
@@ -237,7 +254,7 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
             }
             // Where to hold the card: as big as fits between the hint and the tray.
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-                Box(Modifier.aspectRatio(63f / 88f).border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)))
+                Box(Modifier.aspectRatio(63f / 88f).onGloballyPositioned { frame = it.boundsInRoot() }.border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)))
             }
             // A tapped card comes back to the front, as if just scanned.
             ScanTray(items, focus, lookup, onFocus = { items.remove(it); items.add(0, it); focus = it }, onRemove = { items.remove(it); if (focus === it) focus = items.firstOrNull() })
