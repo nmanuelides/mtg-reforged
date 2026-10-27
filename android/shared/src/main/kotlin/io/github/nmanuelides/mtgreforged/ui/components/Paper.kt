@@ -11,12 +11,15 @@ import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.nmanuelides.mtgreforged.R
 import io.github.nmanuelides.mtgreforged.ui.theme.Palette
+import io.github.nmanuelides.mtgreforged.ui.theme.ThemeMode
 import io.github.nmanuelides.mtgreforged.platform.AppContext
 import io.github.nmanuelides.mtgreforged.platform.drawShadowedRect
 import io.github.nmanuelides.mtgreforged.platform.loadImageRes
@@ -52,9 +55,24 @@ object PaperTexture {
     /** Draws the paper grain over what's already drawn, at the same scale on every surface. */
     fun DrawScope.drawPaper(strength: Float = STRENGTH, offset: Offset = Offset.Zero) {
         val grain = brush ?: return
-        // Shifting the shader shows a different part of the sheet.
-        translate(-offset.x, -offset.y) { drawRect(grain, topLeft = offset, size = size, alpha = strength) }
+        // Shifting the shader shows a different part of the sheet. On dark paper the cream
+        // fibres turn a fainter sand (tea with milk) instead of glowing.
+        val dark = ThemeMode.dark
+        translate(-offset.x, -offset.y) {
+            drawRect(grain, topLeft = offset, size = size, alpha = if (dark) strength * 0.75f else strength, colorFilter = if (dark) SAND else null)
+        }
     }
+
+    private val SAND = ColorFilter.colorMatrix(
+        ColorMatrix(
+            floatArrayOf(
+                0.80f, 0f, 0f, 0f, 0f,
+                0f, 0.73f, 0f, 0f, 0f,
+                0f, 0f, 0.64f, 0f, 0f,
+                0f, 0f, 0f, 1f, 0f,
+            ),
+        ),
+    )
 }
 
 /**

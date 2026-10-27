@@ -293,6 +293,12 @@
       "title": "New in v1.03.0",
       "body": "• Updates: when a new version is still being built, the app says so and shows how far along the build is; once it's out, the Update button appears by itself.",
       "link": null
+    },
+    {
+      "id": "v1.04.0",
+      "title": "New in v1.04.0",
+      "body": "• Dark mode: the paper grain is softer, a sandy tea-with-milk tone instead of bright cream.",
+      "link": null
     }
   ]
 }
