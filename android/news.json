@@ -353,6 +353,12 @@
       "title": "New in v1.13.0",
       "body": "• Offline card images: a new Delete button removes the card pictures already downloaded (they download again when needed).",
       "link": null
+    },
+    {
+      "id": "v1.14.0",
+      "title": "New in v1.14.0",
+      "body": "• Check for updates: once the update being built comes out, it now shows as available instead of staying on the build progress.",
+      "link": null
     }
   ]
 }

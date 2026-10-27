@@ -89,7 +89,7 @@ fun AvatarImage(seat: Int, fallback: String, modifier: Modifier) {
 
 /** Your name, your avatar and the opponents' avatars. */
 @Composable
-fun ProfileDialog(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit, onDismiss: () -> Unit) {
+fun ProfileDialog(update: UpdateUi, onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(Profiles.name) }
     var editing by remember { mutableStateOf<Int?>(null) }
     OrnateDialog(onDismiss = { Profiles.name = name; onDismiss() }, maxWidth = 620.dp) {
@@ -111,7 +111,7 @@ fun ProfileDialog(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> 
             }
         }
         Spacer(Modifier.height(16.dp))
-        UpdateCheck(onCheckUpdate, onInstallUpdate)
+        UpdateCheck(update, onCheckUpdate, onInstallUpdate)
         Spacer(Modifier.height(16.dp))
         OrnateButton("Done", { Profiles.name = name; onDismiss() }, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
     }
@@ -261,10 +261,10 @@ private fun crop(image: ImageBitmap, viewport: Float, zoom: Float, offset: Offse
 
 /** The app's version, and a button that looks for a newer one right now. */
 @Composable
-private fun UpdateCheck(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit) {
+private fun UpdateCheck(update: UpdateUi, onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit) {
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
-    var result by remember { mutableStateOf<UpdateUi?>(null) }
+    var checked by remember { mutableStateOf(false) }
     Text("App version", style = MaterialTheme.typography.labelMedium, color = Palette.InkSoft)
     Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -272,11 +272,11 @@ private fun UpdateCheck(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: 
         if (checking) CircularProgressIndicator(Modifier.size(22.dp), color = Palette.Terracotta, strokeWidth = 2.dp)
         OrnateButton(
             "Check for updates",
-            { checking = true; scope.launch { result = onCheckUpdate(); checking = false } },
+            { checking = true; scope.launch { onCheckUpdate(); checked = true; checking = false } },
             icon = Icons.Default.Refresh, enabled = !checking, height = 42.dp,
         )
     }
-    when (val r = result) {
+    when (val r = update.takeIf { checked }) {
         is UpdateUi.Available -> {
             Spacer(Modifier.height(10.dp))
             StatusBanner("${r.name} is available.", failed = false)

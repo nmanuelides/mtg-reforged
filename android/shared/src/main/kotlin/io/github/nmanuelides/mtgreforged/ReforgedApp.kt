@@ -243,8 +243,8 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
 
     /**
      * A published release, or else (only when the player asked, [builds]) a newer version still
-     * being built. While one builds, looks again once it should be done (and every minute and a
-     * half after) until the release is out.
+     * being built. While one builds, looks again every minute until the release is out (it can
+     * come out before the estimate).
      */
     private suspend fun lookUp(builds: Boolean = false): UpdateUi {
         release = runCatching { updater.check() }.getOrNull()
@@ -255,9 +255,8 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
         if (found is UpdateUi.Building && watching?.isActive != true) {
             watching = scope.launch {
                 while (true) {
-                    val building = _update.value as? UpdateUi.Building ?: break
-                    val left = building.build.startedAt + building.build.expectedMs - System.currentTimeMillis()
-                    delay(maxOf(90_000L, left))
+                    if (_update.value !is UpdateUi.Building) break
+                    delay(60_000L)
                     if (_update.value !is UpdateUi.Building) break
                     lookUp(builds = true)
                 }
