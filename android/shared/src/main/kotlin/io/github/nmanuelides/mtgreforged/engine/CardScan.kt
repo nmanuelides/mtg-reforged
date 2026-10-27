@@ -71,13 +71,16 @@ object CardScan {
                 byName.putIfAbsent(key, c.name)
                 bySet.getOrPut(c.edition.uppercase()) { HashMap() }.putIfAbsent(key, c.name)
             }
-            val edition = db.getCardEdition(c.edition)
-            val codes = listOfNotNull(c.edition, edition?.code2, edition?.scryfallCode).map { it.uppercase() }.distinct()
-            c.collectorNumber?.takeIf { it.isNotBlank() }?.let { n -> codes.forEach { byNumber.putIfAbsent("$it#${numKey(n)}", c) } }
+            c.collectorNumber?.takeIf { it.isNotBlank() }?.let { n -> byNumber.putIfAbsent("${c.edition.uppercase()}#${numKey(n)}", c) }
             val names = bySet.getOrPut(c.edition.uppercase()) { HashMap() }
             names[norm(c.name)] = c.name
             if (" // " in c.name) c.name.split(" // ").forEach { names.putIfAbsent(norm(it), c.name) }
             c.name.split(" // ").forEach { face -> spanish[face]?.split(" // ")?.forEach { names.putIfAbsent(norm(it), c.name) } }
+        }
+        // Then the other codes a set goes by, where no set uses them as its own.
+        cards.forEach { c ->
+            val n = c.collectorNumber?.takeIf { it.isNotBlank() } ?: return@forEach
+            codes(c).drop(1).forEach { byNumber.putIfAbsent("$it#${numKey(n)}", c) }
         }
         return Index(
             byName,
@@ -119,20 +122,37 @@ object CardScan {
         // Other cards around it (a binder page) show their bottom lines too: take the one under
         // this card's title, or without a title the one where the frame's bottom edge is.
         val bottoms = bottoms(lines)
-        val bottom = if (title != null) {
-            bottoms.filter { it.y > title.line.y }.minByOrNull { (it.y - title.line.y) + abs(it.x - title.line.x) }
-        } else {
-            bottoms.minByOrNull { abs(it.y - 0.7f) + abs(it.x - 0.5f) }
+        if (title == null) {
+            val bottom = bottoms.minByOrNull { abs(it.y - 0.7f) + abs(it.x - 0.5f) } ?: return null
+            val code = set?.uppercase() ?: bottom.code ?: return null
+            return idx.byNumber["$code#${bottom.number}"]?.let { ScanHit(it, false, true) }
         }
-        val code = set?.uppercase() ?: bottom?.code
-        val byNumber = if (bottom != null && code != null) idx.byNumber["$code#${bottom.number}"] else null
-        val name = title?.name
-        return when {
-            byNumber != null && (name == null || name == byNumber.name) -> ScanHit(byNumber, name != null, true)
-            title != null -> (title.printing?.takeIf { set == null || it.edition.equals(set, ignoreCase = true) } ?: defaultPrinting(title.name, set))
-                ?.let { ScanHit(it, true, false) }
-            else -> null
+        // The bottom lines under the title, nearest first: the first whose number (with the set
+        // code, if read) is one of this card's printings says which one it is, even when the
+        // code was misread or isn't the one Forge uses.
+        val printings = allPrintings(title.name)
+        val below = bottoms.filter { it.y > title.line.y }.sortedBy { (it.y - title.line.y) + abs(it.x - title.line.x) }
+        for (bottom in below) {
+            val code = set?.uppercase() ?: bottom.code
+            val sameNumber = printings.filter { p -> p.collectorNumber?.let { numKey(it) } == bottom.number }
+            if (sameNumber.isEmpty()) continue
+            val pick = code?.let { c -> sameNumber.firstOrNull { c in codes(it) } } ?: sameNumber.singleOrNull()
+            if (pick != null) return ScanHit(pick, true, true)
         }
+        // No number read: a set code read still narrows it to that set's printing.
+        val code = set?.uppercase() ?: below.firstOrNull()?.code ?: bottoms.firstOrNull { it.y > title.line.y }?.code
+        code?.let { c -> printings.filter { c in codes(it) }.singleOrNull() }?.let { return ScanHit(it, true, true) }
+        return (title.printing?.takeIf { set == null || it.edition.equals(set, ignoreCase = true) } ?: defaultPrinting(title.name, set))
+            ?.let { ScanHit(it, true, false) }
+    }
+
+    private fun allPrintings(name: String): List<PaperCard> =
+        runCatching { StaticData.instance().commonCards.getAllCards(name) }.getOrNull().orEmpty().filterNot { it.isFoil }
+
+    /** Every code [card]'s set goes by (Forge's own first), upper case. */
+    private fun codes(card: PaperCard): List<String> {
+        val edition = StaticData.instance().getCardEdition(card.edition)
+        return listOfNotNull(card.edition, edition?.code2, edition?.scryfallCode).map { it.uppercase() }.distinct()
     }
 
     /** The printing to start from when only the name was read: from [set] if given, else the newest regular one. */
@@ -216,13 +236,14 @@ object CardScan {
         }
     }
 
-    private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s+0*(\d{1,4}[a-z]?)\b""")
-    private val NUMBER_RARITY = Regex("""^0*(\d{1,4}[a-z]?)\s+[CURMLSTP]\b""")
+    // OCR slips: "R0233" (no space), "O233" (letter O for a zero).
+    private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s*([0-9O]{1,4}[a-z]?)\b""")
+    private val NUMBER_RARITY = Regex("""^([0-9O]{1,4}[a-z]?)\s+[CURMLSTP]\b""")
     private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*/\s*\d{2,4}\b""")
     private val SET_LANGUAGE = Regex("""\b([A-Z0-9]{3,5})\s*[•·★*.\-]?\s*(EN|ES|SP|FR|DE|IT|PT|JA|JP|KO|RU|ZH|CS|CT|PH)\b""")
     private val SKIPPED_TYPES = setOf("ONLINE", "FUNNY", "THIRDPARTY", "CUSTOM_SET")
 
-    private fun numKey(n: String) = n.trim().lowercase().trimStart('0').ifEmpty { "0" }
+    private fun numKey(n: String) = n.trim().replace('O', '0').lowercase().trimStart('0').ifEmpty { "0" }
 
     /** Lowercase letters and digits only, accents dropped: what survives a camera read. */
     private fun norm(s: String): String =

@@ -323,6 +323,12 @@
       "title": "New in v1.08.0",
       "body": "• Card scanner: recognises cards printed in Spanish by their Spanish name too.",
       "link": null
+    },
+    {
+      "id": "v1.09.0",
+      "title": "New in v1.09.0",
+      "body": "• Card scanner: picks the right printing more often. The collector number is checked against the card's own printings even when the set code is misread, and common reading slips in the number are forgiven.",
+      "link": null
     }
   ]
 }
