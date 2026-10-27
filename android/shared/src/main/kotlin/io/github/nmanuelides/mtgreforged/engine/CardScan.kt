@@ -42,6 +42,10 @@ object CardScan {
 
     @Volatile private var index: Index? = null
 
+    /** What the last frame read of the small print (number, set code, year), to show the player. */
+    @Volatile var smallPrint: String? = null
+        private set
+
     /** Builds the lookup tables (once; needs every card loaded). */
     fun prepare() {
         if (index == null) synchronized(this) { if (index == null) index = build() }
@@ -126,6 +130,11 @@ object CardScan {
         // Other cards around it (a binder page) show their bottom lines too: take the one under
         // this card's title, or without a title the one where the frame's bottom edge is.
         val bottoms = bottoms(lines)
+        smallPrint = listOfNotNull(
+            bottoms.firstOrNull()?.let { b -> "#${b.number}" + (b.code?.let { " $it" } ?: "") },
+            (setCode(lines)?.takeIf { bottoms.none { b -> b.code != null } }),
+            copyrightYear(lines)?.let { "©$it" },
+        ).joinToString(" · ").ifEmpty { null }
         val name = title?.name ?: known
         if (name == null) {
             val bottom = bottoms.minByOrNull { abs(it.y - 0.7f) + abs(it.x - 0.5f) } ?: return null

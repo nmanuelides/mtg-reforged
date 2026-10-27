@@ -90,12 +90,13 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
             future.addListener({
                 val provider = future.get()
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(view.surfaceProvider) }
-                // 720p is plenty for printed text and keeps each read quick.
+                // 1080p: at 720p the small print at a card's bottom (set code, collector number,
+                // copyright year) is only a few pixels tall and isn't read.
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(
                         ResolutionSelector.Builder()
-                            .setResolutionStrategy(ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                            .setResolutionStrategy(ResolutionStrategy(Size(1920, 1080), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
                             .build(),
                     )
                     .build()

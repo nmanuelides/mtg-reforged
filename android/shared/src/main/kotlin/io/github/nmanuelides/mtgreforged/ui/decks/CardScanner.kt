@@ -142,6 +142,7 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
     var streak by remember { mutableIntStateOf(0) }
     var streakPrinting by remember { mutableStateOf<PaperCard?>(null) }
     var holding by remember { mutableStateOf<String?>(null) }
+    var smallPrint by remember { mutableStateOf<String?>(null) }
     var holdingSeen by remember { mutableStateOf(0L) }
     fun consider(hit: ScanHit?) {
         val now = System.currentTimeMillis()
@@ -200,6 +201,7 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
                     scope.launch {
                         val hit = withContext(Dispatchers.Default) { runCatching { CardScan.read(lines, within, known) }.getOrNull() }
                         busy.set(false)
+                        if (CardScan.smallPrint != null || hit == null) smallPrint = CardScan.smallPrint
                         consider(hit)
                     }
                 }
@@ -225,6 +227,14 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 color = Color.White, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium,
             )
+            // What the camera made of the small print, so a wrong printing can be explained.
+            if (ready && !denied) {
+                Text(
+                    "Small print: ${smallPrint ?: "not read"}",
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    color = Color.White.copy(alpha = 0.75f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelSmall,
+                )
+            }
             // Where to hold the card: as big as fits between the hint and the tray.
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.aspectRatio(63f / 88f).border(2.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(12.dp)))

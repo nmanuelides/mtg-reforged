@@ -335,6 +335,12 @@
       "title": "New in v1.10.0",
       "body": "• Card scanner: older cards get their printing right more often. The small \"73/175\" number counts even in moments the name isn't read, and without a number the year on the copyright line picks that year's set instead of the newest printing.",
       "link": null
+    },
+    {
+      "id": "v1.11.0",
+      "title": "New in v1.11.0",
+      "body": "• Card scanner: the camera reads at a higher resolution so the small print at the bottom of a card (set code, number, year) is legible, and a line under the hint shows what it read.",
+      "link": null
     }
   ]
 }
