@@ -56,6 +56,18 @@ object ImageDownloader {
 
     fun estimateMb(images: Int) = images * 90 / 1024
 
+    private fun pictures(): List<java.io.File> =
+        java.io.File(forge.localinstance.properties.ForgeConstants.CACHE_CARD_PICS_DIR).walkTopDown().filter { it.isFile }.toList()
+
+    /** The card pictures on disk (downloaded here or while playing): how many, and their size in MB. */
+    fun stored(): Pair<Int, Long> = pictures().let { files -> files.size to files.sumOf { it.length() } / (1024 * 1024) }
+
+    /** Deletes every card picture on disk; they download again when needed. */
+    fun deleteAll() {
+        pictures().forEach { it.delete() }
+        _progress.value = Progress()
+    }
+
     /** Image keys for [scope]: front faces, plus back faces of double-faced cards. */
     fun keys(scope: Scope): List<String> {
         val cards: Collection<PaperCard> = when (scope) {

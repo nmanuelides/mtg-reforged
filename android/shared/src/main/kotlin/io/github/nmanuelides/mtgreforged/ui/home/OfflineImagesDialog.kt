@@ -1,5 +1,12 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,6 +98,8 @@ fun OfflineImagesDialog(onDismiss: () -> Unit) {
                 ScopeCard(scope, freeMb) { start(scope) }
                 Spacer(Modifier.height(10.dp))
             }
+            StoredCard()
+            Spacer(Modifier.height(10.dp))
             OrnateButton("Close", onDismiss, Modifier.fillMaxWidth(), accent = Palette.Slate)
         }
     }
@@ -121,6 +130,58 @@ private fun ScopeCard(scope: ImageDownloader.Scope, freeMb: Long, onStart: () ->
         OrnateButton(
             "Download", onStart, icon = Icons.Default.CloudDownload, style = OrnateStyle.Primary,
             enabled = count != null && ImageDownloader.estimateMb(count!!) <= freeMb,
+        )
+    }
+}
+
+/** The pictures already on disk, with a button to delete them (asks once more first). */
+@Composable
+private fun StoredCard() {
+    var refresh by remember { mutableIntStateOf(0) }
+    var confirming by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val stored by produceState<Pair<Int, Long>?>(null, refresh) {
+        value = withContext(Dispatchers.IO) { runCatching { ImageDownloader.stored() }.getOrNull() }
+    }
+    val count = stored?.first ?: 0
+    Row(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Downloaded pictures", style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+            Text(
+                when {
+                    deleting -> "Deleting…"
+                    stored == null -> "Counting…"
+                    count == 0 -> "None on this device"
+                    confirming -> "Delete all %,d? They download again when needed.".format(Locale.US, count)
+                    else -> "%,d pictures · %s".format(Locale.US, count, size(stored!!.second.toInt()))
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (confirming) Palette.Terracotta else Palette.Slate,
+            )
+        }
+        Spacer(Modifier.padding(start = 12.dp))
+        OrnateButton(
+            if (confirming) "Yes, delete" else "Delete",
+            {
+                if (!confirming) {
+                    confirming = true
+                } else {
+                    confirming = false
+                    deleting = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) { runCatching { ImageDownloader.deleteAll() } }
+                        deleting = false
+                        refresh++
+                    }
+                }
+            },
+            icon = Icons.Default.Delete,
+            accent = Palette.Terracotta,
+            enabled = count > 0 && !deleting,
         )
     }
 }

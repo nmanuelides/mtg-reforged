@@ -347,6 +347,12 @@
       "title": "New in v1.12.0",
       "body": "• Card scanner: only reads what's inside the white frame, so text from other cards around it (like a name in flavour text) is no longer taken for a card.",
       "link": null
+    },
+    {
+      "id": "v1.13.0",
+      "title": "New in v1.13.0",
+      "body": "• Offline card images: a new Delete button removes the card pictures already downloaded (they download again when needed).",
+      "link": null
     }
   ]
 }
