@@ -196,8 +196,9 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
             onLines = { lines ->
                 if (ready && !pickingSet && busy.compareAndSet(false, true)) {
                     val within = set
+                    val known = holding ?: streakKey
                     scope.launch {
-                        val hit = withContext(Dispatchers.Default) { runCatching { CardScan.read(lines, within) }.getOrNull() }
+                        val hit = withContext(Dispatchers.Default) { runCatching { CardScan.read(lines, within, known) }.getOrNull() }
                         busy.set(false)
                         consider(hit)
                     }

@@ -115,36 +115,57 @@ object CardScan {
             .map { ScanSet(it.code, it.name) }
     }
 
-    /** What the lines of one frame show, if anything; [set] limits it to that set's cards. */
-    fun read(lines: List<ScannedLine>, set: String?): ScanHit? {
+    /**
+     * What the lines of one frame show, if anything; [set] limits it to that set's cards.
+     * [known]: the card already in front of the camera, so a frame where only its small print
+     * (number, set code) was read can still say which printing it is.
+     */
+    fun read(lines: List<ScannedLine>, set: String?, known: String? = null): ScanHit? {
         val idx = index ?: return null
         val title = name(titleLines(lines), idx, set?.uppercase())
         // Other cards around it (a binder page) show their bottom lines too: take the one under
         // this card's title, or without a title the one where the frame's bottom edge is.
         val bottoms = bottoms(lines)
-        if (title == null) {
+        val name = title?.name ?: known
+        if (name == null) {
             val bottom = bottoms.minByOrNull { abs(it.y - 0.7f) + abs(it.x - 0.5f) } ?: return null
             val code = set?.uppercase() ?: bottom.code ?: return null
             return idx.byNumber["$code#${bottom.number}"]?.let { ScanHit(it, false, true) }
         }
-        // The bottom lines under the title, nearest first: the first whose number (with the set
-        // code, if read) is one of this card's printings says which one it is, even when the
-        // code was misread or isn't the one Forge uses.
-        val printings = allPrintings(title.name)
-        val below = bottoms.filter { it.y > title.line.y }.sortedBy { (it.y - title.line.y) + abs(it.x - title.line.x) }
+        // The bottom lines under the title (or nearest the frame's bottom), nearest first: the
+        // first whose number (with the set code, if read) is one of this card's printings says
+        // which one it is, even when the code was misread or isn't the one Forge uses.
+        val printings = allPrintings(name)
+        val below = if (title != null) {
+            bottoms.filter { it.y > title.line.y }.sortedBy { (it.y - title.line.y) + abs(it.x - title.line.x) }
+        } else {
+            bottoms.sortedBy { abs(it.y - 0.8f) + abs(it.x - 0.5f) }
+        }
         for (bottom in below) {
             val code = set?.uppercase() ?: bottom.code
             val sameNumber = printings.filter { p -> p.collectorNumber?.let { numKey(it) } == bottom.number }
             if (sameNumber.isEmpty()) continue
             val pick = code?.let { c -> sameNumber.firstOrNull { c in codes(it) } } ?: sameNumber.singleOrNull()
-            if (pick != null) return ScanHit(pick, true, true)
+            if (pick != null) return ScanHit(pick, title != null, true)
         }
         // No number read: a set code read still narrows it to that set's printing.
-        val code = set?.uppercase() ?: below.firstOrNull()?.code ?: bottoms.firstOrNull { it.y > title.line.y }?.code
-        code?.let { c -> printings.filter { c in codes(it) }.singleOrNull() }?.let { return ScanHit(it, true, true) }
-        return (title.printing?.takeIf { set == null || it.edition.equals(set, ignoreCase = true) } ?: defaultPrinting(title.name, set))
+        val code = set?.uppercase() ?: below.firstOrNull { it.code != null }?.code ?: setCode(lines)
+        code?.let { c -> printings.filter { c in codes(it) }.singleOrNull() }?.let { return ScanHit(it, title != null, true) }
+        if (title == null) return null
+        return (title.printing?.takeIf { set == null || it.edition.equals(set, ignoreCase = true) } ?: defaultPrinting(title.name, set, copyrightYear(lines)))
             ?.let { ScanHit(it, true, false) }
     }
+
+    /** A set code ("NPH • EN") read anywhere in the frame. */
+    private fun setCode(lines: List<ScannedLine>): String? =
+        lines.firstNotNullOfOrNull { SET_LANGUAGE.find(it.text.trim())?.groupValues?.get(1)?.uppercase() }
+
+    /** The year the card was printed, from its copyright line ("™ & © 1993-2011 Wizards…"). */
+    private fun copyrightYear(lines: List<ScannedLine>): Int? =
+        lines.filter { l -> '©' in l.text || "wizards" in l.text.lowercase() }
+            .flatMap { l -> YEAR.findAll(l.text).map { it.value.toInt() }.toList() }
+            .filter { it in 1993..2100 }
+            .maxOrNull()
 
     private fun allPrintings(name: String): List<PaperCard> =
         runCatching { StaticData.instance().commonCards.getAllCards(name) }.getOrNull().orEmpty().filterNot { it.isFoil }
@@ -155,11 +176,22 @@ object CardScan {
         return listOfNotNull(card.edition, edition?.code2, edition?.scryfallCode).map { it.uppercase() }.distinct()
     }
 
-    /** The printing to start from when only the name was read: from [set] if given, else the newest regular one. */
-    private fun defaultPrinting(name: String, set: String?): PaperCard? {
+    /**
+     * The printing to start from when only the name was read: from [set] if given, else one
+     * from the [year] on its copyright line (a regular set before promos), else the newest.
+     */
+    private fun defaultPrinting(name: String, set: String?, year: Int? = null): PaperCard? {
         val db = StaticData.instance()
         val all = runCatching { db.commonCards.getAllCards(name) }.getOrNull().orEmpty()
         if (set != null) all.firstOrNull { it.edition.equals(set, ignoreCase = true) }?.let { return it }
+        if (year != null) {
+            val calendar = java.util.Calendar.getInstance()
+            all.filter { p ->
+                val edition = db.getCardEdition(p.edition) ?: return@filter false
+                edition.type.name !in SKIPPED_TYPES && edition.date?.let { calendar.time = it; calendar.get(java.util.Calendar.YEAR) } == year
+            }.sortedBy { p -> if (db.getCardEdition(p.edition)?.type?.name in SIDE_TYPES) 1 else 0 }
+                .firstOrNull()?.let { return it }
+        }
         val dated = all.sortedByDescending { db.getCardEdition(it.edition)?.date?.time ?: 0L }
         return dated.firstOrNull { db.getCardEdition(it.edition)?.type?.name !in SKIPPED_TYPES } ?: dated.firstOrNull()
     }
@@ -239,9 +271,12 @@ object CardScan {
     // OCR slips: "R0233" (no space), "O233" (letter O for a zero).
     private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s*([0-9O]{1,4}[a-z]?)\b""")
     private val NUMBER_RARITY = Regex("""^([0-9O]{1,4}[a-z]?)\s+[CURMLSTP]\b""")
-    private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*/\s*\d{2,4}\b""")
+    private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*[/|]\s*\d{2,4}\b""")
     private val SET_LANGUAGE = Regex("""\b([A-Z0-9]{3,5})\s*[•·★*.\-]?\s*(EN|ES|SP|FR|DE|IT|PT|JA|JP|KO|RU|ZH|CS|CT|PH)\b""")
     private val SKIPPED_TYPES = setOf("ONLINE", "FUNNY", "THIRDPARTY", "CUSTOM_SET")
+    /** Printings fewer people own: promos and collector sets come after a regular set's. */
+    private val SIDE_TYPES = setOf("PROMO", "COLLECTOR_EDITION")
+    private val YEAR = Regex("""(?:19|20)\d\d""")
 
     private fun numKey(n: String) = n.trim().replace('O', '0').lowercase().trimStart('0').ifEmpty { "0" }
 

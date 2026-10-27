@@ -329,6 +329,12 @@
       "title": "New in v1.09.0",
       "body": "• Card scanner: picks the right printing more often. The collector number is checked against the card's own printings even when the set code is misread, and common reading slips in the number are forgiven.",
       "link": null
+    },
+    {
+      "id": "v1.10.0",
+      "title": "New in v1.10.0",
+      "body": "• Card scanner: older cards get their printing right more often. The small \"73/175\" number counts even in moments the name isn't read, and without a number the year on the copyright line picks that year's set instead of the newest printing.",
+      "link": null
     }
   ]
 }
