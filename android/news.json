@@ -317,6 +317,12 @@
       "title": "New in v1.07.0",
       "body": "• Collection on phones: Delete collection moved into the ⋮ menu, away from the everyday buttons.",
       "link": null
+    },
+    {
+      "id": "v1.08.0",
+      "title": "New in v1.08.0",
+      "body": "• Card scanner: recognises cards printed in Spanish by their Spanish name too.",
+      "link": null
     }
   ]
 }

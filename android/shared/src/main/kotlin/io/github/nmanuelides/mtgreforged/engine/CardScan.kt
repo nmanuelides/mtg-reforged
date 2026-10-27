@@ -2,6 +2,8 @@ package io.github.nmanuelides.mtgreforged.engine
 
 import forge.StaticData
 import forge.item.PaperCard
+import forge.localinstance.properties.ForgeConstants
+import java.io.File
 import java.text.Normalizer
 import kotlin.math.abs
 
@@ -53,6 +55,12 @@ object CardScan {
             byName[norm(name)] = name
             if (" // " in name) name.split(" // ").forEach { byName.putIfAbsent(norm(it), name) }
         }
+        // Spanish cards: their printed names (Forge's translation list) find the English card.
+        val spanish = spanishNames()
+        spanish.forEach { (english, translated) ->
+            val card = byName[norm(english)] ?: return@forEach
+            translated.split(" // ").forEach { byName.putIfAbsent(norm(it), card) }
+        }
         val byNumber = HashMap<String, PaperCard>()
         val bySet = HashMap<String, HashMap<String, String>>()
         val flavor = HashMap<String, PaperCard>()
@@ -69,6 +77,7 @@ object CardScan {
             val names = bySet.getOrPut(c.edition.uppercase()) { HashMap() }
             names[norm(c.name)] = c.name
             if (" // " in c.name) c.name.split(" // ").forEach { names.putIfAbsent(norm(it), c.name) }
+            c.name.split(" // ").forEach { face -> spanish[face]?.split(" // ")?.forEach { names.putIfAbsent(norm(it), c.name) } }
         }
         return Index(
             byName,
@@ -77,6 +86,20 @@ object CardScan {
             bySet.mapValues { (_, m) -> m.entries.map { it.key to it.value } },
             flavor,
         )
+    }
+
+    /** English name (each face of split cards) to its Spanish name, from Forge's translations. */
+    private fun spanishNames(): Map<String, String> {
+        val file = File(ForgeConstants.LANG_DIR, "cardnames-es-ES.txt")
+        if (!file.exists()) return emptyMap()
+        val out = HashMap<String, String>()
+        runCatching {
+            file.forEachLine { line ->
+                val parts = line.split('|')
+                if (parts.size >= 2 && parts[1].isNotBlank()) out[parts[0]] = parts[1]
+            }
+        }
+        return out
     }
 
     /** Sets worth scanning from (no online-only or joke sets), newest first. */
@@ -144,6 +167,8 @@ object CardScan {
     private val TYPE_WORDS = listOf(
         "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Land ", "Planeswalker", "Battle",
         "Legendary", "Basic Land", "Tribal", "Kindred", "Snow", "Token", "World Enchantment", "Conspiracy",
+        // Spanish cards.
+        "Criatura", "Instantáneo", "Conjuro", "Artefacto", "Encantamiento", "Tierra ", "Batalla", "Ficha", "Tribal",
     )
 
     /** A name read on [line]; [printing]: the one printing that carries it, for an alternative name. */
@@ -194,7 +219,7 @@ object CardScan {
     private val RARITY_NUMBER = Regex("""^[CURMLSTP]\s+0*(\d{1,4}[a-z]?)\b""")
     private val NUMBER_RARITY = Regex("""^0*(\d{1,4}[a-z]?)\s+[CURMLSTP]\b""")
     private val OF_TOTAL = Regex("""\b0*(\d{1,4})\s*/\s*\d{2,4}\b""")
-    private val SET_LANGUAGE = Regex("""\b([A-Z0-9]{3,5})\s*[•·★*.\-]?\s*(EN|ES|FR|DE|IT|PT|JA|JP|KO|RU|ZH|CS|CT|PH)\b""")
+    private val SET_LANGUAGE = Regex("""\b([A-Z0-9]{3,5})\s*[•·★*.\-]?\s*(EN|ES|SP|FR|DE|IT|PT|JA|JP|KO|RU|ZH|CS|CT|PH)\b""")
     private val SKIPPED_TYPES = setOf("ONLINE", "FUNNY", "THIRDPARTY", "CUSTOM_SET")
 
     private fun numKey(n: String) = n.trim().lowercase().trimStart('0').ifEmpty { "0" }
