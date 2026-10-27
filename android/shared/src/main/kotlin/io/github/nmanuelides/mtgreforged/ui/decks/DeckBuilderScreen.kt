@@ -519,6 +519,9 @@ private fun Header(
     if (compact) {
         // Phones: back, name and Save stay; import / export / cheapest go in the menu.
         val collection = LocalCollectionMode.current
+        val clear = LocalClearCollection.current
+        var clearing by remember { mutableIntStateOf(0) }
+        ClearCollectionDialog(clearing, { clearing = it }) { clear?.invoke() }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OrnateButton("", onBack, Modifier.width(44.dp).padding(top = 8.dp), icon = Icons.AutoMirrored.Filled.ArrowBack, height = 56.dp)
             OutlinedTextField(
@@ -537,6 +540,7 @@ private fun Header(
                     MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
                     MenuItem("Export", Icons.Default.IosShare, Palette.Slate, enabled = canExport, onClick = onExport),
                     if (!collection) MenuItem("Switch to cheapest printings", Icons.Default.Savings, Palette.Sage, enabled = canExport, onClick = onCheapest) else null,
+                    if (clear != null) MenuItem("Delete collection", Icons.Default.DeleteForever, Palette.Terracotta) { clearing = 1 } else null,
                 ),
             )
         }
@@ -875,7 +879,6 @@ private fun CompactSearchTop(
             color = if (problem == null) Palette.Sage else Palette.Terracotta,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
-        if (collectionMode) ClearCollectionButton(iconOnly = true)
         OrnateButton(
             if (activeFilters > 0) "$activeFilters" else "", onFilters, if (activeFilters > 0) Modifier else Modifier.width(48.dp),
             icon = Icons.Default.Tune, accent = Palette.Plum, frameColor = Palette.Plum, height = 42.dp,
@@ -921,15 +924,21 @@ internal val LocalCollectionMode = staticCompositionLocalOf { false }
 internal val LocalClearCollection = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
-private fun ClearCollectionButton(iconOnly: Boolean = false) {
+private fun ClearCollectionButton() {
     val clear = LocalClearCollection.current ?: return
     var step by remember { mutableIntStateOf(0) }
     OrnateButton(
-        if (iconOnly) "" else "Delete all", { step = 1 }, if (iconOnly) Modifier.width(48.dp) else Modifier,
-        icon = Icons.Default.DeleteForever, accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = if (iconOnly) 42.dp else 44.dp,
+        "Delete all", { step = 1 },
+        icon = Icons.Default.DeleteForever, accent = Palette.Terracotta, frameColor = Palette.Terracotta, height = 44.dp,
     )
+    ClearCollectionDialog(step, { step = it }, clear)
+}
+
+/** The two confirmations before emptying the collection; [step] 0 = closed. */
+@Composable
+private fun ClearCollectionDialog(step: Int, onStep: (Int) -> Unit, clear: () -> Unit) {
     if (step > 0) {
-        OrnateDialog(onDismiss = { step = 0 }, maxWidth = 480.dp) {
+        OrnateDialog(onDismiss = { onStep(0) }, maxWidth = 480.dp) {
             SectionLabel(if (step == 1) "Delete your collection?" else "Are you sure?")
             Spacer(Modifier.height(10.dp))
             Text(
@@ -939,10 +948,10 @@ private fun ClearCollectionButton(iconOnly: Boolean = false) {
             )
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OrnateButton("Cancel", { step = 0 }, Modifier.weight(1f), accent = Palette.Slate)
+                OrnateButton("Cancel", { onStep(0) }, Modifier.weight(1f), accent = Palette.Slate)
                 OrnateButton(
                     if (step == 1) "Delete" else "Yes, delete everything",
-                    { if (step == 1) step = 2 else { step = 0; clear() } },
+                    { if (step == 1) onStep(2) else { onStep(0); clear() } },
                     Modifier.weight(1f), style = OrnateStyle.Primary,
                 )
             }
@@ -1166,7 +1175,6 @@ private fun DeckStatus(draft: DeckDraft, format: Engine.Format, problem: String?
                 )
                 if (value > 0) Text(CardPrice.usd(value.toFloat()), fontFamily = Cinzel, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.Slate)
                 Spacer(Modifier.weight(1f))
-                if (collectionMode) ClearCollectionButton(iconOnly = true)
                 OrnateButton(
                     "", onList, Modifier.width(48.dp), icon = Icons.AutoMirrored.Filled.List,
                     style = if (listOpen) OrnateStyle.Primary else OrnateStyle.Secondary,

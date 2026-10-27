@@ -311,6 +311,12 @@
       "title": "New in v1.06.0",
       "body": "• Turning the phone no longer sends you back to the home screen: the deck editor, the scanner and every other screen stay where you were.",
       "link": null
+    },
+    {
+      "id": "v1.07.0",
+      "title": "New in v1.07.0",
+      "body": "• Collection on phones: Delete collection moved into the ⋮ menu, away from the everyday buttons.",
+      "link": null
     }
   ]
 }
