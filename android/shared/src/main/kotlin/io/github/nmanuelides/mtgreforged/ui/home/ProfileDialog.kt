@@ -295,6 +295,18 @@ private fun UpdateCheck(onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: 
             Spacer(Modifier.height(10.dp))
             StatusBanner("Couldn't update: ${r.message}", failed = true)
         }
+        is UpdateUi.Building -> {
+            Spacer(Modifier.height(10.dp))
+            val progress = buildProgress(r.build)
+            StatusBanner("A new update${r.build.version?.let { " ($it)" } ?: ""} is building: ${(progress * 100).toInt()}%", failed = false)
+            Spacer(Modifier.height(6.dp))
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = Palette.Ochre,
+                trackColor = Palette.PaperDeep,
+            )
+        }
         null -> {}
     }
 }

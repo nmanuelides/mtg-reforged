@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.update.PendingBuild
 import io.github.nmanuelides.mtgreforged.platform.CAN_SCAN_CARDS
 import io.github.nmanuelides.mtgreforged.ui.decks.CardScanner
 import androidx.compose.material.icons.filled.Add
@@ -112,6 +113,8 @@ sealed interface UpdateUi {
     data object None : UpdateUi
     data class Available(val name: String, val notes: String) : UpdateUi
     data class Downloading(val progress: Float) : UpdateUi
+    /** No release yet, but a newer version is being built. */
+    data class Building(val build: PendingBuild) : UpdateUi
     data class Failed(val message: String) : UpdateUi
 }
 
@@ -451,7 +454,32 @@ private fun UpdateBanner(update: UpdateUi, onInstall: () -> Unit) {
             )
         }
         is UpdateUi.Failed -> Text("Update failed: ${update.message}", color = Palette.Terracotta, style = MaterialTheme.typography.bodySmall)
+        is UpdateUi.Building -> Column(Modifier.widthIn(max = 640.dp).fillMaxWidth()) {
+            val progress = buildProgress(update.build)
+            Text(
+                "New update building${update.build.version?.let { " ($it)" } ?: ""}… ${(progress * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                color = Palette.Ochre,
+                trackColor = Palette.PaperDeep,
+            )
+        }
     }
+}
+
+/** How far along [build] should be, ticking up every second. */
+@Composable
+internal fun buildProgress(build: PendingBuild): Float {
+    val progress by androidx.compose.runtime.produceState(build.progress(), build) {
+        while (true) {
+            value = build.progress()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    return progress
 }
 
 /** Game mode, how many opponents, and the deck each of them plays. */

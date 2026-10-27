@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged
 
+import kotlinx.coroutines.Job
+import io.github.nmanuelides.mtgreforged.update.UpdateBuilds
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -229,17 +231,38 @@ class AppModel(app: AppContext, private val scope: CoroutineScope) {
     /** Checks right now and returns what it found (the profile's Check for updates). */
     suspend fun checkForUpdateNow(): UpdateUi {
         if (_update.value is UpdateUi.Downloading) return _update.value
-        release = runCatching { updater.check() }.getOrNull()
-        _update.value = release?.let { UpdateUi.Available(it.name, it.notes) } ?: UpdateUi.None
-        return _update.value
+        return lookUp()
     }
 
     fun checkForUpdate() {
         if (_update.value is UpdateUi.Downloading) return
-        scope.launch {
-            release = runCatching { updater.check() }.getOrNull()
-            _update.value = release?.let { UpdateUi.Available(it.name, it.notes) } ?: UpdateUi.None
+        scope.launch { lookUp() }
+    }
+
+    private var watching: Job? = null
+
+    /**
+     * A published release, or else a newer version still being built. While one builds, looks
+     * again once it should be done (and every minute and a half after) until the release is out.
+     */
+    private suspend fun lookUp(): UpdateUi {
+        release = runCatching { updater.check() }.getOrNull()
+        val found = release?.let { UpdateUi.Available(it.name, it.notes) }
+            ?: runCatching { UpdateBuilds.current() }.getOrNull()?.let { UpdateUi.Building(it) }
+            ?: UpdateUi.None
+        _update.value = found
+        if (found is UpdateUi.Building && watching?.isActive != true) {
+            watching = scope.launch {
+                while (true) {
+                    val building = _update.value as? UpdateUi.Building ?: break
+                    val left = building.build.startedAt + building.build.expectedMs - System.currentTimeMillis()
+                    delay(maxOf(90_000L, left))
+                    if (_update.value !is UpdateUi.Building) break
+                    lookUp()
+                }
+            }
         }
+        return found
     }
 
     fun installUpdate() {

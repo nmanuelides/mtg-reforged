@@ -287,6 +287,12 @@
       "title": "New in v1.02.0",
       "body": "• Decks: New asks whether you're building a 60-card deck or a Commander deck, whatever the game settings say.",
       "link": null
+    },
+    {
+      "id": "v1.03.0",
+      "title": "New in v1.03.0",
+      "body": "• Updates: when a new version is still being built, the app says so and shows how far along the build is; once it's out, the Update button appears by itself.",
+      "link": null
     }
   ]
 }
