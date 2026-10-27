@@ -305,6 +305,12 @@
       "title": "New in v1.05.0",
       "body": "• Updates: a version still being built shows only when you tap Check for updates in your profile, not on the home screen.",
       "link": null
+    },
+    {
+      "id": "v1.06.0",
+      "title": "New in v1.06.0",
+      "body": "• Turning the phone no longer sends you back to the home screen: the deck editor, the scanner and every other screen stay where you were.",
+      "link": null
     }
   ]
 }

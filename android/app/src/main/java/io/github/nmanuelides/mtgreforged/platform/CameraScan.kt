@@ -26,6 +26,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -64,6 +65,15 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
     val recognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     val executor = remember { Executors.newSingleThreadExecutor() }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    var useCases by remember { mutableStateOf<Pair<Preview, ImageAnalysis>?>(null) }
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    // Turning the phone doesn't rebuild the screen, so tell the camera which way is up now
+    // (the text reader needs frames the right way round).
+    val orientation = LocalConfiguration.current.orientation
+    LaunchedEffect(orientation, useCases) {
+        val rotation = previewView?.display?.rotation ?: return@LaunchedEffect
+        useCases?.let { (preview, analysis) -> preview.targetRotation = rotation; analysis.targetRotation = rotation }
+    }
     DisposableEffect(Unit) {
         onDispose {
             runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
@@ -75,6 +85,7 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
     AndroidView(
         factory = { ctx ->
             val view = PreviewView(ctx)
+            previewView = view
             val future = ProcessCameraProvider.getInstance(ctx)
             future.addListener({
                 val provider = future.get()
@@ -118,6 +129,7 @@ fun CameraTextView(modifier: Modifier, torch: Boolean, onLines: (List<ScannedLin
                 runCatching {
                     provider.unbindAll()
                     camera = provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                    useCases = preview to analysis
                 }
             }, ContextCompat.getMainExecutor(ctx))
             view
