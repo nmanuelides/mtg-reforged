@@ -1091,10 +1091,18 @@ private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) 
         Text(
             if (!shopping) "${draft.total} cards as a plain list, ready for Moxfield, Archidekt, ManaBox or a friend."
             else if (missing.isBlank()) "You already own every card in this deck."
-            else "Cards in this deck that your collection doesn't cover (basic lands left out)" +
-                if (cost > 0) " · about ${CardPrice.usd(cost.toFloat())} at Card Kingdom." else ".",
-            style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+            else "Cards in this deck that your collection doesn't cover (basic lands left out).",
+            style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
         )
+        if (shopping && missing.isNotBlank()) {
+            val count = copyable.lines().sumOf { it.substringBefore(' ').toIntOrNull() ?: 0 }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "$count card${if (count == 1) "" else "s"} to buy" +
+                    if (cost > 0) " · about ${CardPrice.usd(cost.toFloat())} at Card Kingdom" else "",
+                style = MaterialTheme.typography.titleMedium, color = Palette.Ink,
+            )
+        }
         if (shopping && missing.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(

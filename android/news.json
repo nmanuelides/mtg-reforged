@@ -365,6 +365,12 @@
       "title": "New in v1.15.0",
       "body": "• Shopping list: copying, sharing or saving it gives just quantities and card names, without prices (they still show in the dialog).",
       "link": null
+    },
+    {
+      "id": "v1.16.0",
+      "title": "New in v1.16.0",
+      "body": "• Shopping list: shows how many cards you need to buy next to the total price, in darker, easier to read text.",
+      "link": null
     }
   ]
 }
