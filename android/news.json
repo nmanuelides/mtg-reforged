@@ -371,6 +371,12 @@
       "title": "New in v1.16.0",
       "body": "• Shopping list: shows how many cards you need to buy next to the total price, in darker, easier to read text.",
       "link": null
+    },
+    {
+      "id": "v1.17.0",
+      "title": "New in v1.17.0",
+      "body": "• Card scanner: two cards with the same name but different printings now get an entry each instead of adding to the first one.",
+      "link": null
     }
   ]
 }

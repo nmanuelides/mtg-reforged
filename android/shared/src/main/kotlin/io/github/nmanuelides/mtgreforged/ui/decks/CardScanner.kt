@@ -93,6 +93,7 @@ private class Scanned(val printings: List<PaperCard>, index: Int) {
     var guessed = true
     val name: String get() = printings[0].name
     val card: PaperCard get() = printings[index].let { if (foil) it.foiled else it }
+    fun shows(other: PaperCard) = printings[index].let { it.edition == other.edition && it.collectorNumber == other.collectorNumber }
 }
 
 /** Switches a guessed printing to the one its set code and number say (a manual pick stays). */
@@ -152,9 +153,15 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         if (hit == null) { streakKey = null; streak = 0; return }
         val name = hit.card.name
         if (name == holding) {
-            holdingSeen = now
-            if (hit.numbered) items.firstOrNull { it.name == name }?.let { usePrinting(it, hit.card) }
-            return
+            val held = focus?.takeIf { it.name == name }
+            // Another printing of the same card, swapped in without leaving the frame: a new card.
+            if (hit.numbered && held != null && !held.guessed && !held.shows(hit.card)) {
+                holding = null
+            } else {
+                holdingSeen = now
+                if (hit.numbered && held != null) usePrinting(held, hit.card)
+                return
+            }
         }
         if (name == streakKey) streak++ else { streakKey = name; streak = 1; streakPrinting = null }
         if (hit.numbered) streakPrinting = hit.card
@@ -169,7 +176,8 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         holding = name
         holdingSeen = now
         streak = 0
-        val existing = items.firstOrNull { it.name == name }
+        // Only the same printing adds to an entry; another printing of the card is an entry of its own.
+        val existing = items.firstOrNull { it.name == name && !it.foil && it.shows(card) }
         if (lookup) {
             val printings = printingsOf(card)
             val item = Scanned(printings, printings.indexOf(card).coerceAtLeast(0))
