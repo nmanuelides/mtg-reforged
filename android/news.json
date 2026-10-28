@@ -383,6 +383,12 @@
       "title": "New in v1.18.0",
       "body": "• Card scanner: recognises cards printed under another name (like the Godzilla series) by the real name in small type under the title, in English or Spanish.",
       "link": null
+    },
+    {
+      "id": "v1.19.0",
+      "title": "New in v1.19.0",
+      "body": "• Card scanner: fixed the camera slowing down and the app closing when scanning several printings of the same card in a row.",
+      "link": null
     }
   ]
 }

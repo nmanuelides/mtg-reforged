@@ -147,6 +147,9 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
     var holding by remember { mutableStateOf<String?>(null) }
     var smallPrint by remember { mutableStateOf<String?>(null) }
     var holdingSeen by remember { mutableStateOf(0L) }
+    var holdingSince by remember { mutableStateOf(0L) }
+    var swapTo by remember { mutableStateOf<PaperCard?>(null) }
+    var swapReads by remember { mutableIntStateOf(0) }
     fun consider(hit: ScanHit?) {
         val now = System.currentTimeMillis()
         if (holding != null && now - holdingSeen > AWAY_MS) holding = null
@@ -154,16 +157,25 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         val name = hit.card.name
         if (name == holding) {
             val held = focus?.takeIf { it.name == name }
-            // Another printing of the same card, swapped in without leaving the frame: a new card.
-            if (hit.numbered && held != null && !held.guessed && !held.shows(hit.card)) {
+            // Another printing of the same card, swapped in without leaving the frame: a new card,
+            // once its number has been read a few times (a misread number must not add cards).
+            val other = hit.numbered && held != null && !held.guessed && !held.shows(hit.card)
+            if (other) {
+                if (swapTo?.let { it.edition == hit.card.edition && it.collectorNumber == hit.card.collectorNumber } == true) swapReads++
+                else { swapTo = hit.card; swapReads = 1 }
+            } else if (hit.numbered) {
+                swapTo = null; swapReads = 0
+            }
+            if (other && swapReads >= 3 && now - holdingSince > AWAY_MS) {
                 holding = null
+                swapTo = null; swapReads = 0
+                streakKey = name; streak = 1; streakPrinting = hit.card
             } else {
                 holdingSeen = now
                 if (hit.numbered && held != null) usePrinting(held, hit.card)
                 return
             }
-        }
-        if (name == streakKey) streak++ else { streakKey = name; streak = 1; streakPrinting = null }
+        } else if (name == streakKey) streak++ else { streakKey = name; streak = 1; streakPrinting = null }
         if (hit.numbered) streakPrinting = hit.card
         val numbered = streakPrinting
         val needed = when {
@@ -175,7 +187,9 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
         val card = numbered ?: hit.card
         holding = name
         holdingSeen = now
+        holdingSince = now
         streak = 0
+        streakPrinting = null
         // Only the same printing adds to an entry; another printing of the card is an entry of its own.
         val existing = items.firstOrNull { it.name == name && !it.foil && it.shows(card) }
         if (lookup) {

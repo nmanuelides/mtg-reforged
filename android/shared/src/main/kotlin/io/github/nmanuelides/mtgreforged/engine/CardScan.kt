@@ -225,7 +225,7 @@ object CardScan {
         val named = lines.filter { looksLikeName(it.text) }
         val tallest = named.maxOfOrNull { it.height } ?: return null
         val top = named.filter { it.height >= tallest * 0.75f }.minByOrNull { it.y } ?: return null
-        val under = named.filter { it.y > top.y && it.y - top.y < 0.12f && it.height < tallest * 0.75f && it.height >= tallest * 0.35f }
+        val under = named.filter { it.y > top.y && it.y - top.y < 0.12f && it.text.length <= 32 && it.height < tallest * 0.75f && it.height >= tallest * 0.35f }
             .sortedBy { it.y }.take(2)
         val match = name(under, idx, set) ?: return null
         val flavored = allPrintings(match.name).filter { it.hasFlavorName() }
