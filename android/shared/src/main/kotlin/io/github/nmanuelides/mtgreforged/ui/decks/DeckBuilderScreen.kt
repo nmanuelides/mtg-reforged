@@ -1036,8 +1036,11 @@ private fun deckText(draft: DeckDraft): String = buildString {
     draft.ordered().filter { it in draft.main }.forEach { line(it, draft.main[it] ?: 0) }
 }
 
-/** Cards of the deck the collection doesn't cover (basic lands left out), with what they'd cost. */
-private fun shoppingList(draft: DeckDraft): Pair<String, Double> {
+/**
+ * Cards of the deck the collection doesn't cover (basic lands left out): the list to show (with
+ * what each costs), the one to copy (just quantities and names) and the total cost.
+ */
+private fun shoppingList(draft: DeckDraft): Triple<String, String, Double> {
     val need = LinkedHashMap<String, Pair<PaperCard, Int>>()
     draft.ordered().forEach { card ->
         if (card.rules.type.isBasicLand) return@forEach
@@ -1046,6 +1049,7 @@ private fun shoppingList(draft: DeckDraft): Pair<String, Double> {
         need[card.name] = card to (prev?.second ?: 0) + n
     }
     var total = 0.0
+    val plain = StringBuilder()
     val text = buildString {
         need.forEach { (name, pair) ->
             val missing = pair.second - CardCollection.count(name).coerceAtMost(pair.second)
@@ -1053,11 +1057,12 @@ private fun shoppingList(draft: DeckDraft): Pair<String, Double> {
             val price = CardPrices.cheapest(name)?.retail
             if (price != null) total += price * missing
             append(missing).append(' ').append(name)
+            plain.append(missing).append(' ').append(name).append('\n')
             price?.let { append("  (").append(CardPrice.usd(it)).append(')') }
             append('\n')
         }
     }
-    return text.trim() to total
+    return Triple(text.trim(), plain.toString().trim(), total)
 }
 
 @Composable
@@ -1067,8 +1072,8 @@ private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) 
     var done by remember { mutableStateOf<String?>(null) }
     var shopping by remember { mutableStateOf(false) }
     val deck = remember { deckText(draft) }
-    val (missing, cost) = remember { shoppingList(draft) }
-    val text = if (shopping) "$name — shopping list\n\n$missing" else deck
+    val (missing, copyable, cost) = remember { shoppingList(draft) }
+    val text = if (shopping) "$name — shopping list\n\n$copyable" else deck
     val save = rememberCreateDocument("text/plain") { open ->
         if (open != null) {
             runCatching { open()?.use { it.write(text.toByteArray()) } }
