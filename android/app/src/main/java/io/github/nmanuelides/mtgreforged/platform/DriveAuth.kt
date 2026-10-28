@@ -49,6 +49,15 @@ private fun tokenFrom(activity: Activity, data: Intent?): Result<String> = runCa
     throw e
 }
 
+/** A Drive token only if access was already granted (never shows Google's screens), else null. */
+@Composable
+fun rememberQuietDriveToken(): suspend () -> String? {
+    val activity = LocalContext.current as? Activity
+    return remember(activity) {
+        suspend { activity?.let { a -> (runCatching { authorize(a) }.getOrNull() as? Auth.Token)?.value } }
+    }
+}
+
 /**
  * A Drive access token for the signed-in Google account (drive.appdata scope), showing
  * Google's consent screen the first time. Fails with a message the UI can show as is.

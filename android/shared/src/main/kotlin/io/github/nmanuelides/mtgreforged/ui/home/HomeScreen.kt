@@ -275,6 +275,7 @@ fun HomeScreen(
                     }
                     if (offline) OfflineImagesDialog { offline = false }
                     if (backup) BackupDialog { backup = false }
+                    BackupSyncOnLaunch()
                     if (profile) ProfileDialog(update, onCheckUpdate, onInstallUpdate) { profile = false }
                     // News from the developer: one message at a time, each shown once.
                     val news by News.unseen.collectAsState()

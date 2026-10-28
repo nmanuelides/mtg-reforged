@@ -60,7 +60,12 @@ object DriveBackup {
     }
 
     suspend fun restore(token: String, entry: Entry): Backup.Restored = withContext(Dispatchers.IO) {
-        Backup.restore(call("https://www.googleapis.com/drive/v3/files/${entry.id}?alt=media", token))
+        Backup.restore(download(token, entry))
+    }
+
+    /** The backup document itself. */
+    suspend fun download(token: String, entry: Entry): String = withContext(Dispatchers.IO) {
+        call("https://www.googleapis.com/drive/v3/files/${entry.id}?alt=media", token)
     }
 
     suspend fun delete(token: String, entry: Entry) = withContext(Dispatchers.IO) {

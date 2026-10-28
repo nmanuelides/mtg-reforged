@@ -395,6 +395,12 @@
       "title": "New in v1.20.0",
       "body": "• Card scanner: fixed the app closing when the list had two entries of the same card (different printings or foil).",
       "link": null
+    },
+    {
+      "id": "v1.21.0",
+      "title": "New in v1.21.0",
+      "body": "• Sync between devices: when the app opens it checks your Google Drive backups. A newer one from another device is restored by itself; if this device has changes that aren't backed up, you're asked whether to back them up or use the backup. Works once you have used Google Drive backup on the device.",
+      "link": null
     }
   ]
 }

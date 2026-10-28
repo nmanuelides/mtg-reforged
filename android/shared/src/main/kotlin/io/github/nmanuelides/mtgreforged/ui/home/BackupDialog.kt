@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.engine.BackupSync
+import io.github.nmanuelides.mtgreforged.platform.rememberQuietDriveToken
+import io.github.nmanuelides.mtgreforged.platform.LocalAppContext
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.graphicsLayer
@@ -64,6 +67,7 @@ import io.github.nmanuelides.mtgreforged.platform.rememberOpenDocument
 @Composable
 fun BackupDialog(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val context = LocalAppContext.current
     var token by remember { mutableStateOf<String?>(null) }
     var backups by remember { mutableStateOf<List<DriveBackup.Entry>?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -131,7 +135,7 @@ fun BackupDialog(onDismiss: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         OrnateButton(
             "Back up to Google Drive",
-            { withDrive(driveJob { t -> DriveBackup.upload(t); status = "Backed up to Google Drive."; backups = DriveBackup.list(t) }) },
+            { withDrive(driveJob { t -> val e = DriveBackup.upload(t); withContext(Dispatchers.IO) { BackupSync.markSynced(context, e.id) }; status = "Backed up to Google Drive."; backups = DriveBackup.list(t) }) },
             Modifier.fillMaxWidth(), icon = Icons.Default.CloudUpload, style = OrnateStyle.Primary, enabled = !busy,
         )
         Spacer(Modifier.height(14.dp))
@@ -194,8 +198,92 @@ fun BackupDialog(onDismiss: () -> Unit) {
                 OrnateButton("Cancel", { confirmRestore = null }, Modifier.weight(1f), accent = Palette.Slate)
                 OrnateButton("Restore", {
                     confirmRestore = null
-                    withDrive(driveJob { t -> status = restoredText(DriveBackup.restore(t, entry)) })
+                    withDrive(driveJob { t ->
+                        status = restoredText(DriveBackup.restore(t, entry))
+                        withContext(Dispatchers.IO) { BackupSync.markSynced(context, entry.id) }
+                    })
                 }, Modifier.weight(1f), style = OrnateStyle.Primary)
+            }
+        }
+    }
+}
+
+/** Whether this run of the app already looked for a newer backup. */
+private var syncChecked = false
+
+/**
+ * On opening the app: a newer Drive backup (made on another device) is restored by itself when
+ * nothing changed here since the last backup or restore; otherwise the player is warned and
+ * chooses to back up this device or take the backup. Only if Drive was connected before.
+ */
+@Composable
+fun BackupSyncOnLaunch() {
+    val context = LocalAppContext.current
+    val scope = rememberCoroutineScope()
+    val quietToken = rememberQuietDriveToken()
+    var token by remember { mutableStateOf<String?>(null) }
+    var conflict by remember { mutableStateOf<BackupSync.Check.Conflict?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (syncChecked) return@LaunchedEffect
+        syncChecked = true
+        val t = quietToken() ?: return@LaunchedEffect
+        token = t
+        when (val check = runCatching { BackupSync.check(context, t) }.getOrNull()) {
+            is BackupSync.Check.Restored -> notice = "Synced with your backup from ${dateOf(check.entry)}."
+            is BackupSync.Check.Conflict -> conflict = check
+            else -> Unit
+        }
+    }
+    notice?.let { text ->
+        LaunchedEffect(text) { kotlinx.coroutines.delay(4000); notice = null }
+        OrnateDialog(onDismiss = { notice = null }, maxWidth = 520.dp) {
+            StatusBanner(text, failed = false)
+        }
+    }
+    conflict?.let { c ->
+        fun act(work: suspend () -> String) {
+            busy = true
+            scope.launch {
+                notice = runCatching { work() }.getOrElse { "Couldn't sync: ${it.message}" }
+                busy = false
+                conflict = null
+            }
+        }
+        OrnateDialog(onDismiss = { if (!busy) conflict = null }, maxWidth = 560.dp) {
+            SectionLabel("Newer backup found")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "There's a newer backup in Google Drive (${dateOf(c.entry)}: ${c.entry.cards} cards, ${c.entry.decks} decks), " +
+                    "but this device has changes that aren't backed up. Using the backup replaces them and they'll be lost; " +
+                    "back up this device first to keep them.",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
+            )
+            Spacer(Modifier.height(14.dp))
+            OrnateButton(
+                "Back up this device", {
+                    act {
+                        val t = token ?: error("no Google access")
+                        val e = DriveBackup.upload(t)
+                        withContext(Dispatchers.IO) { BackupSync.markSynced(context, e.id) }
+                        "Backed up this device to Google Drive."
+                    }
+                },
+                Modifier.fillMaxWidth(), icon = Icons.Default.CloudUpload, style = OrnateStyle.Primary, enabled = !busy,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OrnateButton("Later", { conflict = null }, Modifier.weight(1f), accent = Palette.Slate, enabled = !busy)
+                OrnateButton(
+                    "Use the backup", {
+                        act {
+                            withContext(Dispatchers.IO) { BackupSync.apply(context, c.entry, c.text) }
+                            "Synced with your backup from ${dateOf(c.entry)}."
+                        }
+                    },
+                    Modifier.weight(1f), accent = Palette.Terracotta, enabled = !busy,
+                )
             }
         }
     }

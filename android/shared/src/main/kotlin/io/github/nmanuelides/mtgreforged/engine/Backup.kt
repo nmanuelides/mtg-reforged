@@ -28,8 +28,11 @@ object Backup {
 
     data class Restored(val decks: Int, val collection: Boolean)
 
-    /** Writes the backup's collection and decks back (decks with the same name are replaced). */
-    fun restore(text: String): Restored {
+    /**
+     * Writes the backup's collection and decks back (decks with the same name are replaced);
+     * with [replace], the player's decks the backup doesn't have are deleted too.
+     */
+    fun restore(text: String, replace: Boolean = false): Restored {
         val json = JSONObject(text)
         require(json.optString("app") == APP) { "That file isn't an MTG Reforged backup." }
         val collection = json.optString("collection").takeIf { it.isNotBlank() }
@@ -39,13 +42,17 @@ object Backup {
         }
         val decks = json.optJSONArray("decks") ?: JSONArray()
         var restored = 0
+        val kept = HashSet<File>()
         for (i in 0 until decks.length()) {
             val deck = decks.getJSONObject(i)
             val format = runCatching { Engine.Format.valueOf(deck.getString("format")) }.getOrNull() ?: continue
             // Only a bare file name: a backup must never write outside the deck folders.
             val name = File(deck.getString("file")).name.takeIf { it.endsWith(".dck") } ?: continue
-            File(UserDecks.dir(format), name).writeText(deck.getString("content"))
+            File(UserDecks.dir(format), name).also { kept += it.absoluteFile }.writeText(deck.getString("content"))
             restored++
+        }
+        if (replace) Engine.Format.entries.forEach { format ->
+            UserDecks.dir(format).listFiles { f -> f.extension == "dck" }.orEmpty().filter { it.absoluteFile !in kept }.forEach { it.delete() }
         }
         Engine.Format.entries.forEach(Engine::invalidateDecks)
         return Restored(restored, collection != null)

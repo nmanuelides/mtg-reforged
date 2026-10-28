@@ -28,6 +28,10 @@ import java.util.Base64
 @Composable
 fun rememberDriveToken(): suspend () -> String = remember { suspend { DriveAuth.token() } }
 
+/** A Drive token only if the player signed in before (never opens the browser), else null. */
+@Composable
+fun rememberQuietDriveToken(): suspend () -> String? = remember { suspend { runCatching { DriveAuth.quietToken() }.getOrNull() } }
+
 private object DriveAuth {
     private const val AUTH = "https://accounts.google.com/o/oauth2/v2/auth"
     private const val TOKEN = "https://oauth2.googleapis.com/token"
@@ -46,6 +50,16 @@ private object DriveAuth {
                 runCatching { exchange("grant_type" to "refresh_token", "refresh_token" to refresh) }.getOrNull()?.let { return@runInterruptible it }
             }
             signIn()
+        }
+    }
+
+    suspend fun quietToken(): String? = runInterruptible(Dispatchers.IO) {
+        if (BuildConfig.GOOGLE_CLIENT_ID.isBlank()) return@runInterruptible null
+        synchronized(this) {
+            accessToken?.takeIf { System.currentTimeMillis() < expiresAt }
+                ?: prefs.getString(KEY_REFRESH, null)?.let { refresh ->
+                    runCatching { exchange("grant_type" to "refresh_token", "refresh_token" to refresh) }.getOrNull()
+                }
         }
     }
 
