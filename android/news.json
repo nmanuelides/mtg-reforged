@@ -389,6 +389,12 @@
       "title": "New in v1.19.0",
       "body": "• Card scanner: fixed the camera slowing down and the app closing when scanning several printings of the same card in a row.",
       "link": null
+    },
+    {
+      "id": "v1.20.0",
+      "title": "New in v1.20.0",
+      "body": "• Card scanner: fixed the app closing when the list had two entries of the same card (different printings or foil).",
+      "link": null
     }
   ]
 }

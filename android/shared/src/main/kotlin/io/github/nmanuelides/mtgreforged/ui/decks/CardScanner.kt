@@ -86,6 +86,8 @@ import kotlin.math.abs
 
 /** A card waiting in the scanner's carousel: which printing, how many, foil or not. */
 private class Scanned(val printings: List<PaperCard>, index: Int) {
+    /** Tells entries apart in the carousel: two can be the same card (other printings, foil). */
+    val id = nextScanned.incrementAndGet()
     var index by mutableIntStateOf(index)
     var quantity by mutableIntStateOf(1)
     var foil by mutableStateOf(false)
@@ -95,6 +97,8 @@ private class Scanned(val printings: List<PaperCard>, index: Int) {
     val card: PaperCard get() = printings[index].let { if (foil) it.foiled else it }
     fun shows(other: PaperCard) = printings[index].let { it.edition == other.edition && it.collectorNumber == other.collectorNumber }
 }
+
+private val nextScanned = java.util.concurrent.atomic.AtomicLong()
 
 /** Switches a guessed printing to the one its set code and number say (a manual pick stays). */
 private fun usePrinting(item: Scanned, card: PaperCard) {
@@ -379,7 +383,7 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, lookup: Boolean, onF
         if (others.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(others, key = { it.name }) { item ->
+                items(others, key = { it.id }) { item ->
                     Box(
                         Modifier
                             .pointerInput(item) {
