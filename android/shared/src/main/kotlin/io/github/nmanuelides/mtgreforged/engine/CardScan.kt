@@ -126,7 +126,7 @@ object CardScan {
      */
     fun read(lines: List<ScannedLine>, set: String?, known: String? = null): ScanHit? {
         val idx = index ?: return null
-        val title = name(titleLines(lines), idx, set?.uppercase())
+        val title = name(titleLines(lines), idx, set?.uppercase()) ?: subtitle(lines, idx, set?.uppercase())
         // Other cards around it (a binder page) show their bottom lines too: take the one under
         // this card's title, or without a title the one where the frame's bottom edge is.
         val bottoms = bottoms(lines)
@@ -214,6 +214,23 @@ object CardScan {
         val named = lines.filter { looksLikeName(it.text) }
         val tallest = named.maxOfOrNull { it.height } ?: return emptyList()
         return named.filter { it.height >= tallest * 0.75f }.sortedBy { it.y }.take(2)
+    }
+
+    /**
+     * Cards printed under another name (the Godzilla series, Universes Within) carry their real
+     * name in smaller type right under the title; in a language Forge has no flavor names for,
+     * that line is the only way to tell the card. Read that way, it's the flavor-named printing.
+     */
+    private fun subtitle(lines: List<ScannedLine>, idx: Index, set: String?): NameMatch? {
+        val named = lines.filter { looksLikeName(it.text) }
+        val tallest = named.maxOfOrNull { it.height } ?: return null
+        val top = named.filter { it.height >= tallest * 0.75f }.minByOrNull { it.y } ?: return null
+        val under = named.filter { it.y > top.y && it.y - top.y < 0.12f && it.height < tallest * 0.75f && it.height >= tallest * 0.35f }
+            .sortedBy { it.y }.take(2)
+        val match = name(under, idx, set) ?: return null
+        val flavored = allPrintings(match.name).filter { it.hasFlavorName() }
+        val printing = flavored.firstOrNull { set == null || it.edition.equals(set, ignoreCase = true) }
+        return NameMatch(match.name, top, printing ?: match.printing)
     }
 
     private fun looksLikeName(text: String): Boolean {

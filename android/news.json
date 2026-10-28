@@ -377,6 +377,12 @@
       "title": "New in v1.17.0",
       "body": "• Card scanner: two cards with the same name but different printings now get an entry each instead of adding to the first one.",
       "link": null
+    },
+    {
+      "id": "v1.18.0",
+      "title": "New in v1.18.0",
+      "body": "• Card scanner: recognises cards printed under another name (like the Godzilla series) by the real name in small type under the title, in English or Spanish.",
+      "link": null
     }
   ]
 }
