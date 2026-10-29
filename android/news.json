@@ -419,6 +419,12 @@
       "title": "New in v1.24.0",
       "body": "• Windows: right-click a card in the card lookup, deck builder or collection to copy its image or save it to a folder you choose.",
       "link": null
+    },
+    {
+      "id": "v1.25.0",
+      "title": "New in v1.25.0",
+      "body": "• Windows: the right-click menu on cards (copy or save the image) now opens.",
+      "link": null
     }
   ]
 }

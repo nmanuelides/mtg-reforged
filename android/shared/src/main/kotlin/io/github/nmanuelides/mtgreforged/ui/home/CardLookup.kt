@@ -71,7 +71,7 @@ import io.github.nmanuelides.mtgreforged.match.CardUi
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
 import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
 import io.github.nmanuelides.mtgreforged.ui.components.rightClick
-import io.github.nmanuelides.mtgreforged.ui.components.secondaryClick
+import io.github.nmanuelides.mtgreforged.ui.components.tapOrHold
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
 import io.github.nmanuelides.mtgreforged.ui.decks.fieldColors
@@ -283,7 +283,7 @@ private fun CardDetail(name: String) {
 @Composable
 private fun CardWithMenu(ui: CardUi, width: androidx.compose.ui.unit.Dp) {
     var menu by remember { mutableStateOf(false) }
-    Box(Modifier.secondaryClick(rightClick { menu = true })) {
+    Box(Modifier.tapOrHold(ui.id, onTap = {}, onHold = { _, _ -> }, onSecondaryClick = rightClick { menu = true })) {
         CardTile(ui, width, showTapped = false)
         CardImageMenu(ui, menu) { menu = false }
     }

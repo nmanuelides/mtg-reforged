@@ -51,6 +51,11 @@ fun Modifier.tapOrHold(
         val down = awaitFirstDown(requireUnconsumed = false)
         if (onSecondaryClick != null && currentEvent.buttons.isSecondaryPressed) {
             down.consume()
+            // On release, like a click: a menu opened on press closes again when the button comes up.
+            do {
+                val event = awaitPointerEvent()
+                event.changes.forEach { it.consume() }
+            } while (event.changes.any { it.pressed })
             onSecondaryClick()
             return@awaitEachGesture
         }
