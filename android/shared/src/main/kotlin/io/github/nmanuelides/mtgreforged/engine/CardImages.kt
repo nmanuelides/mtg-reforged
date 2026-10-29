@@ -65,6 +65,9 @@ object CardImages {
         }
     }
 
+    /** The picture file for [key], downloading it first if needed. */
+    suspend fun file(key: String): File? = withContext(Dispatchers.IO) { findFile(key) } ?: fetch(key)
+
     enum class DiskResult { AlreadyThere, Downloaded, Failed }
 
     /** Downloads [key] if it isn't on disk yet, without decoding it (bulk / offline download). */

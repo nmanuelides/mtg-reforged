@@ -61,6 +61,10 @@ fun AppContext.copyToClipboard(text: String?) {
     MainThread.post { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Forge", text)) }
 }
 
+/** Card pictures are only copied from the Windows right-click menu. */
+@Suppress("UNUSED_PARAMETER")
+fun AppContext.copyImageToClipboard(file: java.io.File): Boolean = false
+
 fun AppContext.openUrl(url: String) {
     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }

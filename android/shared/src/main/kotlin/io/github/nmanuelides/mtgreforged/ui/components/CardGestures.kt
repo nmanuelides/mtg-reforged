@@ -38,15 +38,22 @@ import io.github.nmanuelides.mtgreforged.match.CardUi
  * One gesture detector for cards: a quick tap calls [onTap]; pressing and holding calls
  * [onHold] with true, then false on release, and never also counts as a tap.
  * [onHoldMove] reports the finger position while held (for the hand's dock effect).
+ * With [onSecondaryClick], a right-click calls it instead of holding.
  */
 fun Modifier.tapOrHold(
     key: Any?,
     onTap: (Offset) -> Unit,
     onHold: (Boolean, Offset) -> Unit,
     onHoldMove: (Offset) -> Unit = {},
+    onSecondaryClick: (() -> Unit)? = null,
 ): Modifier = pointerInput(key) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        if (onSecondaryClick != null && currentEvent.buttons.isSecondaryPressed) {
+            down.consume()
+            onSecondaryClick()
+            return@awaitEachGesture
+        }
         // A right-click (Windows) holds straight away, until the button is released.
         val longPress = if (currentEvent.buttons.isSecondaryPressed) down else awaitLongPressOrCancellation(down.id)
         if (longPress == null) {

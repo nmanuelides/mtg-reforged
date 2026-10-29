@@ -69,6 +69,9 @@ import io.github.nmanuelides.mtgreforged.engine.CardPrice
 import io.github.nmanuelides.mtgreforged.engine.CardPrices
 import io.github.nmanuelides.mtgreforged.match.CardUi
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
+import io.github.nmanuelides.mtgreforged.ui.components.rightClick
+import io.github.nmanuelides.mtgreforged.ui.components.secondaryClick
 import io.github.nmanuelides.mtgreforged.ui.components.paper
 import io.github.nmanuelides.mtgreforged.ui.components.paperShadow
 import io.github.nmanuelides.mtgreforged.ui.decks.fieldColors
@@ -247,7 +250,7 @@ private fun CardDetail(name: String) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             // The cheapest printing, big and centred, with its price underneath.
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                CardTile(remember(main) { CardUi.fromPaper(main) }, 300.dp, showTapped = false)
+                CardWithMenu(remember(main) { CardUi.fromPaper(main) }, 300.dp)
                 Spacer(Modifier.height(12.dp))
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(name, style = MaterialTheme.typography.headlineMedium, color = Color.White)
@@ -263,7 +266,7 @@ private fun CardDetail(name: String) {
         items(printings, key = { "${it.edition}|${it.collectorNumber}|${it.artIndex}" }) { p ->
             val price = remember(p, prices) { CardPrices.of(p)?.takeIf { it.exact } }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CardTile(remember(p) { CardUi.fromPaper(p) }, tile, showTapped = false)
+                CardWithMenu(remember(p) { CardUi.fromPaper(p) }, tile)
                 Text(
                     StaticData.instance().getCardEdition(p.edition)?.name ?: p.edition,
                     style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f),
@@ -273,5 +276,15 @@ private fun CardDetail(name: String) {
             }
         }
     }
+    }
+}
+
+/** A card whose right-click (Windows) offers to copy or save its picture. */
+@Composable
+private fun CardWithMenu(ui: CardUi, width: androidx.compose.ui.unit.Dp) {
+    var menu by remember { mutableStateOf(false) }
+    Box(Modifier.secondaryClick(rightClick { menu = true })) {
+        CardTile(ui, width, showTapped = false)
+        CardImageMenu(ui, menu) { menu = false }
     }
 }

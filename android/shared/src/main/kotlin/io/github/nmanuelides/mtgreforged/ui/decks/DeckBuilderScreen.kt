@@ -128,6 +128,8 @@ import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.UserDecks
 import io.github.nmanuelides.mtgreforged.match.CardUi
 import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
+import io.github.nmanuelides.mtgreforged.ui.components.rightClick
 import io.github.nmanuelides.mtgreforged.ui.components.HoldZoom
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
@@ -761,10 +763,12 @@ private fun CardSearch(
                     val order = remember { cascade.getAndIncrement() }
                     val ui = remember(card) { CardUi.fromPaper(card) }
                     var held by remember { mutableStateOf(false) }
+                    var menu by remember { mutableStateOf(false) }
                     val price = remember(card, prices) { CardPrices.of(card) }
                     Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(Modifier.tapOrHold(card.name, onTap = { onOpenResults(shown, index) }, onHold = { h, _ -> held = h })) {
+                        Box(Modifier.tapOrHold(card.name, onTap = { onOpenResults(shown, index) }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true })) {
                             CardTile(ui, tile, showTapped = false)
+                            CardImageMenu(ui, menu) { menu = false }
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                             if (commanderFormat && canLead(card)) {
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
@@ -1273,8 +1277,10 @@ private fun DeckGallery(
                 val price = remember(card, prices) { CardPrices.of(card) }
                 Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
                     val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
-                    Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h })) {
+                    var menu by remember { mutableStateOf(false) }
+                    Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true })) {
                         CardTile(ui, tile, showTapped = false)
+                        CardImageMenu(ui, menu) { menu = false }
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                         if (n > 1) {
                             Text(
@@ -1471,12 +1477,14 @@ private fun DeckRow(
 ) {
     val ui = remember(card) { CardUi.fromPaper(card) }
     var held by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
     val prices by CardPrices.version.collectAsState()
     val price = remember(card, prices) { CardPrices.of(card) }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = { onOpen() }, onHold = { h, _ -> held = h }),
+        Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = { onOpen() }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true }),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        CardImageMenu(ui, menu) { menu = false }
         Box(Modifier.size(28.dp).background(Palette.Paper, CircleShape), contentAlignment = Alignment.Center) {
             Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Palette.Ink)
         }

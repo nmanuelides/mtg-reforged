@@ -413,6 +413,12 @@
       "title": "New in v1.23.0",
       "body": "• Card lookup: typing a space no longer closes the search.\n• Card lookup: zoom the printings with pinch or Ctrl + mouse wheel for fewer, bigger cards.",
       "link": null
+    },
+    {
+      "id": "v1.24.0",
+      "title": "New in v1.24.0",
+      "body": "• Windows: right-click a card in the card lookup, deck builder or collection to copy its image or save it to a folder you choose.",
+      "link": null
     }
   ]
 }

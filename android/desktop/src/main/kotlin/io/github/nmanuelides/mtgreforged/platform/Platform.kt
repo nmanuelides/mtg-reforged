@@ -87,6 +87,21 @@ fun AppContext.copyToClipboard(text: String?) {
     runCatching { Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text.orEmpty()), null) }
 }
 
+/** Puts the picture in [file] on the clipboard, ready to paste into any app. */
+fun AppContext.copyImageToClipboard(file: File): Boolean = runCatching {
+    val read = javax.imageio.ImageIO.read(file) ?: return false
+    // Plain RGB: some Windows apps paste nothing from an image with an alpha channel.
+    val image = java.awt.image.BufferedImage(read.width, read.height, java.awt.image.BufferedImage.TYPE_INT_RGB)
+    image.createGraphics().apply { drawImage(read, 0, 0, null); dispose() }
+    Toolkit.getDefaultToolkit().systemClipboard.setContents(object : java.awt.datatransfer.Transferable {
+        override fun getTransferDataFlavors() = arrayOf(java.awt.datatransfer.DataFlavor.imageFlavor)
+        override fun isDataFlavorSupported(flavor: java.awt.datatransfer.DataFlavor) = flavor == java.awt.datatransfer.DataFlavor.imageFlavor
+        override fun getTransferData(flavor: java.awt.datatransfer.DataFlavor): Any =
+            if (flavor == java.awt.datatransfer.DataFlavor.imageFlavor) image else throw java.awt.datatransfer.UnsupportedFlavorException(flavor)
+    }, null)
+    true
+}.getOrDefault(false)
+
 fun AppContext.openUrl(url: String) {
     runCatching { Desktop.getDesktop().browse(URI(url)) }.onFailure { Log.w("Platform", "Couldn't open $url", it) }
 }
