@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
@@ -46,19 +47,9 @@ fun Modifier.tapOrHold(
     onHold: (Boolean, Offset) -> Unit,
     onHoldMove: (Offset) -> Unit = {},
     onSecondaryClick: (() -> Unit)? = null,
-): Modifier = pointerInput(key) {
+): Modifier = (if (onSecondaryClick == null) this else rightClickRelease(key, onSecondaryClick)).pointerInput(key) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        if (onSecondaryClick != null && currentEvent.buttons.isSecondaryPressed) {
-            down.consume()
-            // On release, like a click: a menu opened on press closes again when the button comes up.
-            do {
-                val event = awaitPointerEvent()
-                event.changes.forEach { it.consume() }
-            } while (event.changes.any { it.pressed })
-            onSecondaryClick()
-            return@awaitEachGesture
-        }
         // A right-click (Windows) holds straight away, until the button is released.
         val longPress = if (currentEvent.buttons.isSecondaryPressed) down else awaitLongPressOrCancellation(down.id)
         if (longPress == null) {
@@ -80,6 +71,24 @@ fun Modifier.tapOrHold(
             }
         }
         onHold(false, change?.position ?: longPress.position)
+    }
+}
+
+/**
+ * Calls [onClick] when the right mouse button is released over the element. Watches raw events:
+ * awaitFirstDown only reports the primary button, so a right press never reaches a gesture loop.
+ * On release, like a click: a menu opened on press would close again as the button comes up.
+ */
+private fun Modifier.rightClickRelease(key: Any?, onClick: () -> Unit): Modifier = pointerInput(key) {
+    awaitPointerEventScope {
+        var held = false
+        while (true) {
+            val event = awaitPointerEvent()
+            val now = event.buttons.isSecondaryPressed
+            if (now || held) event.changes.forEach { it.consume() }
+            if (held && !now && event.type == PointerEventType.Release) onClick()
+            held = now
+        }
     }
 }
 

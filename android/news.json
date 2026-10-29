@@ -437,6 +437,12 @@
       "title": "New in v1.27.0",
       "body": "• Filters: opening a filter (like Sets / Editions) scrolls the panel so its options are in view.",
       "link": null
+    },
+    {
+      "id": "v1.28.0",
+      "title": "New in v1.28.0",
+      "body": "• Windows: right-clicking a card now really opens the menu to copy its image or save it to a folder.",
+      "link": null
     }
   ]
 }
