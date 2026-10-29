@@ -425,6 +425,12 @@
       "title": "New in v1.25.0",
       "body": "• Windows: the right-click menu on cards (copy or save the image) now opens.",
       "link": null
+    },
+    {
+      "id": "v1.26.0",
+      "title": "New in v1.26.0",
+      "body": "• Collection: the Foil / Regular chip no longer turns the copies you own into the other finish. It picks which one + and − count, so you can own the same printing both foil and regular.",
+      "link": null
     }
   ]
 }

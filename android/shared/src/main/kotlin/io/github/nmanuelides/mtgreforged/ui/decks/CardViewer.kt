@@ -107,6 +107,11 @@ internal fun CardViewer(
             replaceOwned -> draft.replacePrinting(old, next)
         }
     }
+    // Foil / regular: in the collection both finishes are owned side by side, so switching only
+    // changes which one the counter adds to; a deck's copies follow the choice.
+    fun switchFinish(page: Int, next: PaperCard) {
+        if (collection) picked[page] = next else swap(page, next)
+    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         CompositionLocalProvider(LocalCollectionMode provides collection) {
@@ -188,7 +193,7 @@ internal fun CardViewer(
                 }
                 Spacer(Modifier.height(14.dp))
                 ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss) { other ->
-                    swap(pager.currentPage, other)
+                    switchFinish(pager.currentPage, other)
                 }
             }
         }
