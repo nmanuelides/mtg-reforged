@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import io.github.nmanuelides.mtgreforged.update.PendingBuild
 import io.github.nmanuelides.mtgreforged.platform.CAN_SCAN_CARDS
 import io.github.nmanuelides.mtgreforged.ui.decks.CardScanner
@@ -286,7 +289,12 @@ fun HomeScreen(
                             Spacer(Modifier.height(8.dp))
                             if (item.title.isNotBlank()) Text(item.title, style = MaterialTheme.typography.headlineSmall, color = Palette.Ink, textAlign = TextAlign.Center)
                             Spacer(Modifier.height(8.dp))
-                            Text(item.body, style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft, textAlign = TextAlign.Center)
+                            Text(
+                                item.body,
+                                Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()),
+                                style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft,
+                                textAlign = if (item.ids.size > 1) TextAlign.Start else TextAlign.Center,
+                            )
                             Spacer(Modifier.height(16.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 item.link?.let { link ->

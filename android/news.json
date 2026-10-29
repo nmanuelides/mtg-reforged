@@ -401,6 +401,12 @@
       "title": "New in v1.21.0",
       "body": "• Sync between devices: when the app opens it checks your Google Drive backups. A newer one from another device is restored by itself; if this device has changes that aren't backed up, you're asked whether to back them up or use the backup. Works once you have used Google Drive backup on the device.",
       "link": null
+    },
+    {
+      "id": "v1.22.0",
+      "title": "New in v1.22.0",
+      "body": "• What's new: after skipping several updates, all their changes show together in one message instead of one per version.",
+      "link": null
     }
   ]
 }

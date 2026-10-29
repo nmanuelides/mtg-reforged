@@ -15,7 +15,8 @@ import io.github.nmanuelides.mtgreforged.platform.AppContext
  * when the app opens. Each message shows once (remembered by its id).
  */
 object News {
-    data class Item(val id: String, val title: String, val body: String, val link: String?)
+    /** [ids]: every message it stands for (several changelog entries shown as one). */
+    data class Item(val id: String, val title: String, val body: String, val link: String?, val ids: List<String> = listOf(id))
 
     private const val PREFS = "news"
     private const val KEY_SEEN = "seen"
@@ -51,7 +52,21 @@ object News {
                 connection.disconnect()
             }
         }.getOrNull() ?: return
-        _unseen.value = items.filter { it.id !in seen && isForInstalledVersion(it.id) }
+        val fresh = items.filter { it.id !in seen && isForInstalledVersion(it.id) }
+        // Every version's changelog missed (after skipping several updates) in one message, newest first.
+        val (changelogs, others) = fresh.partition { VERSION.containsMatchIn(it.id) }
+        val changelog = when (changelogs.size) {
+            0 -> null
+            1 -> changelogs[0]
+            else -> Item(
+                id = "changelog",
+                title = "What's new since your last update",
+                body = changelogs.reversed().joinToString("\n\n") { it.id + "\n" + it.body },
+                link = null,
+                ids = changelogs.map { it.id },
+            )
+        }
+        _unseen.value = others + listOfNotNull(changelog)
     }
 
     /**
@@ -59,8 +74,10 @@ object News {
      * newer one) is installed, not on an older copy that downloads the newer news. Other messages
      * always show.
      */
+    private val VERSION = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)")
+
     private fun isForInstalledVersion(id: String): Boolean {
-        val entry = Regex("^v(\\d+)\\.(\\d+)\\.(\\d+)").find(id)?.groupValues?.drop(1)?.map { it.toInt() } ?: return true
+        val entry = VERSION.find(id)?.groupValues?.drop(1)?.map { it.toInt() } ?: return true
         val installed = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)").find(BuildConfig.VERSION_NAME)?.groupValues?.drop(1)?.map { it.toInt() } ?: return true
         for (i in 0..2) if (entry[i] != installed[i]) return entry[i] < installed[i]
         return true
@@ -68,7 +85,7 @@ object News {
 
     fun markSeen(context: AppContext, item: Item) {
         val prefs = context.prefs(PREFS)
-        val seen = prefs.getStringSet(KEY_SEEN, emptySet()).orEmpty() + item.id
+        val seen = prefs.getStringSet(KEY_SEEN, emptySet()).orEmpty() + item.ids
         prefs.edit().putStringSet(KEY_SEEN, seen).apply()
         _unseen.value = _unseen.value.filter { it.id != item.id }
     }
