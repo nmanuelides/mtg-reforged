@@ -443,6 +443,12 @@
       "title": "New in v1.28.0",
       "body": "• Windows: right-clicking a card now really opens the menu to copy its image or save it to a folder.",
       "link": null
+    },
+    {
+      "id": "v1.29.0",
+      "title": "New in v1.29.0",
+      "body": "• Windows: on screens bigger than Full HD the app opens in a centred 1920 × 1080 window instead of maximized.",
+      "link": null
     }
   ]
 }

@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.WindowPosition
+import java.awt.GraphicsEnvironment
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import io.github.nmanuelides.mtgreforged.engine.Connectivity
@@ -65,7 +67,7 @@ fun main(args: Array<String>) {
     Engine.start(context)
 
     application {
-        val window = rememberWindowState(placement = WindowPlacement.Maximized, size = DpSize(1366.dp, 860.dp))
+        val window = rememberWindowState(placement = startPlacement(), size = startSize(), position = WindowPosition(Alignment.Center))
         Window(
             onCloseRequest = {
                 exitApplication()
@@ -109,6 +111,23 @@ fun main(args: Array<String>) {
             }
         }
     }
+}
+
+/** Screens up to Full HD open maximized; bigger ones get a centred 1920 × 1080 window. */
+private fun bigScreen(): Boolean = runCatching {
+    val mode = GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.displayMode
+    mode.width > 1920 || mode.height > 1080
+}.getOrDefault(false)
+
+private fun startPlacement() = if (bigScreen()) WindowPlacement.Floating else WindowPlacement.Maximized
+
+/** 1920 × 1080 real pixels, in dp (Windows display scaling makes a dp bigger than a pixel). */
+private fun startSize(): DpSize {
+    if (!bigScreen()) return DpSize(1366.dp, 860.dp)
+    val scale = runCatching {
+        GraphicsEnvironment.getLocalGraphicsEnvironment().defaultScreenDevice.defaultConfiguration.defaultTransform.scaleX
+    }.getOrDefault(1.0).toFloat().coerceAtLeast(1f)
+    return DpSize((1920 / scale).dp, (1080 / scale).dp)
 }
 
 /**
