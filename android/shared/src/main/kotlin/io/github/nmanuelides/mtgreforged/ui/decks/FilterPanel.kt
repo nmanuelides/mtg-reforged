@@ -42,6 +42,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -264,7 +268,15 @@ private fun FilterRow(
     onClear: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    // Opening a filter scrolls the panel so its controls show, once they've unfolded.
+    val bring = remember { BringIntoViewRequester() }
+    LaunchedEffect(expanded) {
+        if (expanded) {
+            delay(380)
+            bring.bringIntoView()
+        }
+    }
+    Column(Modifier.fillMaxWidth().bringIntoViewRequester(bring)) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
