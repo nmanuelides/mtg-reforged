@@ -47,6 +47,11 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import io.github.nmanuelides.mtgreforged.ui.decks.pinchColumns
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -116,6 +121,7 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
         keyboard?.hide()
         scope.launch { rise.animateTo(0f, tween(420, easing = CubicBezierEasing(0.65f, 0f, 0.35f, 1f))); onClose() }
     }
+    val closeNow by rememberUpdatedState(close)
     BackHandler { if (picked != null) picked = null else close() }
     LaunchedEffect(Unit) {
         rise.animateTo(1f, tween(560, easing = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)))
@@ -140,7 +146,8 @@ fun CardLookupOverlay(from: Rect?, onClose: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.62f * rise.value))
-            .clickable(remember { MutableInteractionSource() }, indication = null, onClick = close),
+            // A tap on the backdrop closes; not .clickable, which also fires on Space typed in the search box.
+            .pointerInput(Unit) { detectTapGestures { closeNow() } },
     ) {
         val density = LocalDensity.current
         val topY = with(density) { 24.dp.toPx() }
@@ -222,7 +229,21 @@ private fun CardDetail(name: String) {
     }
     if (printings.isEmpty()) return
     val main = remember(printings, prices) { printings.minByOrNull { CardPrices.of(it)?.takeIf { p -> p.exact }?.retail ?: Float.MAX_VALUE } ?: printings.first() }
-    LazyVerticalGrid(GridCells.Adaptive(150.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    // Pinch (or Ctrl + wheel) zooms the printings: fewer, bigger cards, down to two columns.
+    var zoomSteps by remember { mutableIntStateOf(0) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val base = ((maxWidth + 12.dp) / 162.dp).toInt().coerceAtLeast(1)
+    val fewest = minOf(2, base)
+    val columns = (base - zoomSteps).coerceIn(fewest, base)
+    val tile = (maxWidth - 12.dp * (columns - 1)) / columns
+    LazyVerticalGrid(
+        GridCells.Fixed(columns),
+        Modifier.fillMaxSize().pinchColumns(
+            onZoomIn = { if (columns > fewest) zoomSteps = base - columns + 1 },
+            onZoomOut = { if (columns < base) zoomSteps = base - columns - 1 },
+        ),
+        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             // The cheapest printing, big and centred, with its price underneath.
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -242,7 +263,7 @@ private fun CardDetail(name: String) {
         items(printings, key = { "${it.edition}|${it.collectorNumber}|${it.artIndex}" }) { p ->
             val price = remember(p, prices) { CardPrices.of(p)?.takeIf { it.exact } }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CardTile(remember(p) { CardUi.fromPaper(p) }, 150.dp, showTapped = false)
+                CardTile(remember(p) { CardUi.fromPaper(p) }, tile, showTapped = false)
                 Text(
                     StaticData.instance().getCardEdition(p.edition)?.name ?: p.edition,
                     style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f),
@@ -251,5 +272,6 @@ private fun CardDetail(name: String) {
                 Text(price?.let { CardPrice.usd(it.retail) } ?: "—", style = MaterialTheme.typography.titleMedium, color = Palette.Ochre)
             }
         }
+    }
     }
 }

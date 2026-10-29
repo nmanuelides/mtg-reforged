@@ -407,6 +407,12 @@
       "title": "New in v1.22.0",
       "body": "• What's new: after skipping several updates, all their changes show together in one message instead of one per version.",
       "link": null
+    },
+    {
+      "id": "v1.23.0",
+      "title": "New in v1.23.0",
+      "body": "• Card lookup: typing a space no longer closes the search.\n• Card lookup: zoom the printings with pinch or Ctrl + mouse wheel for fewer, bigger cards.",
+      "link": null
     }
   ]
 }

@@ -983,7 +983,7 @@ private fun OwnedBadge(name: String, modifier: Modifier) {
  * Two-finger pinch: steps the column count, leaving one-finger scrolling to the grid. With a mouse,
  * Ctrl + wheel does the same (wheel up: fewer, bigger cards); the plain wheel still scrolls.
  */
-private fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = composed {
+internal fun Modifier.pinchColumns(onZoomIn: () -> Unit, onZoomOut: () -> Unit): Modifier = composed {
     // The gesture loop lives across recompositions; read the newest callbacks, not the first ones.
     val zoomIn by rememberUpdatedState(onZoomIn)
     val zoomOut by rememberUpdatedState(onZoomOut)
