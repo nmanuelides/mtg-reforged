@@ -473,6 +473,12 @@
       "title": "New in v1.33.0",
       "body": "• Windows: in the card viewer, the up / down arrow keys switch to the next / previous printing, like dragging the card.\n• Filters: colours and colour identity show mana symbols, and sets show their expansion symbol next to the code.",
       "link": null
+    },
+    {
+      "id": "v1.34.0",
+      "title": "New in v1.34.0",
+      "body": "• Filters: Colors has a Multicolor option for cards of two or more colours, alone or together with the colours you pick.",
+      "link": null
     }
   ]
 }

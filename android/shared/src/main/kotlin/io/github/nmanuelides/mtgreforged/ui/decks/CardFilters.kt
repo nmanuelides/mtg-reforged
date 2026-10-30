@@ -71,6 +71,8 @@ data class CardFilter(
     val descending: Boolean = false,
     val colors: Set<Byte> = emptySet(),
     val colorless: Boolean = false,
+    /** Only cards of two or more colours (and the colours picked, if any). */
+    val multicolor: Boolean = false,
     val colorMode: ColorMode = ColorMode.Including,
     val identity: Set<Byte> = emptySet(),
     val sets: Set<String> = emptySet(),
@@ -93,7 +95,7 @@ data class CardFilter(
     /** Number of filters in use, for the badge on the Filters button. */
     val activeCount: Int
         get() = listOf(
-            colors.isNotEmpty() || colorless, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
+            colors.isNotEmpty() || colorless || multicolor, identity.isNotEmpty(), sets.isNotEmpty(), keywords.active,
             legality != null, manaCost.isNotBlank(), manaValue != null, text.active, types.active,
             supertypes.active, subtypes.active, power != null, toughness != null, rarities.isNotEmpty(), artist.isNotBlank(),
             price != null, within != Within.All, finish != Finish.Any,
@@ -172,8 +174,9 @@ data class CardFilter(
     }
 
     private fun matchesColors(rules: CardRules, mask: Int): Boolean {
-        if (colors.isEmpty() && !colorless) return true
         val color = rules.color
+        if (multicolor && !color.isMulticolor) return false
+        if (colors.isEmpty() && !colorless) return true
         return when (colorMode) {
             ColorMode.Including -> if (colors.isEmpty()) color.isColorless else color.hasAllColors(mask)
             ColorMode.Exactly -> if (colors.isEmpty()) color.isColorless else color.hasExactlyColor(mask)

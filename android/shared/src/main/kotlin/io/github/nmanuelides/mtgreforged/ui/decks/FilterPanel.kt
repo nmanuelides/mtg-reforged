@@ -126,8 +126,12 @@ fun FilterPanel(
             val colorPips = ManaPip.WUBRG.filter { it.color in filter.colors } + listOfNotNull(ManaPip.Colorless.takeIf { filter.colorless })
             FilterRow(
                 "Colors", "Colors of a spell or creature",
-                if (colorPips.isEmpty()) null else filter.colorMode.label,
-                section("colors"), { toggle("colors") }, onClear = { onChange(filter.copy(colors = emptySet(), colorless = false)) },
+                when {
+                    colorPips.isEmpty() -> if (filter.multicolor) "Multicolor" else null
+                    filter.multicolor -> "Multicolor · ${filter.colorMode.label}"
+                    else -> filter.colorMode.label
+                },
+                section("colors"), { toggle("colors") }, onClear = { onChange(filter.copy(colors = emptySet(), colorless = false, multicolor = false)) },
                 symbols = { colorPips.forEach { ManaSymbol(it, 18.dp) } },
             ) {
                 ChipFlow {
@@ -139,6 +143,8 @@ fun FilterPanel(
                 Spacer(Modifier.height(6.dp))
                 ChipFlow {
                     ColorMode.entries.forEach { m -> Chip(m.label, filter.colorMode == m) { onChange(filter.copy(colorMode = m)) } }
+                    // Two or more colours, on top of the colours picked (none: any multicolour card).
+                    Chip("Multicolor", filter.multicolor) { onChange(filter.copy(multicolor = !filter.multicolor)) }
                 }
             }
             FilterRow(
