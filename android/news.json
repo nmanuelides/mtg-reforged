@@ -503,6 +503,12 @@
       "title": "New in v1.38.0",
       "body": "• Card art now downloads in Scryfall's new WebP format, so the artwork keeps working after Scryfall drops its old JPEG crops in 2027.",
       "link": null
+    },
+    {
+      "id": "v1.39.0",
+      "title": "New in v1.39.0",
+      "body": "• Groundwork for playing with friends over the internet with a room code (switched on in a later update).",
+      "link": null
     }
   ]
 }

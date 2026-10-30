@@ -24,9 +24,9 @@ import io.github.nmanuelides.mtgreforged.platform.Log
 import io.github.nmanuelides.mtgreforged.platform.MainThread
 
 /**
- * Local-network play on top of Forge's own server / client (Netty, port 36743): one device
- * hosts a lobby, friends on the same Wi-Fi join with its address, everyone picks a deck and
- * readies up, and the host starts. The match itself then runs through the usual
+ * Play with friends on top of Forge's own server / client (Netty, port 36743): one device
+ * hosts a lobby, friends join with a room code over the internet ([Relay]) or with its address
+ * on the same Wi-Fi, everyone picks a deck and readies up, and the host starts. The match itself then runs through the usual
  * [io.github.nmanuelides.mtgreforged.match.ComposeGuiGame] on every device.
  */
 object Online {
@@ -47,8 +47,10 @@ object Online {
         val role: Role,
         val format: Engine.Format,
         val seats: List<Seat> = emptyList(),
-        /** Addresses friends can type to join (host only). */
+        /** Addresses friends on the same Wi-Fi can type to join (host only). */
         val addresses: List<String> = emptyList(),
+        /** Code friends anywhere can type to join (host only, with an activated device). */
+        val room: String? = null,
         val messages: List<String> = emptyList(),
         val error: String? = null,
     )
@@ -97,15 +99,26 @@ object Online {
             .filter { '.' in it && !it.startsWith("127.") }
             .map { "$it:$port" }
         _lobby.value = _lobby.value?.copy(addresses = addresses)
+        if (Relay.configured && Relay.activated.value) {
+            runCatching { Relay.openRoom(port) { lost -> _lobby.value = _lobby.value?.copy(room = null, error = lost) } }
+                .onSuccess { room -> _lobby.value = _lobby.value?.copy(room = room) }
+                .onFailure { _lobby.value = _lobby.value?.copy(error = "Online room: ${it.message}") }
+        }
         publish()
     }
 
-    /** Joins a friend's lobby ("192.168.1.20" or "192.168.1.20:36743"). Call off the main thread. */
+    /** A room code (5 letters / digits) rather than an address. */
+    fun isRoomCode(text: String) = Regex("[A-Za-z0-9]{5}").matches(text.trim())
+
+    /** Joins a friend's lobby by room code ("K7QXM") or address ("192.168.1.20[:36743]"). Call off the main thread. */
     fun join(address: String, format: Engine.Format, playerName: String) {
         leave()
         rename(playerName)
         _lobby.value = Lobby(Role.Guest, format)
-        val target = address.trim().let { if (':' in it) it else "$it:$port" }
+        val target = if (isRoomCode(address)) {
+            val local = runCatching { Relay.listen(address) }.getOrElse { return fail(it.message ?: "Couldn't join that game.") }
+            "127.0.0.1:$local"
+        } else address.trim().let { if (':' in it) it else "$it:$port" }
         val result = runCatching { NetConnectUtil.join(target, onlineLobby, chat) }.getOrElse {
             ChatMessage(null, ForgeConstants.CONN_ERROR_PREFIX + (it.message ?: "connection failed"))
         }
@@ -182,6 +195,7 @@ object Online {
 
     fun leave() {
         runCatching { client?.close() }
+        Relay.stop()
         if (_lobby.value?.role == Role.Host) runCatching { FServerManager.getInstance().stopServer() }
         client = null
         gameLobby = null

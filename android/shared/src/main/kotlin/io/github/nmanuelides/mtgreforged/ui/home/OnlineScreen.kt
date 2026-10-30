@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import forge.gamemodes.match.LobbySlotType
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import io.github.nmanuelides.mtgreforged.engine.Online
+import io.github.nmanuelides.mtgreforged.engine.Relay
+import io.github.nmanuelides.mtgreforged.platform.LocalAppContext
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateDialog
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateStyle
@@ -56,9 +58,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import io.github.nmanuelides.mtgreforged.platform.BackHandler
 
-/** Play with friends on the same Wi-Fi: host a lobby or join one, pick decks, ready up, start. */
+/** Play with friends, online by room code or on the same Wi-Fi: host or join, pick decks, ready up, start. */
 @Composable
 fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: () -> Unit) {
+    val context = LocalAppContext.current
+    remember { Relay.init(context) }
+    val activated by Relay.activated.collectAsState()
     val lobby by Online.lobby.collectAsState()
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(runCatching { forge.model.FModel.getPreferences().getPref(forge.localinstance.properties.ForgePreferences.FPref.PLAYER_NAME) }.getOrNull().orEmpty().ifBlank { "Player" }) }
@@ -83,10 +88,13 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
             if (current == null || current.seats.isEmpty()) {
                 // ---- Not connected yet: host or join ----
                 Text(
-                    "Everyone must be on the same Wi-Fi. One player hosts; the others join by typing the host's address.",
+                    if (Relay.configured) {
+                        "One player hosts and gets a room code; friends anywhere join by typing it. On the same Wi-Fi, the host's address works too."
+                    } else "Everyone must be on the same Wi-Fi. One player hosts; the others join by typing the host's address.",
                     style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
                 )
                 OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("Your name") }, colors = fieldColors(), modifier = Modifier.fillMaxWidth())
+                if (Relay.configured && !activated) ActivateOnline(name)
                 OrnateButton(
                     if (busy) "Opening…" else "Host a game", {
                         busy = true
@@ -96,7 +104,8 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
-                        address, { address = it }, singleLine = true, label = { Text("Host address (e.g. 192.168.1.20)") },
+                        address, { address = it }, singleLine = true,
+                        label = { Text(if (Relay.configured) "Room code or host address" else "Host address (e.g. 192.168.1.20)") },
                         colors = fieldColors(), modifier = Modifier.weight(1f),
                     )
                     OrnateButton(
@@ -110,10 +119,17 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
                 current?.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Terracotta) }
             } else {
                 // ---- In a lobby ----
-                if (current.role == Online.Role.Host && current.addresses.isNotEmpty()) {
+                if (current.role == Online.Role.Host && (current.room != null || current.addresses.isNotEmpty())) {
                     Column(Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Sage, inset = 3.dp, corners = false).padding(14.dp)) {
-                        Text("Friends join with", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
-                        current.addresses.forEach { Text(it, style = MaterialTheme.typography.headlineSmall, color = Palette.Sage) }
+                        current.room?.let { room ->
+                            Text("Room code · friends anywhere type this to join", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                            Text(room, style = MaterialTheme.typography.headlineMedium, color = Palette.Terracotta)
+                            if (current.addresses.isNotEmpty()) Spacer(Modifier.height(8.dp))
+                        }
+                        if (current.addresses.isNotEmpty()) {
+                            Text(if (current.room != null) "Or on the same Wi-Fi" else "Friends join with", style = MaterialTheme.typography.labelSmall, color = Palette.InkSoft)
+                            current.addresses.forEach { Text(it, style = MaterialTheme.typography.headlineSmall, color = Palette.Sage) }
+                        }
                     }
                 }
                 current.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Terracotta) }
@@ -155,6 +171,37 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
 
     picking?.let { onPick ->
         DeckPicker(decks, onPick = { onPick(it); picking = null }, onDismiss = { picking = null })
+    }
+}
+
+/** Hosting online needs this device activated with an access code; joining doesn't. */
+@Composable
+private fun ActivateOnline(name: String) {
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var problem by remember { mutableStateOf<String?>(null) }
+    Column(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 3.dp, corners = false).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Hosting online games is by invitation for now", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
+        Text(
+            "Enter your access code to host games over the internet. You can still join a friend's game with their room code, or host on the same Wi-Fi.",
+            style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlinedTextField(code, { code = it.uppercase() }, singleLine = true, label = { Text("Access code") }, colors = fieldColors(), modifier = Modifier.weight(1f))
+            OrnateButton(
+                if (busy) "Checking…" else "Activate", {
+                    busy = true
+                    problem = null
+                    scope.launch { problem = withContext(Dispatchers.IO) { Relay.activate(code, name) }; busy = false }
+                },
+                enabled = !busy && code.isNotBlank(), accent = Palette.Sage, height = 56.dp,
+            )
+        }
+        problem?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.Terracotta) }
     }
 }
 

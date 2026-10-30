@@ -1,0 +1,16 @@
+name = "mtg-reforged-relay"
+main = "src/index.js"
+compatibility_date = "2025-06-01"
+
+[[durable_objects.bindings]]
+name = "REGISTRY"
+class_name = "Registry"
+
+[[durable_objects.bindings]]
+name = "ROOM"
+class_name = "Room"
+
+# SQLite-backed classes are the ones the free plan allows.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Registry", "Room"]
