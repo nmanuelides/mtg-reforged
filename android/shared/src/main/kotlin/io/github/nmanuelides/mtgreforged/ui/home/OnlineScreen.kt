@@ -1,5 +1,20 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.decks.fromPaper
+import androidx.compose.foundation.layout.width
+import io.github.nmanuelides.mtgreforged.ui.components.ManaSymbol
+import io.github.nmanuelides.mtgreforged.ui.components.ManaPip
+import io.github.nmanuelides.mtgreforged.ui.components.CardTile
+import io.github.nmanuelides.mtgreforged.match.CardUi
+import io.github.nmanuelides.mtgreforged.engine.DeckSummary
+import io.github.nmanuelides.mtgreforged.engine.CardPrices
+import io.github.nmanuelides.mtgreforged.engine.CardPrice
+import forge.StaticData
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.runtime.produceState
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -165,6 +180,12 @@ fun OnlineScreen(format: Engine.Format, decks: List<Engine.DeckEntry>, onBack: (
                     Text("Waiting for the host to start…", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
                 }
                 current.messages.takeLast(6).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft) }
+                // Back to host / join: the host's server (and its port and room) closes for everyone.
+                OrnateButton(
+                    if (current.role == Online.Role.Host) "Close this game" else "Leave this game",
+                    { scope.launch(Dispatchers.IO) { Online.leave() } },
+                    Modifier.fillMaxWidth(), icon = Icons.Default.Close, accent = Palette.Terracotta, frameColor = Palette.Terracotta,
+                )
             }
         }
     }
@@ -251,14 +272,44 @@ private fun DeckPicker(decks: List<Engine.DeckEntry>, onPick: (Engine.DeckEntry)
             trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) } },
             placeholder = { Text("Search ${decks.size} decks") }, modifier = Modifier.fillMaxWidth(),
         )
-        LazyColumn(Modifier.fillMaxWidth().height(460.dp).padding(top = 8.dp)) {
-            items(filtered, key = { it.file.path }) { deck ->
-                Text(
-                    deck.name + if (deck.custom) "  ·  yours" else "",
-                    Modifier.fillMaxWidth().clickable { onPick(deck) }.padding(vertical = 12.dp, horizontal = 4.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+        LazyColumn(Modifier.fillMaxWidth().height(460.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered, key = { it.file.path }) { deck -> DeckChoice(deck) { onPick(deck) } }
+        }
+    }
+}
+
+/** A deck to pick: its commander (or signature card) on the left; name, colours and value beside it. */
+@Composable
+private fun DeckChoice(deck: Engine.DeckEntry, onClick: () -> Unit) {
+    val prices by CardPrices.version.collectAsState()
+    val summary by produceState<DeckSummary?>(null, deck, prices) {
+        value = withContext(Dispatchers.IO) { runCatching { DeckSummary.cached(deck) }.getOrNull() }
+    }
+    Row(
+        Modifier.fillMaxWidth().paper(Palette.PaperLight).ornateFrame(Palette.Line, inset = 3.dp, corners = false)
+            .clickable(onClick = onClick).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val card = remember(summary?.artCard) { summary?.artCard?.let { runCatching { StaticData.instance().commonCards.getCard(it) }.getOrNull() } }
+        if (card != null) CardTile(remember(card) { CardUi.fromPaper(card) }, 64.dp, showTapped = false)
+        else Box(Modifier.width(64.dp).aspectRatio(63f / 88f).background(Palette.PaperDeep))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                summary?.title ?: deck.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            val sub = listOfNotNull(summary?.commander, summary?.tag?.ifBlank { null }, "yours".takeIf { deck.custom }).joinToString("  ·  ")
+            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            summary?.let { s ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (s.colors.isEmpty()) ManaSymbol(ManaPip.Colorless, 20.dp)
+                    s.colors.forEach { ManaSymbol(ManaPip.of(it), 20.dp) }
+                }
             }
+        }
+        summary?.value?.takeIf { it > 0 }?.let { value ->
+            Text(CardPrice.usd(value), style = MaterialTheme.typography.titleMedium, color = Palette.Slate)
         }
     }
 }

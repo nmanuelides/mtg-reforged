@@ -515,6 +515,12 @@
       "title": "New in v1.40.0",
       "body": "• Play with friends over the internet: the host gets a room code and friends anywhere join by typing it. Hosting online is by invitation for now (access code); joining is open to everyone.",
       "link": null
+    },
+    {
+      "id": "v1.41.0",
+      "title": "New in v1.41.0",
+      "body": "• Play with friends: a button to close the game you host (or leave one you joined) without leaving the screen.\n• Choosing a deck there shows each deck with its commander, colours and value.",
+      "link": null
     }
   ]
 }
