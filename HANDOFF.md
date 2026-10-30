@@ -166,3 +166,13 @@ usuario). Vive fuera de `android/` para no disparar el build de CI.
 - **Undo (v0.62.0)**: rehecho; esperando que pruebe varios pasos seguidos, undo pagando costes, spells en el stack y turno de la IA.
 - **Colección (v0.58+)**: esperando que pruebe varias impresiones/foil de la misma carta por separado.
 - Ideas sin hacer: brillo foil dentro de las partidas (CardView no trae el flag foil); importar foil desde ManaBox.
+- **Online por internet (v1.39.0)**: relay en `relay/` (Cloudflare Worker + Durable Objects, plan gratis;
+  ver `relay/README.md`). La app tuneliza Forge por WebSocket (`engine/Relay.kt`, `engine/WebSocketClient.kt`):
+  el host abre una sala con código de 5 letras, los amigos lo tipean. Hostear requiere activar el equipo con
+  un código de acceso de un uso generado en `<relay>/admin` (decisión del usuario: limitar costos). Está
+  apagado hasta que `RELAY_URL` en `Relay.kt` tenga la URL del deploy: falta que el usuario cree la cuenta de
+  Cloudflare y haga `npx wrangler login` / `deploy` / `secret put ADMIN_KEY` (pedir permiso antes de npx).
+  Sin paywall: la Fan Content Policy de Wizards y los términos de Scryfall prohíben cobrar; se eligió gratis
+  + donaciones voluntarias.
+- **Imágenes Scryfall 2027**: art_crop JPEG desaparece el 1/1/2027; ya se baja el WebP "art" vía JSON
+  (`engine/ScryfallArt.kt`). Las cartas usan version=normal, que sigue existiendo.
