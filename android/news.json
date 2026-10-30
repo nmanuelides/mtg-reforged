@@ -527,6 +527,12 @@
       "title": "New in v1.42.0",
       "body": "• Play with friends: the deck list is bigger, with larger cards and text; press and hold a card to read it full size.",
       "link": null
+    },
+    {
+      "id": "v1.43.0",
+      "title": "v1.43.0: match all or any filter",
+      "body": "The card filters now have a Match all / Match any switch. Match any shows cards that meet at least one of the filters, e.g. Lifelink or text with \"gain\". Search in, finish and sort always apply.",
+      "link": null
     }
   ]
 }

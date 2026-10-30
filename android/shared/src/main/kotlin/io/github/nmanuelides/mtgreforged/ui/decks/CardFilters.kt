@@ -59,8 +59,10 @@ data class Group(val values: Set<String> = emptySet(), val mode: GroupMode = Gro
     fun toggle(value: String) = copy(values = if (value in values) values - value else values + value)
 }
 
-/** Everything the card search can filter and sort by. All filters must match (they're linked). */
+/** Everything the card search can filter and sort by. The card filters must all match, or any one with [matchAny]. */
 data class CardFilter(
+    /** A card needs to match just one of the filters in use instead of all of them. */
+    val matchAny: Boolean = false,
     val exactName: Boolean = false,
     val hideDuplicates: Boolean = true,
     /** Arena-only rebalanced cards ("A-Name"): not legal in paper and without images. */
@@ -130,29 +132,33 @@ data class CardFilter(
         val colorMask = colors.fold(0) { m, c -> m or c.toInt() }
         val identityMask = identity.fold(0) { m, c -> m or c.toInt() }
 
+        // The card filters in use; all of them must match, or just one with matchAny.
+        val conditions = buildList<(PaperCard) -> Boolean> {
+            if (colors.isNotEmpty() || colorless || multicolor) add { matchesColors(it.rules, colorMask) }
+            if (identity.isNotEmpty()) add { it.rules.colorIdentity.hasNoColorsExcept(identityMask) }
+            if (sets.isNotEmpty()) add { it.edition in sets }
+            if (rarities.isNotEmpty()) add { it.rarity in rarities }
+            if (artistQ.isNotEmpty()) add { artistQ in it.artist.orEmpty().lowercase() }
+            if (terms.isNotEmpty()) add { matchesText(it.rules.oracleText.orEmpty().lowercase(), terms) }
+            if (cost.isNotEmpty()) add { normalizeCost(it.rules.manaCost.simpleString) == cost }
+            manaValue?.let { f -> add { f.matches(it.rules.manaCost.cmc) } }
+            power?.let { f -> add { f.matches(it.rules.power?.toIntOrNull()) } }
+            toughness?.let { f -> add { f.matches(it.rules.toughness?.toIntOrNull()) } }
+            if (types.active) add { types.matches(it.rules.type.coreTypes.map { t -> t.name }) }
+            if (supertypes.active) add { supertypes.matches(it.rules.type.supertypes.map { t -> t.name }) }
+            if (subtypes.active) add { subtypes.matches(it.rules.type.subtypes.toList()) }
+            if (keywords.active) add { keywords.matches(keywordsOf(it.rules)) }
+            format?.let { f -> add { f.filterRules.test(it) } }
+            price?.let { f -> add { f.matches(priceOf(it)) } }
+        }
+
         var matches = pool.asSequence().filter { card ->
-            val rules = card.rules
             val name = card.name.lowercase()
             (includeAlchemy || !card.name.startsWith("A-")) &&
                 (within != Within.Deck || card.name in deck) &&
                 (within != Within.Collection || card.name in collection) &&
-                (q.isEmpty() || if (exactName) name == q else q in name || q in rules.oracleText.orEmpty().lowercase()) &&
-                matchesColors(rules, colorMask) &&
-                (identity.isEmpty() || rules.colorIdentity.hasNoColorsExcept(identityMask)) &&
-                (sets.isEmpty() || card.edition in sets) &&
-                (rarities.isEmpty() || card.rarity in rarities) &&
-                (artistQ.isEmpty() || artistQ in card.artist.orEmpty().lowercase()) &&
-                (terms.isEmpty() || matchesText(rules.oracleText.orEmpty().lowercase(), terms)) &&
-                (cost.isEmpty() || normalizeCost(rules.manaCost.simpleString) == cost) &&
-                (manaValue == null || manaValue.matches(rules.manaCost.cmc)) &&
-                (power == null || power.matches(rules.power?.toIntOrNull())) &&
-                (toughness == null || toughness.matches(rules.toughness?.toIntOrNull())) &&
-                types.matches(rules.type.coreTypes.map { it.name }) &&
-                supertypes.matches(rules.type.supertypes.map { it.name }) &&
-                subtypes.matches(rules.type.subtypes.toList()) &&
-                (!keywords.active || keywords.matches(keywordsOf(rules))) &&
-                (format == null || format.filterRules.test(card)) &&
-                (price == null || price.matches(priceOf(card)))
+                (q.isEmpty() || if (exactName) name == q else q in name || q in card.rules.oracleText.orEmpty().lowercase()) &&
+                (conditions.isEmpty() || if (matchAny) conditions.any { it(card) } else conditions.all { it(card) })
         }
         // One printing per card: the first one that matched, so a set or artist filter shows that art.
         if (hideDuplicates && !ownedPool && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }

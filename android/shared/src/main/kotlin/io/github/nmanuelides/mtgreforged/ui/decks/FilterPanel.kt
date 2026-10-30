@@ -123,7 +123,12 @@ fun FilterPanel(
             }
 
             Spacer(Modifier.height(14.dp))
-            SectionLabel("Filters · linked", Modifier.fillMaxWidth())
+            SectionLabel(if (filter.matchAny) "Filters · match any" else "Filters · match all", Modifier.fillMaxWidth())
+            ChipFlow {
+                Chip("Match all", !filter.matchAny) { onChange(filter.copy(matchAny = false)) }
+                Chip("Match any", filter.matchAny) { onChange(filter.copy(matchAny = true)) }
+            }
+            Spacer(Modifier.height(6.dp))
 
             val colorPips = ManaPip.WUBRG.filter { it.color in filter.colors } + listOfNotNull(ManaPip.Colorless.takeIf { filter.colorless })
             FilterRow(
@@ -248,7 +253,7 @@ fun FilterPanel(
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             OrnateButton(
-                "Clear all", { onChange(CardFilter(hideDuplicates = filter.hideDuplicates, includeAlchemy = filter.includeAlchemy, sort = filter.sort, descending = filter.descending)) },
+                "Clear all", { onChange(CardFilter(matchAny = filter.matchAny, hideDuplicates = filter.hideDuplicates, includeAlchemy = filter.includeAlchemy, sort = filter.sort, descending = filter.descending)) },
                 Modifier.weight(1f), accent = Palette.Slate, enabled = filter.activeCount > 0,
             )
             OrnateButton("Show $matches", onDone, Modifier.weight(1.3f), style = OrnateStyle.Primary)
