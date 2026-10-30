@@ -17,7 +17,9 @@ import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputChange
@@ -47,7 +49,14 @@ fun Modifier.tapOrHold(
     onHold: (Boolean, Offset) -> Unit,
     onHoldMove: (Offset) -> Unit = {},
     onSecondaryClick: (() -> Unit)? = null,
-): Modifier = (if (onSecondaryClick == null) this else rightClickRelease(key, onSecondaryClick)).pointerInput(key) {
+): Modifier = composed {
+    // The gesture loop outlives recompositions (it restarts only when [key] changes): read the
+    // latest callbacks, or a card that moved in a filtered list would open its old position.
+    val tap by rememberUpdatedState(onTap)
+    val hold by rememberUpdatedState(onHold)
+    val holdMove by rememberUpdatedState(onHoldMove)
+    val secondary by rememberUpdatedState(onSecondaryClick)
+    (if (onSecondaryClick == null) Modifier else Modifier.rightClickRelease(key) { secondary?.invoke() }).pointerInput(key) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         // A right-click (Windows) holds straight away, until the button is released.
@@ -56,21 +65,22 @@ fun Modifier.tapOrHold(
             // Released early (a tap) or moved past touch slop (a scroll): only taps count.
             val up = currentEvent.changes.firstOrNull { it.id == down.id }
             if (up != null && !up.pressed && (up.position - down.position).getDistance() < viewConfiguration.touchSlop) {
-                onTap(up.position)
+                tap(up.position)
             }
             return@awaitEachGesture
         }
-        onHold(true, longPress.position)
+        hold(true, longPress.position)
         var change: PointerInputChange? = longPress
         while (change != null && change.pressed) {
             val event = awaitPointerEvent()
             change = event.changes.firstOrNull { it.id == longPress.id }
             change?.let {
-                onHoldMove(it.position)
+                holdMove(it.position)
                 it.consume()
             }
         }
-        onHold(false, change?.position ?: longPress.position)
+        hold(false, change?.position ?: longPress.position)
+    }
     }
 }
 

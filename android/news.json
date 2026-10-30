@@ -455,6 +455,12 @@
       "title": "New in v1.30.0",
       "body": "• Collection and deck builder: next to each card's + button you now see how many copies you already have.\n• Foil cards: the shine and foil texture are stronger, and the moving light lines sweep wider and a bit faster.",
       "link": null
+    },
+    {
+      "id": "v1.31.0",
+      "title": "New in v1.31.0",
+      "body": "• Collection and deck builder: clicking a card after changing filters opens that card, not another one from the results.",
+      "link": null
     }
   ]
 }
