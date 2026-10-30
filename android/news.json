@@ -467,6 +467,12 @@
       "title": "New in v1.32.0",
       "body": "• Collection: swiping to another printing no longer converts your copies; + adds that printing alongside the ones you have.\n• Windows: the left / right arrow keys move card carousels.\n• Windows: Esc closes the open dialog or side panel instead of leaving the screen.",
       "link": null
+    },
+    {
+      "id": "v1.33.0",
+      "title": "New in v1.33.0",
+      "body": "• Windows: in the card viewer, the up / down arrow keys switch to the next / previous printing, like dragging the card.\n• Filters: colours and colour identity show mana symbols, and sets show their expansion symbol next to the code.",
+      "link": null
     }
   ]
 }

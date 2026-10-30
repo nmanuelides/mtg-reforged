@@ -56,30 +56,29 @@ fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
 }
 
 /**
- * The ← / → keys for the carousel on top: like [BackDispatcher], the most recently shown handler
+ * The arrow keys for the carousel on top: like [BackDispatcher], the most recently shown handler
  * gets them. Main.kt only passes keys nothing focused used, so a text field keeps its cursor keys.
  */
 object ArrowDispatcher {
-    internal class Entry(var onArrow: (Int) -> Unit)
+    internal class Entry(var onArrow: (Int, Int) -> Boolean)
 
     private val entries = mutableListOf<Entry>()
 
     internal fun add(entry: Entry) = synchronized(entries) { entries += entry }
     internal fun remove(entry: Entry) = synchronized(entries) { entries -= entry }
 
-    /** [step] is -1 for ←, 1 for →. True if a carousel took it. */
-    fun arrow(step: Int): Boolean {
+    /** [dx] is -1 / 1 for ← / →, [dy] -1 / 1 for ↑ / ↓. True if a carousel took it. */
+    fun arrow(dx: Int, dy: Int): Boolean {
         val entry = synchronized(entries) { entries.lastOrNull() } ?: return false
-        entry.onArrow(step)
-        return true
+        return entry.onArrow(dx, dy)
     }
 }
 
-/** Calls [onArrow] with -1 / 1 for the ← / → keys while this is the latest carousel shown. */
+/** Calls [onArrow] (dx, dy) for the arrow keys while this is the latest carousel shown; it returns whether it used the key. */
 @Composable
-fun ArrowKeys(onArrow: (Int) -> Unit) {
+fun ArrowKeys(onArrow: (Int, Int) -> Boolean) {
     val current by rememberUpdatedState(onArrow)
-    val entry = remember { ArrowDispatcher.Entry { current(it) } }
+    val entry = remember { ArrowDispatcher.Entry { dx, dy -> current(dx, dy) } }
     DisposableEffect(entry) {
         ArrowDispatcher.add(entry)
         onDispose { ArrowDispatcher.remove(entry) }

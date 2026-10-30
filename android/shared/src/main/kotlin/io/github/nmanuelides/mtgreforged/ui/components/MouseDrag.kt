@@ -56,13 +56,23 @@ fun Modifier.mouseDrag(state: ScrollableState): Modifier = pointerInput(state) {
     }
 }
 
-/** On Windows, ← / → turn [pager] one page while it's the carousel on top. */
+/**
+ * On Windows, ← / → turn [pager] one page while it's the carousel on top; ↑ / ↓ go to
+ * [onVertical] (-1 for ↑, 1 for ↓) when given.
+ */
 @Composable
-fun PagerArrowKeys(pager: PagerState) {
+fun PagerArrowKeys(pager: PagerState, onVertical: ((Int) -> Unit)? = null) {
     val scope = rememberCoroutineScope()
-    ArrowKeys { step ->
-        val target = (pager.currentPage + step).coerceIn(0, (pager.pageCount - 1).coerceAtLeast(0))
-        scope.launch { pager.animateScrollToPage(target) }
+    ArrowKeys { dx, dy ->
+        when {
+            dx != 0 -> {
+                val target = (pager.currentPage + dx).coerceIn(0, (pager.pageCount - 1).coerceAtLeast(0))
+                scope.launch { pager.animateScrollToPage(target) }
+                true
+            }
+            onVertical != null -> { onVertical(dy); true }
+            else -> false
+        }
     }
 }
 

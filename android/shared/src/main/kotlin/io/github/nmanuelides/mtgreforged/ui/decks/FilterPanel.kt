@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.SetSymbol
+import io.github.nmanuelides.mtgreforged.ui.components.ManaSymbol
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -121,12 +123,12 @@ fun FilterPanel(
             Spacer(Modifier.height(14.dp))
             SectionLabel("Filters · linked", Modifier.fillMaxWidth())
 
-            val colorSummary = (filter.colors.map { c -> FilterOptions.colors.first { it.second == c }.first } +
-                listOfNotNull("C".takeIf { filter.colorless })).joinToString("")
+            val colorPips = ManaPip.WUBRG.filter { it.color in filter.colors } + listOfNotNull(ManaPip.Colorless.takeIf { filter.colorless })
             FilterRow(
                 "Colors", "Colors of a spell or creature",
-                if (colorSummary.isEmpty()) null else "${filter.colorMode.label} $colorSummary",
+                if (colorPips.isEmpty()) null else filter.colorMode.label,
                 section("colors"), { toggle("colors") }, onClear = { onChange(filter.copy(colors = emptySet(), colorless = false)) },
+                symbols = { colorPips.forEach { ManaSymbol(it, 18.dp) } },
             ) {
                 ChipFlow {
                     ManaPip.WUBRG.forEach { pip ->
@@ -141,8 +143,9 @@ fun FilterPanel(
             }
             FilterRow(
                 "Color identity", "Commander colors: cards that fit within them",
-                filter.identity.takeIf { it.isNotEmpty() }?.joinToString("") { c -> FilterOptions.colors.first { it.second == c }.first },
+                filter.identity.takeIf { it.isNotEmpty() }?.let { "" },
                 section("identity"), { toggle("identity") }, onClear = { onChange(filter.copy(identity = emptySet())) },
+                symbols = { ManaPip.WUBRG.filter { it.color in filter.identity }.forEach { ManaSymbol(it, 18.dp) } },
             ) {
                 ChipFlow {
                     ManaPip.WUBRG.forEach { pip ->
@@ -151,8 +154,15 @@ fun FilterPanel(
                 }
             }
             FilterRow(
-                "Sets / Editions", null, filter.sets.takeIf { it.isNotEmpty() }?.joinToString(", "),
+                "Sets / Editions", null, filter.sets.takeIf { it.isNotEmpty() }?.let { "" },
                 section("sets"), { toggle("sets") }, onClear = { onChange(filter.copy(sets = emptySet())) },
+                symbols = {
+                    filter.sets.take(4).forEach { code ->
+                        SetSymbol(code, Palette.Terracotta, 16.dp)
+                        Text(code, style = MaterialTheme.typography.bodyMedium, color = Palette.Terracotta, maxLines = 1)
+                    }
+                    if (filter.sets.size > 4) Text("+${filter.sets.size - 4}", style = MaterialTheme.typography.bodyMedium, color = Palette.Terracotta)
+                },
             ) {
                 Picker({ FilterOptions.sets }, filter.sets, "Search sets by name or code") {
                     onChange(filter.copy(sets = filter.sets.toggle(it)))
@@ -266,6 +276,8 @@ private fun FilterRow(
     expanded: Boolean,
     onToggle: () -> Unit,
     onClear: (() -> Unit)? = null,
+    /** Drawn after the summary text, e.g. mana symbols. */
+    symbols: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     // Opening a filter scrolls the panel so its controls show, once they've unfolded.
@@ -289,6 +301,11 @@ private fun FilterRow(
                 color = if (summary != null) Palette.Terracotta else Palette.InkSoft,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+            if (summary != null && symbols != null) {
+                Row(Modifier.padding(start = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+                    symbols()
+                }
+            }
             if (summary != null && onClear != null) {
                 Icon(Icons.Default.Close, "Clear", Modifier.padding(start = 6.dp).clickable(onClick = onClear), tint = Palette.Terracotta)
             }

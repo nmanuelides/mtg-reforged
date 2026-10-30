@@ -90,12 +90,14 @@ fun main(args: Array<String>) {
                     else -> false
                 }
             },
-            // After the focused element had its turn: a text field keeps ← / → for its cursor.
+            // After the focused element had its turn: a text field keeps the arrows for its cursor.
             onKeyEvent = { event ->
                 when {
                     event.type != KeyEventType.KeyDown -> false
-                    event.key == Key.DirectionLeft -> ArrowDispatcher.arrow(-1)
-                    event.key == Key.DirectionRight -> ArrowDispatcher.arrow(1)
+                    event.key == Key.DirectionLeft -> ArrowDispatcher.arrow(-1, 0)
+                    event.key == Key.DirectionRight -> ArrowDispatcher.arrow(1, 0)
+                    event.key == Key.DirectionUp -> ArrowDispatcher.arrow(0, -1)
+                    event.key == Key.DirectionDown -> ArrowDispatcher.arrow(0, 1)
                     else -> false
                 }
             },

@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
 import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
 import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.runtime.CompositionLocalProvider
@@ -105,10 +106,21 @@ internal fun CardViewer(
         picked[page] = next
         if (!collection) draft.usePrintingIfInDeck(next)
     }
+    // Which way each page's last printing change went, for the slide animation.
+    val directions = remember { mutableStateMapOf<Int, Int>() }
+    /** The next ([step] 1) or previous (-1) printing of [page], wrapping around. */
+    fun stepPrinting(page: Int, step: Int) {
+        val printings = printingsOf(shown(page))
+        if (printings.size < 2) return
+        val now = printings.indexOf(shown(page)).coerceAtLeast(0)
+        directions[page] = step
+        swap(page, printings[(now + step + printings.size) % printings.size])
+    }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         EscCloses(onDismiss)
-        PagerArrowKeys(pager)
+        // ↑ is the next printing, like swiping up.
+        PagerArrowKeys(pager) { dy -> stepPrinting(pager.currentPage, -dy) }
         CompositionLocalProvider(LocalCollectionMode provides collection) {
         BoxWithConstraints(
             Modifier
@@ -129,7 +141,7 @@ internal fun CardViewer(
                 )
                 Text(
                     editionLabel(current) + if (printings.size > 1) {
-                        "  ·  printing ${printings.indexOf(current) + 1} of ${printings.size}  ·  swipe ↑↓"
+                        "  ·  printing ${printings.indexOf(current) + 1} of ${printings.size}  ·  " + if (IS_DESKTOP) "drag or press ↑↓" else "swipe ↑↓"
                     } else "",
                     style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.65f),
                 )
@@ -145,7 +157,7 @@ internal fun CardViewer(
                 ) { page ->
                     val card = shown(page)
                     val pagePrintings = remember(card.name) { printingsOf(card) }
-                    var direction by remember { mutableIntStateOf(1) }
+                    val direction = directions[page] ?: 1
                     val offset = ((pager.currentPage - page) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
                     val threshold = with(LocalDensity.current) { 56.dp.toPx() }
                     Box(
@@ -163,11 +175,7 @@ internal fun CardViewer(
                                     onVerticalDrag = { change, dy -> dragged += dy; change.consume() },
                                     onDragEnd = {
                                         if (pagePrintings.size > 1 && dragged.absoluteValue > threshold) {
-                                            val step = if (dragged < 0) 1 else -1
-                                            val now = pagePrintings.indexOf(shown(page)).coerceAtLeast(0)
-                                            val next = pagePrintings[(now + step + pagePrintings.size) % pagePrintings.size]
-                                            direction = step
-                                            swap(page, next)
+                                            stepPrinting(page, if (dragged < 0) 1 else -1)
                                         }
                                     },
                                 )
