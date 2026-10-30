@@ -730,7 +730,7 @@ private fun CardSearch(
         if ((idle || showDeck) && (draft.total > 0 || commanderFormat)) {
             if (!idle) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Your deck", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+                    Text(if (collectionMode) "Your collection" else "Your deck", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
                     Chip("Back to results · $total", false, fontSize = 12) { showDeck = false }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -745,7 +745,7 @@ private fun CardSearch(
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
                 )
-                if (draft.total > 0) Chip("Your deck · ${draft.total}", false, fontSize = 12) { showDeck = true }
+                if (draft.total > 0) Chip((if (collectionMode) "Your collection" else "Your deck") + " · ${draft.total}", false, fontSize = 12) { showDeck = true }
                 SortControl(filter.sort, filter.descending) { sort, descending -> onFilter(filter.copy(sort = sort, descending = descending)) }
             }
             Spacer(Modifier.height(4.dp))
@@ -1260,8 +1260,10 @@ private fun DeckGallery(
     ) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                if (draft.total == 0) "Your deck is empty — search above to add cards"
-                else "Your deck · ${draft.total} cards — search above to add more",
+                (if (LocalCollectionMode.current) "Your collection" else "Your deck").let { what ->
+                    if (draft.total == 0) "$what is empty — search above to add cards"
+                    else "$what · ${draft.total} cards — search above to add more"
+                },
                 style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
             )
         }

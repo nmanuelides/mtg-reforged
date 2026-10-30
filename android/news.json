@@ -491,6 +491,12 @@
       "title": "New in v1.36.0",
       "body": "• Collection: the Search in filter no longer offers This deck, which only makes sense in the deck builder.",
       "link": null
+    },
+    {
+      "id": "v1.37.0",
+      "title": "New in v1.37.0",
+      "body": "• Collection: the button and labels that said \"Your deck\" now say \"Your collection\".",
+      "link": null
     }
   ]
 }
