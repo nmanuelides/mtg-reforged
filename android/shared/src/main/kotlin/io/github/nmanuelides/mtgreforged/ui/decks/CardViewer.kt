@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
+import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.runtime.CompositionLocalProvider
 import io.github.nmanuelides.mtgreforged.ui.components.OrnateButton
 import kotlinx.coroutines.launch
@@ -87,10 +89,8 @@ internal fun CardViewer(
     start: Int,
     draft: DeckDraft,
     commanderFormat: Boolean,
-    /** Editing the collection: a new printing replaces only the copies of the one on screen. */
+    /** Editing the collection: swiping printings picks which one to add, owned copies stay. */
     collection: Boolean = false,
-    /** Collection only: swiping changes the owned copy on screen; otherwise it just browses printings to add. */
-    replaceOwned: Boolean = collection,
     onDismiss: () -> Unit,
 ) {
     if (cards.isEmpty()) return
@@ -99,21 +99,16 @@ internal fun CardViewer(
     // Printing picked per page with a vertical swipe; until then, the card as listed.
     val picked = remember { mutableStateMapOf<Int, PaperCard>() }
     fun shown(page: Int) = picked[page] ?: cards[page]
-    fun swap(page: Int, next: PaperCard) {
-        val old = shown(page)
-        picked[page] = next
-        when {
-            !collection -> draft.usePrintingIfInDeck(next)
-            replaceOwned -> draft.replacePrinting(old, next)
-        }
-    }
-    // Foil / regular: in the collection both finishes are owned side by side, so switching only
+    // In the collection every printing and finish is owned side by side, so switching only
     // changes which one the counter adds to; a deck's copies follow the choice.
-    fun switchFinish(page: Int, next: PaperCard) {
-        if (collection) picked[page] = next else swap(page, next)
+    fun swap(page: Int, next: PaperCard) {
+        picked[page] = next
+        if (!collection) draft.usePrintingIfInDeck(next)
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        EscCloses(onDismiss)
+        PagerArrowKeys(pager)
         CompositionLocalProvider(LocalCollectionMode provides collection) {
         BoxWithConstraints(
             Modifier
@@ -193,7 +188,7 @@ internal fun CardViewer(
                 }
                 Spacer(Modifier.height(14.dp))
                 ViewerBar(current, draft, commanderFormat, remember(current, prices) { CardPrices.of(current) }, onDismiss) { other ->
-                    switchFinish(pager.currentPage, other)
+                    swap(pager.currentPage, other)
                 }
             }
         }

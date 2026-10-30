@@ -461,6 +461,12 @@
       "title": "New in v1.31.0",
       "body": "• Collection and deck builder: clicking a card after changing filters opens that card, not another one from the results.",
       "link": null
+    },
+    {
+      "id": "v1.32.0",
+      "title": "New in v1.32.0",
+      "body": "• Collection: swiping to another printing no longer converts your copies; + adds that printing alongside the ones you have.\n• Windows: the left / right arrow keys move card carousels.\n• Windows: Esc closes the open dialog or side panel instead of leaving the screen.",
+      "link": null
     }
   ]
 }

@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged
 
+import io.github.nmanuelides.mtgreforged.platform.ArrowDispatcher
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -86,6 +87,15 @@ fun main(args: Array<String>) {
                         window.placement = if (window.placement == WindowPlacement.Fullscreen) WindowPlacement.Maximized else WindowPlacement.Fullscreen
                         true
                     }
+                    else -> false
+                }
+            },
+            // After the focused element had its turn: a text field keeps ← / → for its cursor.
+            onKeyEvent = { event ->
+                when {
+                    event.type != KeyEventType.KeyDown -> false
+                    event.key == Key.DirectionLeft -> ArrowDispatcher.arrow(-1)
+                    event.key == Key.DirectionRight -> ArrowDispatcher.arrow(1)
                     else -> false
                 }
             },

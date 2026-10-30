@@ -55,6 +55,37 @@ fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) {
     }
 }
 
+/**
+ * The ← / → keys for the carousel on top: like [BackDispatcher], the most recently shown handler
+ * gets them. Main.kt only passes keys nothing focused used, so a text field keeps its cursor keys.
+ */
+object ArrowDispatcher {
+    internal class Entry(var onArrow: (Int) -> Unit)
+
+    private val entries = mutableListOf<Entry>()
+
+    internal fun add(entry: Entry) = synchronized(entries) { entries += entry }
+    internal fun remove(entry: Entry) = synchronized(entries) { entries -= entry }
+
+    /** [step] is -1 for ←, 1 for →. True if a carousel took it. */
+    fun arrow(step: Int): Boolean {
+        val entry = synchronized(entries) { entries.lastOrNull() } ?: return false
+        entry.onArrow(step)
+        return true
+    }
+}
+
+/** Calls [onArrow] with -1 / 1 for the ← / → keys while this is the latest carousel shown. */
+@Composable
+fun ArrowKeys(onArrow: (Int) -> Unit) {
+    val current by rememberUpdatedState(onArrow)
+    val entry = remember { ArrowDispatcher.Entry { current(it) } }
+    DisposableEffect(entry) {
+        ArrowDispatcher.add(entry)
+        onDispose { ArrowDispatcher.remove(entry) }
+    }
+}
+
 /** Android keeps the screen on during matches; Windows' own power settings decide here. */
 @Composable
 fun KeepScreenOn() = Unit

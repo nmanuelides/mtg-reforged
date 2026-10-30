@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
+import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -76,6 +78,8 @@ fun DeckCarousel(
     LaunchedEffect(pager.currentPage) { onPage(pager.currentPage) }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        EscCloses(onDismiss)
+        PagerArrowKeys(pager)
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()

@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
+import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.Close
 import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
@@ -706,6 +708,8 @@ private fun DeckCard(deck: DeckEntry, onPick: () -> Unit, onPreview: () -> Unit)
 private fun KeyCardsViewer(names: List<String>, start: Int, onDismiss: () -> Unit) {
     val pager = androidx.compose.foundation.pager.rememberPagerState(start) { names.size }
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        EscCloses(onDismiss)
+        PagerArrowKeys(pager)
         BoxWithConstraints(
             Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.72f))
                 .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss),

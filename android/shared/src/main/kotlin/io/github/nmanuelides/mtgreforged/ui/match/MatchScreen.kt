@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
+import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import io.github.nmanuelides.mtgreforged.ui.components.HoldZoom
 import io.github.nmanuelides.mtgreforged.ui.components.tapOrHold
 import io.github.nmanuelides.mtgreforged.ui.components.ZoomableCard
@@ -437,6 +439,7 @@ private fun StackChip(stack: List<StackItemUi>, actions: BoardActions, onOpen: (
 @Composable
 private fun StackSheet(stack: List<StackItemUi>, actions: BoardActions, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
+        EscCloses(onDismiss)
         Text("Stack (top first)", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
         Spacer(Modifier.height(8.dp))
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
@@ -993,6 +996,7 @@ private fun GameOverOverlay(title: String, won: Boolean, matchOver: Boolean, onC
 @Composable
 private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
+        EscCloses(onDismiss)
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1024,6 +1028,7 @@ private fun CardDetailSheet(card: CardUi, onDismiss: () -> Unit) {
 @Composable
 private fun ZoneSheet(title: String, cards: List<CardUi>, onInspect: (CardUi) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
+        EscCloses(onDismiss)
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
         Spacer(Modifier.height(8.dp))
         if (cards.isEmpty()) {
@@ -1162,6 +1167,7 @@ private fun ZoneChoiceDialog(state: MatchUiState, choice: ZoneChoiceUi, game: Co
     if (hiddenFor == p.message) return
     val pager = androidx.compose.foundation.pager.rememberPagerState { choice.cards.size }
     OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 760.dp) {
+        PagerArrowKeys(pager)
         Text(p.message, style = MaterialTheme.typography.titleMedium, color = Palette.Ink, textAlign = TextAlign.Center)
         Spacer(Modifier.height(4.dp))
         Text(

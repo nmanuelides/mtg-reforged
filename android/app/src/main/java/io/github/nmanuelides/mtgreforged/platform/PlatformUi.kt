@@ -22,6 +22,11 @@ val LocalAppContext: ProvidableCompositionLocal<AppContext> get() = LocalContext
 @Composable
 fun BackHandler(enabled: Boolean = true, onBack: () -> Unit) = androidx.activity.compose.BackHandler(enabled, onBack)
 
+/** The ← / → keys move carousels on Windows; phones have none. */
+@Suppress("UNUSED_PARAMETER")
+@Composable
+fun ArrowKeys(onArrow: (Int) -> Unit) = Unit
+
 /** Keeps the screen awake while shown. */
 @Composable
 fun KeepScreenOn() {

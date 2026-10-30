@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.match
 
+import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +60,7 @@ import io.github.nmanuelides.mtgreforged.ui.theme.Palette
 @Composable
 fun LogSheet(entries: List<LogEntryUi>, onRewind: (Int) -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = Palette.Paper) {
+        EscCloses(onDismiss)
         Text(
             "Game log", fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = Palette.Ink,
             modifier = Modifier.padding(horizontal = 12.dp),

@@ -297,14 +297,10 @@ fun DeckBuilderScreen(
     var panel by remember { mutableStateOf<SidePanel?>(null) }
     var wideLayout by remember { mutableStateOf(true) }
     var matches by remember { mutableIntStateOf(0) }
-    // The cards, where to start, and whether swiping changes the owned copy (collection only).
-    var viewing by remember { mutableStateOf<Triple<List<PaperCard>, Int, Boolean>?>(null) }
-    val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = Triple(cards, index, collection) }
-    // Search results: in the collection, from "All cards" they're a catalogue to add from, so
-    // swiping just browses printings; from "My collection" they're your own copies.
-    val openResults: (List<PaperCard>, Int) -> Unit = { cards, index ->
-        viewing = Triple(cards, index, collection && filter.within == Within.Collection)
-    }
+    // The cards and where to start.
+    var viewing by remember { mutableStateOf<Pair<List<PaperCard>, Int>?>(null) }
+    val open: (List<PaperCard>, Int) -> Unit = { cards, index -> viewing = cards to index }
+    val openResults = open
     val scope = rememberCoroutineScope()
     // Saving keeps the editor open; leaving hands back the last saved deck (if any).
     var saved by remember { mutableStateOf(initial) }
@@ -315,7 +311,7 @@ fun DeckBuilderScreen(
     LaunchedEffect(justSaved) { if (justSaved) { delay(1800); justSaved = false } }
     var confirmExit by remember { mutableStateOf(false) }
     val leave: () -> Unit = { if (dirty && (collection || draft.total > 0)) confirmExit = true else onDone(saved) }
-    BackHandler { leave() }
+    BackHandler { if (panel != null) panel = null else leave() }
 
     LaunchedEffect(initial) {
         if (collection) {
@@ -474,8 +470,8 @@ fun DeckBuilderScreen(
         }
     }
 
-    viewing?.let { (cards, index, replaceOwned) ->
-        CardViewer(cards, index, draft, format == Engine.Format.Commander, collection, replaceOwned) { viewing = null }
+    viewing?.let { (cards, index) ->
+        CardViewer(cards, index, draft, format == Engine.Format.Commander, collection) { viewing = null }
     }
 
     if (exporting) ExportDialog(name, draft) { exporting = false }

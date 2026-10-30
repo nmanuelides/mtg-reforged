@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import io.github.nmanuelides.mtgreforged.platform.ArrowKeys
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.Composable
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -50,6 +53,16 @@ fun Modifier.mouseDrag(state: ScrollableState): Modifier = pointerInput(state) {
                 launch { pager.animateScrollToPage(target.coerceIn(0, (pager.pageCount - 1).coerceAtLeast(0))) }
             }
         }
+    }
+}
+
+/** On Windows, ← / → turn [pager] one page while it's the carousel on top. */
+@Composable
+fun PagerArrowKeys(pager: PagerState) {
+    val scope = rememberCoroutineScope()
+    ArrowKeys { step ->
+        val target = (pager.currentPage + step).coerceIn(0, (pager.pageCount - 1).coerceAtLeast(0))
+        scope.launch { pager.animateScrollToPage(target) }
     }
 }
 
