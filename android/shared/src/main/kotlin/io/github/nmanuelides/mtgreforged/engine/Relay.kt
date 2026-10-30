@@ -30,7 +30,7 @@ object Relay {
     private const val TAG = "Relay"
 
     /** The deployed Worker (see relay/README.md); blank until it's deployed. */
-    private const val RELAY_URL = ""
+    private const val RELAY_URL = "https://mtg-reforged-relay.magatsu82.workers.dev"
 
     val configured: Boolean get() = RELAY_URL.isNotBlank()
     private val wsBase get() = RELAY_URL.trimEnd('/').replaceFirst("https://", "wss://").replaceFirst("http://", "ws://")
