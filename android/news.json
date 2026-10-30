@@ -479,6 +479,12 @@
       "title": "New in v1.34.0",
       "body": "• Filters: Colors has a Multicolor option for cards of two or more colours, alone or together with the colours you pick.",
       "link": null
+    },
+    {
+      "id": "v1.35.0",
+      "title": "New in v1.35.0",
+      "body": "• Collection and deck builder: your filters stay as you left them when you leave and come back, until you press Clear all.",
+      "link": null
     }
   ]
 }

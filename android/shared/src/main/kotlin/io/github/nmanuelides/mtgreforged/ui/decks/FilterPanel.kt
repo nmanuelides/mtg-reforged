@@ -81,6 +81,8 @@ fun FilterPanel(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
     collectionAvailable: Boolean = false,
+    /** Filtering the collection itself: there's no deck to search in. */
+    inCollection: Boolean = false,
 ) {
     var open by rememberSaveable { mutableStateOf(setOf<String>()) }
     fun section(key: String) = key in open
@@ -97,7 +99,7 @@ fun FilterPanel(
             }
             FilterRow("Search in", "Every card, or only the ones you already have", filter.within.label, section("within"), { toggle("within") }) {
                 ChipFlow {
-                    Within.entries.filter { it != Within.Collection || collectionAvailable }.forEach { w ->
+                    Within.entries.filter { (it != Within.Collection || collectionAvailable) && (it != Within.Deck || !inCollection) }.forEach { w ->
                         Chip(w.label, filter.within == w) { onChange(filter.copy(within = w)) }
                     }
                 }

@@ -261,3 +261,15 @@ object FilterOptions {
         StaticData.instance().commonCards.allCards.mapNotNullTo(sortedSetOf()) { it.artist?.takeIf(String::isNotBlank) }.toList()
     }
 }
+
+/** The last filters used in the collection and in the deck builder, kept while the app runs. */
+internal object LastFilters {
+    private var collection = CardFilter(within = Within.Collection)
+    private var builder = CardFilter()
+
+    fun get(inCollection: Boolean) = if (inCollection) collection else builder
+
+    fun set(inCollection: Boolean, filter: CardFilter) {
+        if (inCollection) collection = filter else builder = filter
+    }
+}

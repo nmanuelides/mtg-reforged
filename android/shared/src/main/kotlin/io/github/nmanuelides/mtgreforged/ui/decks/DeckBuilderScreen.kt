@@ -106,6 +106,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -292,7 +293,9 @@ fun DeckBuilderScreen(
     var exporting by remember { mutableStateOf(false) }
     var cheapening by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
-    var filter by remember { mutableStateOf(if (collection) CardFilter(within = Within.Collection) else CardFilter()) }
+    // Filters outlive the screen (one set for the collection, one for decks) until "Clear all".
+    var filter by remember { mutableStateOf(LastFilters.get(collection)) }
+    SideEffect { LastFilters.set(collection, filter) }
     // The cards get the whole width; filters or the compact list open beside them on demand.
     var panel by remember { mutableStateOf<SidePanel?>(null) }
     var wideLayout by remember { mutableStateOf(true) }
@@ -441,7 +444,7 @@ fun DeckBuilderScreen(
                                 SidePanel.Filters -> FilterPanel(
                                     filter, { filter = it }, matches, onDone = { panel = null },
                                     Modifier.fillMaxSize().paper(Palette.PaperLight).ornateFrame(inset = 4.dp).padding(14.dp),
-                                    collectionAvailable = CardCollection.names().isNotEmpty(),
+                                    collectionAvailable = CardCollection.names().isNotEmpty(), inCollection = collection,
                                 )
                                 SidePanel.List -> DeckList(draft, format, problem, open, Modifier.fillMaxSize(), onClose = { panel = null })
                                 null -> Unit
@@ -461,7 +464,7 @@ fun DeckBuilderScreen(
     // Phones: the side panels open as dialogs instead.
     if (panel == SidePanel.Filters && !wideLayout) {
         OrnateDialog(onDismiss = { panel = null }, maxWidth = 640.dp) {
-            FilterPanel(filter, { filter = it }, matches, onDone = { panel = null }, Modifier.heightIn(max = 640.dp), CardCollection.names().isNotEmpty())
+            FilterPanel(filter, { filter = it }, matches, onDone = { panel = null }, Modifier.heightIn(max = 640.dp), CardCollection.names().isNotEmpty(), collection)
         }
     }
     if (panel == SidePanel.List && !wideLayout) {
