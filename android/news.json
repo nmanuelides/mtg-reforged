@@ -521,6 +521,12 @@
       "title": "New in v1.41.0",
       "body": "• Play with friends: a button to close the game you host (or leave one you joined) without leaving the screen.\n• Choosing a deck there shows each deck with its commander, colours and value.",
       "link": null
+    },
+    {
+      "id": "v1.42.0",
+      "title": "New in v1.42.0",
+      "body": "• Play with friends: the deck list is bigger, with larger cards and text; press and hold a card to read it full size.",
+      "link": null
     }
   ]
 }

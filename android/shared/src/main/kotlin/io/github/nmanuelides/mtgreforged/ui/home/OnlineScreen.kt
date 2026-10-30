@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.ZoomableCard
+import io.github.nmanuelides.mtgreforged.platform.screenHeightDp
 import io.github.nmanuelides.mtgreforged.ui.decks.fromPaper
 import androidx.compose.foundation.layout.width
 import io.github.nmanuelides.mtgreforged.ui.components.ManaSymbol
@@ -263,7 +265,7 @@ private fun SeatRow(seat: Online.Seat, host: Boolean, onAi: () -> Unit, onOpen: 
 private fun DeckPicker(decks: List<Engine.DeckEntry>, onPick: (Engine.DeckEntry) -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, decks) { decks.filter { it.name.contains(query, ignoreCase = true) } }
-    OrnateDialog(onDismiss = onDismiss, maxWidth = 640.dp) {
+    OrnateDialog(onDismiss = onDismiss, maxWidth = 900.dp) {
         SectionLabel("Choose a deck")
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
@@ -272,7 +274,9 @@ private fun DeckPicker(decks: List<Engine.DeckEntry>, onPick: (Engine.DeckEntry)
             trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, "Clear search", tint = Palette.InkSoft) } },
             placeholder = { Text("Search ${decks.size} decks") }, modifier = Modifier.fillMaxWidth(),
         )
-        LazyColumn(Modifier.fillMaxWidth().height(460.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // As tall as the window allows, leaving room for the title and search.
+        val listHeight = (screenHeightDp() - 230f).coerceAtLeast(320f).dp
+        LazyColumn(Modifier.fillMaxWidth().height(listHeight).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(filtered, key = { it.file.path }) { deck -> DeckChoice(deck) { onPick(deck) } }
         }
     }
@@ -292,24 +296,25 @@ private fun DeckChoice(deck: Engine.DeckEntry, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val card = remember(summary?.artCard) { summary?.artCard?.let { runCatching { StaticData.instance().commonCards.getCard(it) }.getOrNull() } }
-        if (card != null) CardTile(remember(card) { CardUi.fromPaper(card) }, 64.dp, showTapped = false)
-        else Box(Modifier.width(64.dp).aspectRatio(63f / 88f).background(Palette.PaperDeep))
+        // Press and hold to read it full size; a tap falls through to the row and picks the deck.
+        if (card != null) ZoomableCard(remember(card) { CardUi.fromPaper(card) }, 140.dp)
+        else Box(Modifier.width(140.dp).aspectRatio(63f / 88f).background(Palette.PaperDeep))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                summary?.title ?: deck.name, style = MaterialTheme.typography.titleMedium, color = Palette.Ink,
+                summary?.title ?: deck.name, style = MaterialTheme.typography.headlineSmall, color = Palette.Ink,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             val sub = listOfNotNull(summary?.commander, summary?.tag?.ifBlank { null }, "yours".takeIf { deck.custom }).joinToString("  ·  ")
-            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.bodyLarge, color = Palette.InkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
             summary?.let { s ->
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (s.colors.isEmpty()) ManaSymbol(ManaPip.Colorless, 20.dp)
-                    s.colors.forEach { ManaSymbol(ManaPip.of(it), 20.dp) }
+                    if (s.colors.isEmpty()) ManaSymbol(ManaPip.Colorless, 28.dp)
+                    s.colors.forEach { ManaSymbol(ManaPip.of(it), 28.dp) }
                 }
             }
         }
         summary?.value?.takeIf { it > 0 }?.let { value ->
-            Text(CardPrice.usd(value), style = MaterialTheme.typography.titleMedium, color = Palette.Slate)
+            Text(CardPrice.usd(value), style = MaterialTheme.typography.headlineSmall, color = Palette.Slate)
         }
     }
 }
