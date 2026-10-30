@@ -26,11 +26,13 @@ class CardImageFetcher : ImageFetcher() {
         MainThread.post(notifyObservers)
     }
 
-    private fun fetch(urlToDownload: String, destPath: String): Boolean {
-        if (urlToDownload.startsWith(ForgeConstants.URL_CARDFORGE)) return false
-        val isScryfall = urlToDownload.startsWith(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD) ||
-            urlToDownload.startsWith(ForgeConstants.URL_SCRYFALL_CDN)
-        var target = if (urlToDownload.contains(".fullborder.jpg") || isScryfall) {
+    private fun fetch(requested: String, destPath: String): Boolean {
+        if (requested.startsWith(ForgeConstants.URL_CARDFORGE)) return false
+        // Art crops come as WebP from 2027 on (the file keeps Forge's name; decoders sniff the format).
+        val urlToDownload = if (ScryfallArt.isArtCrop(requested)) ScryfallArt.resolve(requested) else requested
+        val isScryfall = requested.startsWith(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD) ||
+            requested.startsWith(ForgeConstants.URL_SCRYFALL_CDN)
+        var target = if (requested.contains(".fullborder.jpg") || isScryfall) {
             destPath.replace(".full.jpg", ".fullborder.jpg")
         } else destPath
         if (!target.contains(".full") && !target.contains(".artcrop") && isScryfall &&

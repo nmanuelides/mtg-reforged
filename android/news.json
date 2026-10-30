@@ -497,6 +497,12 @@
       "title": "New in v1.37.0",
       "body": "• Collection: the button and labels that said \"Your deck\" now say \"Your collection\".",
       "link": null
+    },
+    {
+      "id": "v1.38.0",
+      "title": "New in v1.38.0",
+      "body": "• Card art now downloads in Scryfall's new WebP format, so the artwork keeps working after Scryfall drops its old JPEG crops in 2027.",
+      "link": null
     }
   ]
 }

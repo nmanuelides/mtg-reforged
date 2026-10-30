@@ -46,7 +46,8 @@ object ArtImages {
     private fun download(cardName: String, target: File) {
         val card: PaperCard = runCatching { StaticData.instance().commonCards.getCard(cardName) }.getOrNull() ?: return
         val setCode = StaticData.instance().editions.get(card.edition)?.scryfallCode
-        val url = ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(card, "", setCode, "en", true)
+        // Saved under the old .jpg name either way: both decoders read the file's real format.
+        val url = ScryfallArt.resolve(ForgeConstants.URL_PIC_SCRYFALL_DOWNLOAD + ImageUtil.getScryfallDownloadUrl(card, "", setCode, "en", true))
         if (ScryfallRateLimiter.shouldSkip(url)) return
         ScryfallRateLimiter.acquire(url)
         val connection = URL(url).openConnection() as HttpURLConnection
