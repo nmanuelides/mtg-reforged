@@ -485,6 +485,12 @@
       "title": "New in v1.35.0",
       "body": "• Collection and deck builder: your filters stay as you left them when you leave and come back, until you press Clear all.",
       "link": null
+    },
+    {
+      "id": "v1.36.0",
+      "title": "New in v1.36.0",
+      "body": "• Collection: the Search in filter no longer offers This deck, which only makes sense in the deck builder.",
+      "link": null
     }
   ]
 }
