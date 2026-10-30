@@ -247,6 +247,8 @@ const ADMIN_PAGE = `<!doctype html>
 </style></head><body>
 <h1>Online access codes</h1>
 <div class="row"><input id="key" type="password" placeholder="Admin key" autocomplete="current-password"><button onclick="load()">Load</button></div>
+<p class="muted">Set or change the admin key from the repo's <code>relay</code> folder:<br>
+<code>npx wrangler@4 secret put ADMIN_KEY</code></p>
 <h2>New codes</h2>
 <div class="row">
   <input id="count" type="number" value="5" min="1" max="200" style="width:80px"> codes,
