@@ -135,11 +135,11 @@ fun CardTile(
 private fun FoilSheen() {
     val texture = imageRes(R.drawable.foil_illusion)
     val drift = rememberInfiniteTransition(label = "foil")
-    val a by drift.animateFloat(0f, 2f * PI.toFloat(), infiniteRepeatable(tween(14000, easing = LinearEasing)), label = "a")
+    val a by drift.animateFloat(0f, 2f * PI.toFloat(), infiniteRepeatable(tween(9000, easing = LinearEasing)), label = "a")
     Canvas(Modifier.fillMaxSize()) {
         // Pointer position as fractions of the card (keldon's --mx/--my = --posx/--posy).
-        val px = 0.52f + 0.14f * sin(a)
-        val py = 0.48f + 0.10f * sin(2f * a + 0.6f)
+        val px = 0.52f + 0.24f * sin(a)
+        val py = 0.48f + 0.16f * sin(2f * a + 0.6f)
         val dx = px - 0.5f
         val dy = py - 0.5f
         val hyp = maxOf(0.28f, minOf(1f, sqrt(dx * dx + dy * dy) * 2f))
@@ -165,8 +165,8 @@ private fun FoilSheen() {
 }
 
 /** How much of the shine reaches the card, and how much the illusion texture shows within it. */
-private const val FOIL_STRENGTH = 0.6f
-private const val TEXTURE_STRENGTH = 0.55f
+private const val FOIL_STRENGTH = 0.85f
+private const val TEXTURE_STRENGTH = 0.8f
 
 private val RAINBOW = listOf(
     Color(0xFFFF7773), Color(0xFFFFED5F), Color(0xFFA8FF5F), Color(0xFF83FFF7), Color(0xFF7894FF), Color(0xFFD875FF), Color(0xFFFF7773),

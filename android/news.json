@@ -449,6 +449,12 @@
       "title": "New in v1.29.0",
       "body": "• Windows: on screens bigger than Full HD the app opens in a centred 1920 × 1080 window instead of maximized.",
       "link": null
+    },
+    {
+      "id": "v1.30.0",
+      "title": "New in v1.30.0",
+      "body": "• Collection and deck builder: next to each card's + button you now see how many copies you already have.\n• Foil cards: the shine and foil texture are stronger, and the moving light lines sweep wider and a bit faster.",
+      "link": null
     }
   ]
 }

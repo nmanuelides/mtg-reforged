@@ -786,6 +786,9 @@ private fun CardSearch(
                         }
                         Row(Modifier.width(tile), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
+                            // How many of this printing (and finish) the collection / deck already has.
+                            val have = (draft.commander[card] ?: 0) + (draft.main[card] ?: 0)
+                            if (have > 0) Text("×$have", fontFamily = Cinzel, fontWeight = FontWeight.Bold, color = Palette.Ink)
                             Icon(
                                 Icons.Default.Add, "Add to deck",
                                 Modifier.size(32.dp).clickable { onAdd(card); flashed = "${card.name}|${card.edition}" }.padding(4.dp),
