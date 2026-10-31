@@ -83,6 +83,19 @@ fun AppContext.shareText(text: String) {
     startActivity(Intent.createChooser(send, null))
 }
 
+/** Shares PNG pictures through the share sheet; [name] names the files (numbered when several). */
+fun AppContext.shareImages(pngs: List<ByteArray>, name: String) {
+    val dir = File(cacheDir, "shared").apply { deleteRecursively(); mkdirs() }
+    val uris = ArrayList(pngs.mapIndexed { i, png ->
+        val file = File(dir, if (pngs.size > 1) "$name ${i + 1}.png" else "$name.png").apply { writeBytes(png) }
+        androidx.core.content.FileProvider.getUriForFile(this, "$packageName.updates", file)
+    })
+    val send = if (uris.size == 1) Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris[0])
+    else Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+    send.setType("image/png").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    startActivity(Intent.createChooser(send, null))
+}
+
 object Log {
     fun d(tag: String, message: String) = android.util.Log.d(tag, message)
     fun i(tag: String, message: String) = android.util.Log.i(tag, message)

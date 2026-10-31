@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import java.io.ByteArrayOutputStream
+import io.github.nmanuelides.mtgreforged.platform.writePng
+import io.github.nmanuelides.mtgreforged.platform.shareImages
+import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.foundation.Image
 import io.github.nmanuelides.mtgreforged.platform.CAN_SCAN_CARDS
 import androidx.compose.material.icons.filled.PhotoCamera
 import io.github.nmanuelides.mtgreforged.ui.components.MenuItem
@@ -1047,19 +1056,11 @@ private fun deckText(draft: DeckDraft): String = buildString {
  * what each costs), the one to copy (just quantities and names) and the total cost.
  */
 private fun shoppingList(draft: DeckDraft): Triple<String, String, Double> {
-    val need = LinkedHashMap<String, Pair<PaperCard, Int>>()
-    draft.ordered().forEach { card ->
-        if (card.rules.type.isBasicLand) return@forEach
-        val n = (draft.commander[card] ?: 0) + (draft.main[card] ?: 0)
-        val prev = need[card.name]
-        need[card.name] = card to (prev?.second ?: 0) + n
-    }
     var total = 0.0
     val plain = StringBuilder()
     val text = buildString {
-        need.forEach { (name, pair) ->
-            val missing = pair.second - CardCollection.count(name).coerceAtMost(pair.second)
-            if (missing <= 0) return@forEach
+        missingCards(draft).forEach { (card, missing) ->
+            val name = card.name
             val price = CardPrices.cheapest(name)?.retail
             if (price != null) total += price * missing
             append(missing).append(' ').append(name)
@@ -1069,6 +1070,21 @@ private fun shoppingList(draft: DeckDraft): Triple<String, String, Double> {
         }
     }
     return Triple(text.trim(), plain.toString().trim(), total)
+}
+
+/** Each card of the deck the collection doesn't cover (basic lands left out) and how many are missing. */
+private fun missingCards(draft: DeckDraft): List<Pair<PaperCard, Int>> {
+    val need = LinkedHashMap<String, Pair<PaperCard, Int>>()
+    draft.ordered().forEach { card ->
+        if (card.rules.type.isBasicLand) return@forEach
+        val n = (draft.commander[card] ?: 0) + (draft.main[card] ?: 0)
+        val prev = need[card.name]
+        need[card.name] = card to (prev?.second ?: 0) + n
+    }
+    return need.values.mapNotNull { (card, n) ->
+        val missing = n - CardCollection.count(card.name).coerceAtMost(n)
+        if (missing > 0) card to missing else null
+    }
 }
 
 @Composable
@@ -1084,6 +1100,33 @@ private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) 
         if (open != null) {
             runCatching { open()?.use { it.write(text.toByteArray()) } }
                 .onSuccess { done = "Saved." }.onFailure { done = "Couldn't save: ${it.message}" }
+        }
+    }
+    // The shopping list as pictures of the cards, built when that tab first opens.
+    val scope = rememberCoroutineScope()
+    val measurer = rememberTextMeasurer()
+    val toBuy = remember { missingCards(draft) }
+    var pictures by remember { mutableStateOf<List<ImageBitmap>?>(null) }
+    var page by remember { mutableStateOf(0) }
+    LaunchedEffect(shopping) {
+        if (shopping && pictures == null && toBuy.isNotEmpty()) {
+            pictures = runCatching { ShoppingImage.build(toBuy, "${name.ifBlank { "Deck" }} — to buy", measurer) }.getOrDefault(emptyList())
+        }
+    }
+    val pictureName = "${name.ifBlank { "deck" }} - shopping list"
+    val savePicture = rememberCreateDocument("image/png") { open ->
+        val picture = pictures?.getOrNull(page)
+        if (open != null && picture != null) scope.launch(Dispatchers.IO) {
+            val result = runCatching { open()?.use { picture.writePng(it) } }
+            done = if (result.isSuccess) "Image saved." else "Couldn't save: ${result.exceptionOrNull()?.message}"
+        }
+    }
+    fun sharePictures(all: List<ImageBitmap>) {
+        // Windows can only put one picture on the clipboard: the one showing.
+        val chosen = if (IS_DESKTOP) listOfNotNull(all.getOrNull(page)) else all
+        scope.launch {
+            val pngs = withContext(Dispatchers.IO) { chosen.map { p -> ByteArrayOutputStream().also { p.writePng(it) }.toByteArray() } }
+            runCatching { context.shareImages(pngs, pictureName) }.onFailure { done = "Couldn't share: ${it.message}" }
         }
     }
     OrnateDialog(onDismiss = onDismiss, maxWidth = 560.dp) {
@@ -1112,9 +1155,39 @@ private fun ExportDialog(name: String, draft: DeckDraft, onDismiss: () -> Unit) 
         if (shopping && missing.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Text(
-                missing, Modifier.fillMaxWidth().heightIn(max = 220.dp).verticalScroll(rememberScrollState()),
+                missing, Modifier.fillMaxWidth().heightIn(max = 160.dp).verticalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.bodySmall, color = Palette.Ink,
             )
+            Spacer(Modifier.height(10.dp))
+            val all = pictures
+            when {
+                all == null -> Text("Building the image of the cards…", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+                all.isEmpty() -> Text("Couldn't build the image.", style = MaterialTheme.typography.bodySmall, color = Palette.Terracotta)
+                else -> {
+                    Image(
+                        all[page.coerceIn(all.indices)], "Cards to buy",
+                        Modifier.fillMaxWidth().heightIn(max = 240.dp), contentScale = ContentScale.Fit,
+                    )
+                    if (all.size > 1) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            all.indices.forEach { i -> Chip("Image ${i + 1}", page == i, fontSize = 12) { page = i } }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OrnateButton(
+                            if (IS_DESKTOP) "Copy image" else if (all.size > 1) "Share images" else "Share image",
+                            { sharePictures(all) }, Modifier.weight(1f), icon = Icons.Default.Image, accent = Palette.Sage,
+                        )
+                        OrnateButton(
+                            if (all.size > 1) "Save image ${page + 1}" else "Save .png",
+                            { savePicture(if (all.size > 1) "$pictureName ${page + 1}.png" else "$pictureName.png") },
+                            Modifier.weight(1f), icon = Icons.Default.Save, accent = Palette.Slate,
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

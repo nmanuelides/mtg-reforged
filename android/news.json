@@ -533,6 +533,12 @@
       "title": "v1.43.0: match all or any filter",
       "body": "The card filters now have a Match all / Match any switch. Match any shows cards that meet at least one of the filters, e.g. Lifelink or text with \"gain\". Search in, finish and sort always apply.",
       "link": null
+    },
+    {
+      "id": "v1.44.0",
+      "title": "v1.44.0: shopping list as an image",
+      "body": "Export > Shopping list now builds a picture of the cards you still need, up to 15 cards per image (with x2, x3 for repeats). Share it or save it as a PNG.",
+      "link": null
     }
   ]
 }
