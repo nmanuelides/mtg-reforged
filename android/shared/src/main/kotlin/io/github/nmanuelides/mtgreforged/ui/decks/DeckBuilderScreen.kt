@@ -610,6 +610,9 @@ private fun CardSearch(
     var total by remember { mutableIntStateOf(0) }
     var searching by remember { mutableStateOf(false) }
     val prices by CardPrices.version.collectAsState()
+    // Bumped once results in a new order have arrived, to bring the grid back to the top.
+    var sortedAs by remember { mutableStateOf(filter.sort to filter.descending) }
+    var backToTop by remember { mutableIntStateOf(0) }
 
     val deckNames = (draft.commander.keys + draft.main.keys).map { it.name }.toSet()
     val collectionMode = LocalCollectionMode.current
@@ -627,6 +630,8 @@ private fun CardSearch(
         }
         results = found
         total = count
+        val order = filter.sort to filter.descending
+        if (order != sortedAs) { sortedAs = order; backToTop++ }
         onCount(count)
         searching = false
     }
@@ -764,7 +769,7 @@ private fun CardSearch(
             var flashed by remember { mutableStateOf<String?>(null) }
             // A new order starts from the top.
             val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-            LaunchedEffect(filter.sort, filter.descending) { gridState.scrollToItem(0) }
+            LaunchedEffect(backToTop) { if (backToTop > 0) gridState.scrollToItem(0) }
             LazyVerticalGrid(
                 GridCells.Fixed(columns),
                 state = gridState,

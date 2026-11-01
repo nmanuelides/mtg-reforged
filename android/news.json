@@ -563,6 +563,12 @@
       "title": "v1.48.0: fix for \"The engine could not start\"",
       "body": "Since v1.46 the app could fail to start on Windows (Could not initialize class ForgeConstants): the new sync looked at your files before the engine was ready. It now waits for the engine.",
       "link": null
+    },
+    {
+      "id": "v1.49.0",
+      "title": "v1.49.0: sorting really scrolls to the top",
+      "body": "Changing the sort order in the collection or the deck builder now brings the results back to the top once they are re-sorted.",
+      "link": null
     }
   ]
 }
