@@ -20,7 +20,7 @@ object Backup {
         val decks = JSONArray()
         Engine.Format.entries.forEach { format ->
             UserDecks.dir(format).listFiles { f -> f.extension == "dck" }.orEmpty().forEach { file ->
-                decks.put(JSONObject().put("format", format.name).put("file", file.name).put("content", file.readText()))
+                decks.put(JSONObject().put("format", format.name).put("file", file.name).put("content", file.readText()).put("modified", file.lastModified()))
             }
         }
         return json.put("decks", decks).toString(2)

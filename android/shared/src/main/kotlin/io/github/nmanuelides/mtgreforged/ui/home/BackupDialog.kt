@@ -1,6 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
-import io.github.nmanuelides.mtgreforged.engine.BackupSync
+import io.github.nmanuelides.mtgreforged.engine.CloudSync
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.runtime.collectAsState
 import io.github.nmanuelides.mtgreforged.platform.rememberQuietDriveToken
 import io.github.nmanuelides.mtgreforged.platform.LocalAppContext
 import androidx.compose.ui.unit.sp
@@ -100,8 +102,9 @@ fun BackupDialog(onDismiss: () -> Unit) {
         }
     }
 
-    // List the Drive backups straight away (asks for access the first time).
-    LaunchedEffect(Unit) { withDrive(refresh) }
+    // List the Drive backups straight away (asks for access the first time), and start syncing.
+    LaunchedEffect(Unit) { withDrive { t -> refresh(t); CloudSync.syncSoon(t) } }
+    val sync by CloudSync.status.collectAsState()
 
     // Plain-file fallback.
     val saveFile = rememberCreateDocument("application/json") { open ->
@@ -129,17 +132,36 @@ fun BackupDialog(onDismiss: () -> Unit) {
         SectionLabel("Backup & restore")
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your collection and the decks you made, saved in your Google Drive. Restore them on any device signed in with the same Google account.",
+            "Your collection and the decks you made sync by themselves through your Google Drive: every change is saved, " +
+                "and every device signed in with the same Google account picks it up when it opens the home screen.",
             style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
         )
-        Spacer(Modifier.height(14.dp))
-        OrnateButton(
-            "Back up to Google Drive",
-            { withDrive(driveJob { t -> val e = DriveBackup.upload(t); withContext(Dispatchers.IO) { BackupSync.markSynced(context, e.id) }; status = "Backed up to Google Drive."; backups = DriveBackup.list(t) }) },
-            Modifier.fillMaxWidth(), icon = Icons.Default.CloudUpload, style = OrnateStyle.Primary, enabled = !busy,
+        Spacer(Modifier.height(10.dp))
+        Text(
+            when {
+                sync.syncing -> "Syncing…"
+                sync.error != null -> "Last sync failed: ${sync.error}"
+                !sync.connected -> "Sync starts once Google Drive is connected."
+                sync.lastSync > 0 -> "Synced ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(sync.lastSync))}"
+                else -> "Not synced yet."
+            },
+            style = MaterialTheme.typography.titleSmall, color = if (sync.error != null) Palette.Terracotta else Palette.Ink,
         )
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OrnateButton(
+                "Sync now",
+                { withDrive(driveJob { t -> status = CloudSync.sync(t) ?: "Synced with your other devices." ; failed = sync.error != null }) },
+                Modifier.weight(1f), icon = Icons.Default.Sync, style = OrnateStyle.Primary, enabled = !busy && !sync.syncing,
+            )
+            OrnateButton(
+                "Back up now",
+                { withDrive(driveJob { t -> DriveBackup.upload(t); status = "Backup saved to Google Drive."; backups = DriveBackup.list(t) }) },
+                Modifier.weight(1f), icon = Icons.Default.CloudUpload, accent = Palette.Slate, enabled = !busy,
+            )
+        }
         Spacer(Modifier.height(14.dp))
-        SectionLabel("Your backups", color = Palette.InkSoft)
+        SectionLabel("Backups (snapshots you can go back to)", color = Palette.InkSoft)
         Spacer(Modifier.height(6.dp))
         val list = backups
         when {
@@ -199,8 +221,8 @@ fun BackupDialog(onDismiss: () -> Unit) {
                 OrnateButton("Restore", {
                     confirmRestore = null
                     withDrive(driveJob { t ->
+                        // Restored on this device; the sync then carries it to the others.
                         status = restoredText(DriveBackup.restore(t, entry))
-                        withContext(Dispatchers.IO) { BackupSync.markSynced(context, entry.id) }
                     })
                 }, Modifier.weight(1f), style = OrnateStyle.Primary)
             }
@@ -208,85 +230,21 @@ fun BackupDialog(onDismiss: () -> Unit) {
     }
 }
 
-/** Whether this run of the app already looked for a newer backup. */
-private var syncChecked = false
-
 /**
- * On opening the app: a newer Drive backup (made on another device) is restored by itself when
- * nothing changed here since the last backup or restore; otherwise the player is warned and
- * chooses to back up this device or take the backup. Only if Drive was connected before.
+ * Lets [CloudSync] get a Drive token quietly while the app runs (it never shows Google's screens).
+ * Place it once at the app's root.
  */
 @Composable
-fun BackupSyncOnLaunch() {
+fun CloudSyncHost() {
     val context = LocalAppContext.current
-    val scope = rememberCoroutineScope()
     val quietToken = rememberQuietDriveToken()
-    var token by remember { mutableStateOf<String?>(null) }
-    var conflict by remember { mutableStateOf<BackupSync.Check.Conflict?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (syncChecked) return@LaunchedEffect
-        syncChecked = true
-        val t = quietToken() ?: return@LaunchedEffect
-        token = t
-        when (val check = runCatching { BackupSync.check(context, t) }.getOrNull()) {
-            is BackupSync.Check.Restored -> notice = "Synced with your backup from ${dateOf(check.entry)}."
-            is BackupSync.Check.Conflict -> conflict = check
-            else -> Unit
-        }
-    }
-    notice?.let { text ->
-        LaunchedEffect(text) { kotlinx.coroutines.delay(4000); notice = null }
-        OrnateDialog(onDismiss = { notice = null }, maxWidth = 520.dp) {
-            StatusBanner(text, failed = false)
-        }
-    }
-    conflict?.let { c ->
-        fun act(work: suspend () -> String) {
-            busy = true
-            scope.launch {
-                notice = runCatching { work() }.getOrElse { "Couldn't sync: ${it.message}" }
-                busy = false
-                conflict = null
-            }
-        }
-        OrnateDialog(onDismiss = { if (!busy) conflict = null }, maxWidth = 560.dp) {
-            SectionLabel("Newer backup found")
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "There's a newer backup in Google Drive (${dateOf(c.entry)}: ${c.entry.cards} cards, ${c.entry.decks} decks), " +
-                    "but this device has changes that aren't backed up. Using the backup replaces them and they'll be lost; " +
-                    "back up this device first to keep them.",
-                style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
-            )
-            Spacer(Modifier.height(14.dp))
-            OrnateButton(
-                "Back up this device", {
-                    act {
-                        val t = token ?: error("no Google access")
-                        val e = DriveBackup.upload(t)
-                        withContext(Dispatchers.IO) { BackupSync.markSynced(context, e.id) }
-                        "Backed up this device to Google Drive."
-                    }
-                },
-                Modifier.fillMaxWidth(), icon = Icons.Default.CloudUpload, style = OrnateStyle.Primary, enabled = !busy,
-            )
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OrnateButton("Later", { conflict = null }, Modifier.weight(1f), accent = Palette.Slate, enabled = !busy)
-                OrnateButton(
-                    "Use the backup", {
-                        act {
-                            withContext(Dispatchers.IO) { BackupSync.apply(context, c.entry, c.text) }
-                            "Synced with your backup from ${dateOf(c.entry)}."
-                        }
-                    },
-                    Modifier.weight(1f), accent = Palette.Terracotta, enabled = !busy,
-                )
-            }
-        }
-    }
+    LaunchedEffect(quietToken) { CloudSync.start(context, quietToken) }
+}
+
+/** Every time the home screen shows: pick up what other devices changed (and send what this one did). */
+@Composable
+fun SyncOnHome() {
+    LaunchedEffect(Unit) { CloudSync.syncSoon() }
 }
 
 private fun dateOf(entry: DriveBackup.Entry): String =

@@ -72,6 +72,41 @@ object DriveBackup {
         call("https://www.googleapis.com/drive/v3/files/${entry.id}", token, "DELETE")
     }
 
+    /** The one file [CloudSync] keeps in step, and its Drive version (bumps on every change). */
+    data class SyncFile(val id: String, val version: Long)
+
+    private const val SYNC_NAME = "mtg-reforged-sync.json"
+
+    fun findSyncFile(token: String): SyncFile? {
+        val q = URLEncoder.encode("name = '$SYNC_NAME' and trashed = false", "UTF-8")
+        val files = JSONObject(call("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=$q&fields=files(id,version)", token))
+            .optJSONArray("files") ?: return null
+        if (files.length() == 0) return null
+        val f = files.getJSONObject(0)
+        return SyncFile(f.getString("id"), f.optString("version").toLongOrNull() ?: 0L)
+    }
+
+    fun fileVersion(token: String, id: String): Long =
+        JSONObject(call("https://www.googleapis.com/drive/v3/files/$id?fields=version", token)).optString("version").toLongOrNull() ?: 0L
+
+    fun downloadFile(token: String, id: String): String = call("https://www.googleapis.com/drive/v3/files/$id?alt=media", token)
+
+    fun createSyncFile(token: String, body: String) {
+        val meta = JSONObject().put("name", SYNC_NAME).put("parents", JSONArray().put("appDataFolder")).put("mimeType", "application/json")
+        val boundary = "reforged${System.nanoTime()}"
+        val payload = buildString {
+            append("--$boundary\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n").append(meta).append("\r\n")
+            append("--$boundary\r\nContent-Type: application/json\r\n\r\n").append(body).append("\r\n")
+            append("--$boundary--\r\n")
+        }
+        call("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", token, "POST", payload.toByteArray(), "multipart/related; boundary=$boundary")
+    }
+
+    /** Replaces the file's content (PATCH, sent as POST with an override: HttpURLConnection has no PATCH). */
+    fun updateFile(token: String, id: String, body: String) {
+        call("https://www.googleapis.com/upload/drive/v3/files/$id?uploadType=media&fields=id", token, "POST", body.toByteArray(), "application/json", override = "PATCH")
+    }
+
     private fun entry(json: JSONObject): Entry {
         val props = json.optJSONObject("appProperties")
         val created = runCatching {
@@ -87,10 +122,11 @@ object DriveBackup {
         )
     }
 
-    private fun call(url: String, token: String, method: String = "GET", body: ByteArray? = null, type: String? = null): String {
+    private fun call(url: String, token: String, method: String = "GET", body: ByteArray? = null, type: String? = null, override: String? = null): String {
         val c = URL(url).openConnection() as HttpURLConnection
         c.requestMethod = method
         c.setRequestProperty("Authorization", "Bearer $token")
+        override?.let { c.setRequestProperty("X-HTTP-Method-Override", it) }
         c.connectTimeout = 15_000
         c.readTimeout = 30_000
         if (body != null) {

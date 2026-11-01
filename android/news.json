@@ -545,6 +545,12 @@
       "title": "v1.45.0: foil prices in search, hold a card to share it",
       "body": "Card search on the home screen has Regular / Foil to see foil prices. On Android, holding a card in search results or in a card carousel opens Share image / Save image. The scanner starts from Any set each time, and its set list shows your recent sets first.",
       "link": null
+    },
+    {
+      "id": "v1.46.0",
+      "title": "v1.46.0: automatic sync across your devices",
+      "body": "Once Google Drive is connected (Backup & restore), your collection and decks sync by themselves: every change is saved to Drive a few seconds after you make it, and every device on the same Google account picks it up each time it opens the home screen. Changes made on two devices are merged, not lost. You can still sync now or make a manual backup from Backup & restore.",
+      "link": null
     }
   ]
 }

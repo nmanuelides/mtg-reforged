@@ -104,6 +104,8 @@ fun ReforgedApp(model: AppModel) {
         booted = true
     }
 
+    // Keeps the collection and decks in step across the player's devices (Google Drive).
+    io.github.nmanuelides.mtgreforged.ui.home.CloudSyncHost()
     val game = match
     when {
         game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
