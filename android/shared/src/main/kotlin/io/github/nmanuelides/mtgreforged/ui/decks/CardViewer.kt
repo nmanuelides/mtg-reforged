@@ -197,7 +197,7 @@ internal fun CardViewer(
                             var menu by remember { mutableStateOf(false) }
                             Box(Modifier.holdForMenu { menu = true }.rightClickRelease(Unit) { menu = true }) {
                                 CardTile(ui, cardWidth, showTapped = false)
-                                CardImageMenu(ui, menu) { menu = false }
+                                CardImageMenu(ui, menu, ideaActions(draft, printing, collection)) { menu = false }
                             }
                         }
                     }

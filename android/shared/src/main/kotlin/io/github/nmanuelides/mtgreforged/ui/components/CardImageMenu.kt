@@ -1,5 +1,6 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import androidx.compose.ui.graphics.vector.ImageVector
 import io.github.nmanuelides.mtgreforged.platform.shareImageFile
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -42,7 +43,7 @@ import java.io.File
  * holds the card, so it opens over it.
  */
 @Composable
-fun CardImageMenu(card: CardUi, open: Boolean, onDismiss: () -> Unit) {
+fun CardImageMenu(card: CardUi, open: Boolean, actions: List<CardMenuAction> = emptyList(), onDismiss: () -> Unit) {
     val context = LocalAppContext.current
     val scope = rememberCoroutineScope()
     var saving by remember { mutableStateOf<File?>(null) }
@@ -89,8 +90,18 @@ fun CardImageMenu(card: CardUi, open: Boolean, onDismiss: () -> Unit) {
                 }
             },
         )
+        actions.forEach { action ->
+            DropdownMenuItem(
+                text = { Text(action.label, style = MaterialTheme.typography.bodyLarge, color = Palette.Ink) },
+                leadingIcon = { Icon(action.icon, null, tint = Palette.Ink) },
+                onClick = { onDismiss(); action.onClick() },
+            )
+        }
     }
 }
+
+/** One more entry in [CardImageMenu] (e.g. moving the card to the deck's Ideas). */
+class CardMenuAction(val label: String, val icon: ImageVector, val onClick: () -> Unit)
 
 /**
  * Android: holding a finger still on the card calls [onLongPress] (to open [CardImageMenu]); a

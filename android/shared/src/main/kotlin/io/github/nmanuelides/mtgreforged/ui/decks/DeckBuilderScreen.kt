@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.material.icons.filled.Lightbulb
+import io.github.nmanuelides.mtgreforged.ui.components.CardMenuAction
 import java.io.ByteArrayOutputStream
 import io.github.nmanuelides.mtgreforged.platform.writePng
 import io.github.nmanuelides.mtgreforged.platform.shareImages
@@ -180,27 +182,65 @@ internal fun typeGroup(card: PaperCard): String {
     }
 }
 
+internal const val IDEAS = "Ideas"
+
+/** Menu entries that move [card] between the deck and its Ideas (none for the collection). */
+internal fun ideaActions(draft: DeckDraft, card: PaperCard, collection: Boolean): List<CardMenuAction> = when {
+    collection -> emptyList()
+    draft.ideas.containsKey(card) -> listOf(CardMenuAction("Move to the deck", Icons.Default.Add) { draft.fromIdeas(card) })
+    draft.main.containsKey(card) || draft.commander.containsKey(card) ->
+        listOf(CardMenuAction("Move to Ideas", Icons.Default.Lightbulb) { draft.toIdeas(card) })
+    else -> listOf(CardMenuAction("Add to Ideas", Icons.Default.Lightbulb) { draft.toIdeas(card) })
+}
+
 internal fun canLead(card: PaperCard) =
     card.rules.canBeCommander() || (card.rules.type.isLegendary && (card.rules.type.isCreature || card.rules.type.isPlaneswalker))
 
-/** Editable deck: copies per card, split into the command zone and the main deck. */
-internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val main: SnapshotStateMap<PaperCard, Int>) {
+/**
+ * Editable deck: copies per card, split into the command zone and the main deck, plus [ideas]:
+ * cards being considered, outside the deck (saved as its sideboard, never counted or played).
+ */
+internal class DeckDraft(
+    val commander: SnapshotStateMap<PaperCard, Int>,
+    val main: SnapshotStateMap<PaperCard, Int>,
+    val ideas: SnapshotStateMap<PaperCard, Int> = mutableStateMapOf(),
+) {
     val total get() = commander.values.sum() + main.values.sum()
 
     // Not `Deck(name).apply { … }`: inside it, `main` would resolve to Forge's Deck.getMain()
     // (the new, empty pool) instead of this draft's cards, and saves would drop the main deck.
-    fun toDeck(name: String): Deck {
+    fun toDeck(name: String, withIdeas: Boolean = true): Deck {
         val deck = Deck(name)
         commander.forEach { (c, n) -> deck.getOrCreate(DeckSection.Commander).add(c, n) }
         main.forEach { (c, n) -> deck.getOrCreate(DeckSection.Main).add(c, n) }
+        if (withIdeas) ideas.forEach { (c, n) -> deck.getOrCreate(DeckSection.Sideboard).add(c, n) }
         return deck
     }
 
     fun load(deck: Deck) {
         commander.clear()
         main.clear()
+        ideas.clear()
         deck.get(DeckSection.Commander)?.forEach { commander[it.key] = it.value }
         deck.get(DeckSection.Main)?.forEach { main[it.key] = it.value }
+        deck.get(DeckSection.Sideboard)?.forEach { ideas[it.key] = it.value }
+    }
+
+    /** Every copy of exactly [card] (deck or command zone) goes to the Ideas. */
+    fun toIdeas(card: PaperCard) {
+        val n = ((commander.remove(card) ?: 0) + (main.remove(card) ?: 0)).coerceAtLeast(1)
+        ideas[card] = (ideas[card] ?: 0) + n
+    }
+
+    /** Every copy of exactly [card] goes from the Ideas back into the deck. */
+    fun fromIdeas(card: PaperCard) {
+        val n = ideas.remove(card) ?: return
+        main[card] = (main[card] ?: 0) + n
+    }
+
+    fun removeIdea(card: PaperCard) {
+        val n = (ideas[card] ?: 0) - 1
+        if (n <= 0) ideas.remove(card) else ideas[card] = n
     }
 
     fun add(card: PaperCard) {
@@ -227,7 +267,7 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
 
     /** Makes [card] the printing the deck uses for its name, keeping copies and commander status. */
     fun usePrinting(card: PaperCard) {
-        for (pool in listOf(commander, main)) {
+        for (pool in listOf(commander, main, ideas)) {
             pool.keys.filter { it.name == card.name && it != card }.forEach { old ->
                 val n = pool.remove(old) ?: 0
                 pool[card] = (pool[card] ?: 0) + n
@@ -238,7 +278,7 @@ internal class DeckDraft(val commander: SnapshotStateMap<PaperCard, Int>, val ma
     /** Moves the copies of exactly [old] to [new] (another printing or finish), leaving other printings alone. */
     fun replacePrinting(old: PaperCard, new: PaperCard) {
         if (old == new) return
-        for (pool in listOf(commander, main)) {
+        for (pool in listOf(commander, main, ideas)) {
             val n = pool.remove(old) ?: continue
             pool[new] = (pool[new] ?: 0) + n
         }
@@ -317,7 +357,7 @@ fun DeckBuilderScreen(
     // Saving keeps the editor open; leaving hands back the last saved deck (if any).
     var saved by remember { mutableStateOf(initial) }
     var savedSignature by remember { mutableStateOf<Any?>(null) }
-    fun signature(): Any = Triple(name, draft.commander.toMap(), draft.main.toMap())
+    fun signature(): Any = listOf(name, draft.commander.toMap(), draft.main.toMap(), draft.ideas.toMap())
     val dirty = signature() != savedSignature
     var justSaved by remember { mutableStateOf(false) }
     LaunchedEffect(justSaved) { if (justSaved) { delay(1800); justSaved = false } }
@@ -344,7 +384,7 @@ fun DeckBuilderScreen(
         if (collection) return@LaunchedEffect
         delay(300)
         problem = withContext(Dispatchers.Default) {
-            runCatching { format.gameType.deckFormat.getDeckConformanceProblem(draft.toDeck(name)) }.getOrNull()
+            runCatching { format.gameType.deckFormat.getDeckConformanceProblem(draft.toDeck(name, withIdeas = false)) }.getOrNull()
         }
     }
 
@@ -759,7 +799,7 @@ private fun CardSearch(
                     Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
                 )
-                if (draft.total > 0) Chip((if (collectionMode) "Your collection" else "Your deck") + " · ${draft.total}", false, fontSize = 12) { showDeck = true }
+                if (draft.total > 0 || draft.ideas.isNotEmpty()) Chip((if (collectionMode) "Your collection" else "Your deck") + " · ${draft.total}", false, fontSize = 12) { showDeck = true }
                 SortControl(filter.sort, filter.descending) { sort, descending -> onFilter(filter.copy(sort = sort, descending = descending)) }
             }
             Spacer(Modifier.height(4.dp))
@@ -785,7 +825,7 @@ private fun CardSearch(
                     Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(Modifier.tapOrHold(card.name, onTap = { onOpenResults(shown, index) }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true })) {
                             CardTile(ui, tile, showTapped = false)
-                            CardImageMenu(ui, menu) { menu = false }
+                            CardImageMenu(ui, menu, ideaActions(draft, card, collectionMode)) { menu = false }
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                             if (commanderFormat && canLead(card)) {
                                 CommanderStar(draft.commander.containsKey(card), Modifier.align(Alignment.TopStart)) { draft.makeCommander(card) }
@@ -1330,8 +1370,10 @@ private fun DeckGallery(
     val main = draft.main.entries.map { it.key to it.value }
     val groups = (
         listOf("Commander" to draft.commander.entries.map { it.key to it.value }) +
-            TYPE_GROUPS.map { group -> group to main.filter { typeGroup(it.first) == group } }
+            TYPE_GROUPS.map { group -> group to main.filter { typeGroup(it.first) == group } } +
+            listOf(IDEAS to draft.ideas.entries.map { it.key to it.value })
         ).filter { it.second.isNotEmpty() }
+    val collectionMode = LocalCollectionMode.current
 
     val cascade = remember { java.util.concurrent.atomic.AtomicInteger(4) }
     LazyVerticalGrid(
@@ -1357,16 +1399,20 @@ private fun DeckGallery(
             items(cards.sortedBy { it.first.rules.manaCost.cmc * 1000 + it.first.name.first().code }, key = { label + printingKey(it.first) }) { (card, n) ->
                 val order = remember { cascade.getAndIncrement() }
                 val commander = label == "Commander"
+                val idea = label == IDEAS
                 val ui = remember(card) { CardUi.fromPaper(card) }
                 var held by remember { mutableStateOf(false) }
                 val prices by CardPrices.version.collectAsState()
                 val price = remember(card, prices) { CardPrices.of(card) }
                 Column(Modifier.landIn(order.coerceAtMost(30)), horizontalAlignment = Alignment.CenterHorizontally) {
-                    val openHere = { val all = draft.ordered(); onOpen(all, all.indexOf(card).coerceAtLeast(0)) }
+                    val openHere = {
+                        val all = if (idea) draft.ideas.keys.sortedBy { it.name } else draft.ordered()
+                        onOpen(all, all.indexOf(card).coerceAtLeast(0))
+                    }
                     var menu by remember { mutableStateOf(false) }
                     Box(Modifier.tapOrHold(card.name, onTap = { openHere() }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true })) {
                         CardTile(ui, tile, showTapped = false)
-                        CardImageMenu(ui, menu) { menu = false }
+                        CardImageMenu(ui, menu, ideaActions(draft, card, collectionMode)) { menu = false }
                             OwnedBadge(card.name, Modifier.align(Alignment.BottomStart))
                         if (n > 1) {
                             Text(
@@ -1376,7 +1422,7 @@ private fun DeckGallery(
                                 fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Palette.OnAccent,
                             )
                         }
-                        if (commanderFormat && canLead(card)) {
+                        if (commanderFormat && canLead(card) && !idea) {
                             CommanderStar(commander, Modifier.align(Alignment.TopStart)) { draft.toggleCommander(card) }
                         }
                         HoldZoom(ui, held, caption = price?.let(::zoomCaption))
@@ -1384,11 +1430,18 @@ private fun DeckGallery(
                     Row(Modifier.width(tile), verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Remove, "Remove one",
-                            Modifier.size(30.dp).clickable { draft.remove(card, fromCommander = commander) }.padding(4.dp),
+                            Modifier.size(30.dp).clickable { if (idea) draft.removeIdea(card) else draft.remove(card, fromCommander = commander) }.padding(4.dp),
                             tint = Palette.Terracotta,
                         )
                         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { PriceTag(price) }
-                        if (!commander) {
+                        if (idea) {
+                            // Back into the deck.
+                            Icon(
+                                Icons.Default.Add, "Move to the deck",
+                                Modifier.size(30.dp).clickable { draft.fromIdeas(card) }.padding(4.dp),
+                                tint = Palette.Sage,
+                            )
+                        } else if (!commander) {
                             Icon(
                                 Icons.Default.Add, "Add one",
                                 Modifier.size(30.dp).clickable { draft.add(card) }.padding(4.dp),
@@ -1543,7 +1596,18 @@ private fun DeckList(
                 item { Spacer(Modifier.height(6.dp)); SectionLabel("$label · ${cards.sumOf { it.value }}") }
                 items(cards.sortedBy { it.key.rules.manaCost.cmc * 1000 + it.key.name.first().code }, key = { "m" + printingKey(it.key) }) { (card, n) ->
                     DeckRow(card, n, isCommander = false, showStar = commander && canLead(card), onOpen = { openCard(card) },
-                        onAdd = { draft.add(card) }, onRemove = { draft.remove(card, fromCommander = false) }, onStar = { draft.toggleCommander(card) })
+                        onAdd = { draft.add(card) }, onRemove = { draft.remove(card, fromCommander = false) }, onStar = { draft.toggleCommander(card) },
+                        actions = ideaActions(draft, card, false))
+                }
+            }
+            if (draft.ideas.isNotEmpty()) {
+                val ideas = draft.ideas.entries.sortedBy { it.key.name }
+                item { Spacer(Modifier.height(6.dp)); SectionLabel("$IDEAS · ${ideas.sumOf { it.value }} (not in the deck)") }
+                items(ideas, key = { "i" + printingKey(it.key) }) { (card, n) ->
+                    val all = ideas.map { it.key }
+                    DeckRow(card, n, isCommander = false, showStar = false, onOpen = { onOpen(all, all.indexOf(card).coerceAtLeast(0)) },
+                        onAdd = { draft.ideas[card] = n + 1 }, onRemove = { draft.removeIdea(card) }, onStar = {},
+                        actions = ideaActions(draft, card, false))
                 }
             }
         }
@@ -1560,6 +1624,7 @@ private fun DeckRow(
     onAdd: () -> Unit,
     onRemove: () -> Unit,
     onStar: () -> Unit,
+    actions: List<CardMenuAction> = emptyList(),
 ) {
     val ui = remember(card) { CardUi.fromPaper(card) }
     var held by remember { mutableStateOf(false) }
@@ -1570,7 +1635,7 @@ private fun DeckRow(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).tapOrHold(card.name, onTap = { onOpen() }, onHold = { h, _ -> held = h }, onSecondaryClick = rightClick { menu = true }),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CardImageMenu(ui, menu) { menu = false }
+        CardImageMenu(ui, menu, actions) { menu = false }
         Box(Modifier.size(28.dp).background(Palette.Paper, CircleShape), contentAlignment = Alignment.Center) {
             Text("$count", fontFamily = Cinzel, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Palette.Ink)
         }

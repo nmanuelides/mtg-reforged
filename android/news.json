@@ -569,6 +569,12 @@
       "title": "v1.49.0: sorting really scrolls to the top",
       "body": "Changing the sort order in the collection or the deck builder now brings the results back to the top once they are re-sorted.",
       "link": null
+    },
+    {
+      "id": "v1.50.0",
+      "title": "v1.50 · Ideas for each deck",
+      "body": "In the deck builder, right-click a card (long press on Android) and pick \"Move to Ideas\" to set it aside in the deck's Ideas list, or \"Add to Ideas\" from the search results. Ideas show at the end of the deck and in the List panel, don't count for the deck, and \"Move to the deck\" (or +) puts them back.",
+      "link": null
     }
   ]
 }
