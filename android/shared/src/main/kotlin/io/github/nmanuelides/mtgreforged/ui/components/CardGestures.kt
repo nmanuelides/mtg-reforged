@@ -89,7 +89,7 @@ fun Modifier.tapOrHold(
  * awaitFirstDown only reports the primary button, so a right press never reaches a gesture loop.
  * On release, like a click: a menu opened on press would close again as the button comes up.
  */
-private fun Modifier.rightClickRelease(key: Any?, onClick: () -> Unit): Modifier = pointerInput(key) {
+internal fun Modifier.rightClickRelease(key: Any?, onClick: () -> Unit): Modifier = pointerInput(key) {
     awaitPointerEventScope {
         var held = false
         while (true) {

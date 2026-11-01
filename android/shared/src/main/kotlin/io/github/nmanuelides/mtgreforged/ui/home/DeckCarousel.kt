@@ -1,5 +1,10 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import io.github.nmanuelides.mtgreforged.ui.components.rightClickRelease
+import io.github.nmanuelides.mtgreforged.ui.components.holdForMenu
+import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
 import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
 import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.foundation.background
@@ -116,7 +121,11 @@ fun DeckCarousel(
                     }) {
                         if (card != null) {
                             val ui = remember(card) { CardUi.fromPaper(card) }
-                            CardTile(ui, cardWidth, showTapped = false)
+                            var menu by remember { mutableStateOf(false) }
+                            Box(Modifier.holdForMenu { menu = true }.rightClickRelease(Unit) { menu = true }) {
+                                CardTile(ui, cardWidth, showTapped = false)
+                                CardImageMenu(ui, menu) { menu = false }
+                            }
                         } else {
                             Box(Modifier.width(cardWidth).aspectRatio(63f / 88f).background(Palette.PaperDeep))
                         }

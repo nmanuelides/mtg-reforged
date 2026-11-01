@@ -123,7 +123,9 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
     val scope = rememberCoroutineScope()
     var ready by remember { mutableStateOf(false) }
     var sets by remember { mutableStateOf(emptyList<ScanSet>()) }
-    var set by remember { mutableStateOf(prefs.getString("set", null)) }
+    // Every visit starts from any set; the sets picked lately come first in the picker.
+    var set by remember { mutableStateOf<String?>(null) }
+    var recentSets by remember { mutableStateOf(prefs.getString("recentSets", null).orEmpty().split(',').filter { it.isNotBlank() }) }
     var torch by remember { mutableStateOf(false) }
     var pickingSet by remember { mutableStateOf(false) }
     var confirmLeave by remember { mutableStateOf(false) }
@@ -299,9 +301,12 @@ internal fun CardScanner(onSave: (Map<PaperCard, Int>) -> Unit, onClose: () -> U
     }
 
     if (pickingSet) {
-        SetPicker(sets, set, onPick = { code ->
+        SetPicker(sets, set, recentSets, onPick = { code ->
             set = code
-            prefs.edit().putString("set", code).apply()
+            if (code != null) {
+                recentSets = (listOf(code) + recentSets.filter { it != code }).take(6)
+                prefs.edit().putString("recentSets", recentSets.joinToString(",")).apply()
+            }
             pickingSet = false
         }, onDismiss = { pickingSet = false })
     }
@@ -414,9 +419,9 @@ private fun ScanTray(items: List<Scanned>, focus: Scanned?, lookup: Boolean, onF
     }
 }
 
-/** Scan from any set, or only one (picked from a searchable list). */
+/** Scan from any set, or only one (picked from a searchable list, the [recent] ones first). */
 @Composable
-private fun SetPicker(sets: List<ScanSet>, current: String?, onPick: (String?) -> Unit, onDismiss: () -> Unit) {
+private fun SetPicker(sets: List<ScanSet>, current: String?, recent: List<String>, onPick: (String?) -> Unit, onDismiss: () -> Unit) {
     var query by remember { mutableStateOf("") }
     val shown = remember(query, sets) {
         sets.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) || it.code.equals(query.trim(), ignoreCase = true) }
@@ -434,9 +439,20 @@ private fun SetPicker(sets: List<ScanSet>, current: String?, onPick: (String?) -
             item {
                 SetRow("Any set", null, current == null) { onPick(null) }
             }
+            val lately = if (query.isBlank()) recent.mapNotNull { code -> sets.firstOrNull { it.code == code } } else emptyList()
+            if (lately.isNotEmpty()) {
+                item { PickerHeading("Recent") }
+                items(lately, key = { "recent-" + it.code }) { s -> SetRow(s.name, s.code, s.code == current) { onPick(s.code) } }
+                item { PickerHeading("All sets") }
+            }
             items(shown, key = { it.code }) { s -> SetRow(s.name, s.code, s.code == current) { onPick(s.code) } }
         }
     }
+}
+
+@Composable
+private fun PickerHeading(text: String) {
+    Text(text.uppercase(), Modifier.padding(top = 10.dp, bottom = 2.dp, start = 4.dp), fontFamily = Cinzel, fontSize = 12.sp, color = Palette.InkSoft)
 }
 
 @Composable

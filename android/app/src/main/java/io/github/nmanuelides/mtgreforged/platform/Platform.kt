@@ -83,6 +83,17 @@ fun AppContext.shareText(text: String) {
     startActivity(Intent.createChooser(send, null))
 }
 
+/** Shares a picture file through the share sheet, as [name] (its extension is kept). */
+fun AppContext.shareImageFile(file: File, name: String) {
+    val dir = File(cacheDir, "shared").apply { deleteRecursively(); mkdirs() }
+    val ext = file.extension.ifBlank { "jpg" }
+    val copy = File(dir, "$name.$ext").also { file.copyTo(it, overwrite = true) }
+    val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.updates", copy)
+    val mime = when (ext.lowercase()) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
+    val send = Intent(Intent.ACTION_SEND).setType(mime).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    startActivity(Intent.createChooser(send, null))
+}
+
 /** Shares PNG pictures through the share sheet; [name] names the files (numbered when several). */
 fun AppContext.shareImages(pngs: List<ByteArray>, name: String) {
     val dir = File(cacheDir, "shared").apply { deleteRecursively(); mkdirs() }

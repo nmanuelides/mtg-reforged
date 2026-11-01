@@ -1,5 +1,14 @@
 package io.github.nmanuelides.mtgreforged.ui.components
 
+import io.github.nmanuelides.mtgreforged.platform.shareImageFile
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.composed
+import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
@@ -28,8 +37,9 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * The right-click menu of a card (Windows): copy its picture to the clipboard, or save it to a
- * file the player picks. Place it in the Box that holds the card, so it opens over it.
+ * The picture menu of a card (right-click on Windows, long press on Android): copy (Windows) or
+ * share (Android) its picture, or save it to a file the player picks. Place it in the Box that
+ * holds the card, so it opens over it.
  */
 @Composable
 fun CardImageMenu(card: CardUi, open: Boolean, onDismiss: () -> Unit) {
@@ -55,14 +65,15 @@ fun CardImageMenu(card: CardUi, open: Boolean, onDismiss: () -> Unit) {
     }
     DropdownMenu(open, onDismiss, containerColor = Palette.PaperLight) {
         DropdownMenuItem(
-            text = { Text("Copy image", style = MaterialTheme.typography.bodyLarge, color = Palette.Ink) },
-            leadingIcon = { Icon(Icons.Default.ContentCopy, null, tint = Palette.Ink) },
+            text = { Text(if (IS_DESKTOP) "Copy image" else "Share image", style = MaterialTheme.typography.bodyLarge, color = Palette.Ink) },
+            leadingIcon = { Icon(if (IS_DESKTOP) Icons.Default.ContentCopy else Icons.Default.Share, null, tint = Palette.Ink) },
             onClick = {
                 onDismiss()
                 withFile { file ->
                     scope.launch {
-                        val ok = withContext(Dispatchers.IO) { context.copyImageToClipboard(file) }
-                        context.showToast(if (ok) "Image copied to the clipboard" else "Couldn't copy the image")
+                        val name = card.name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                        runCatching { withContext(Dispatchers.IO) { context.shareImageFile(file, name) } }
+                            .onFailure { context.showToast("Couldn't share the image") }
                     }
                 }
             },
@@ -78,6 +89,32 @@ fun CardImageMenu(card: CardUi, open: Boolean, onDismiss: () -> Unit) {
                 }
             },
         )
+    }
+}
+
+/**
+ * Android: holding a finger still on the card calls [onLongPress] (to open [CardImageMenu]); a
+ * swipe or a quick tap goes through untouched. Windows uses right-click instead.
+ */
+fun Modifier.holdForMenu(onLongPress: () -> Unit): Modifier = if (IS_DESKTOP) this else composed {
+    val current by rememberUpdatedState(onLongPress)
+    pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            var ended = false
+            withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                waitForUpOrCancellation()
+                ended = true
+            }
+            if (!ended) {
+                current()
+                // The release mustn't also count as a tap.
+                do {
+                    val event = awaitPointerEvent()
+                    event.changes.forEach { it.consume() }
+                } while (event.changes.any { it.pressed })
+            }
+        }
     }
 }
 

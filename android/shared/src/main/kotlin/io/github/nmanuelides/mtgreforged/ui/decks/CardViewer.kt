@@ -1,5 +1,9 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.runtime.mutableStateOf
+import io.github.nmanuelides.mtgreforged.ui.components.rightClickRelease
+import io.github.nmanuelides.mtgreforged.ui.components.holdForMenu
+import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
 import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
 import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
 import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
@@ -190,7 +194,11 @@ internal fun CardViewer(
                             label = "printing",
                         ) { printing ->
                             val ui = remember(printing) { CardUi.fromPaper(printing) }
-                            CardTile(ui, cardWidth, showTapped = false)
+                            var menu by remember { mutableStateOf(false) }
+                            Box(Modifier.holdForMenu { menu = true }.rightClickRelease(Unit) { menu = true }) {
+                                CardTile(ui, cardWidth, showTapped = false)
+                                CardImageMenu(ui, menu) { menu = false }
+                            }
                         }
                     }
                 }

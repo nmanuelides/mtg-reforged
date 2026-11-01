@@ -1,5 +1,8 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.components.rightClickRelease
+import io.github.nmanuelides.mtgreforged.ui.components.holdForMenu
+import io.github.nmanuelides.mtgreforged.ui.components.CardImageMenu
 import io.github.nmanuelides.mtgreforged.ui.components.PagerArrowKeys
 import io.github.nmanuelides.mtgreforged.ui.components.EscCloses
 import androidx.compose.material3.IconButton
@@ -721,7 +724,14 @@ private fun KeyCardsViewer(names: List<String>, start: Int, onDismiss: () -> Uni
             ) { page ->
                 val card = remember(page) { runCatching { StaticData.instance().commonCards.getCard(names[page]) }.getOrNull() }
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    if (card != null) CardTile(remember(card) { CardUi.fromPaper(card) }, cardWidth, showTapped = false)
+                    if (card != null) {
+                        val ui = remember(card) { CardUi.fromPaper(card) }
+                        var menu by remember { mutableStateOf(false) }
+                        Box(Modifier.holdForMenu { menu = true }.rightClickRelease(Unit) { menu = true }) {
+                            CardTile(ui, cardWidth, showTapped = false)
+                            CardImageMenu(ui, menu) { menu = false }
+                        }
+                    }
                 }
             }
         }

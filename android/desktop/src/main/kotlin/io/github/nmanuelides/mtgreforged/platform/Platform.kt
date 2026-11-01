@@ -114,6 +114,11 @@ fun AppContext.isUnmeteredNetwork(): Boolean = true
 
 fun AppContext.showToast(text: String) = Toasts.show(text)
 
+/** No share sheet on Windows: the picture goes to the clipboard and a toast says so. */
+fun AppContext.shareImageFile(file: File, name: String) {
+    showToast(if (copyImageToClipboard(file)) "Image copied to the clipboard" else "Couldn't copy the image")
+}
+
 /** No share sheet on Windows: the first picture goes to the clipboard and a toast says so. */
 fun AppContext.shareImages(pngs: List<ByteArray>, name: String) {
     val file = File.createTempFile("shopping", ".png").apply { deleteOnExit(); writeBytes(pngs.first()) }

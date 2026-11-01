@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
+import io.github.nmanuelides.mtgreforged.ui.decks.Chip
+import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import androidx.compose.animation.core.CubicBezierEasing
 import io.github.nmanuelides.mtgreforged.ui.components.ornateFrame
@@ -231,7 +233,11 @@ private fun CardDetail(name: String) {
         }
     }
     if (printings.isEmpty()) return
-    val main = remember(printings, prices) { printings.minByOrNull { CardPrices.of(it)?.takeIf { p -> p.exact }?.retail ?: Float.MAX_VALUE } ?: printings.first() }
+    // Regular or foil prices (and foil cards) for every printing.
+    var foil by remember(name) { mutableStateOf(false) }
+    val shown = remember(printings, foil) { if (foil) printings.filter { CardPrices.hasFoil(it) }.map { it.foiled } else printings }
+    val priceOf = { p: PaperCard -> CardPrices.of(p)?.takeIf { it.exact } }
+    val main = remember(shown, printings, prices) { shown.minByOrNull { priceOf(it)?.retail ?: Float.MAX_VALUE } ?: printings.first() }
     // Pinch (or Ctrl + wheel) zooms the printings: fewer, bigger cards, down to two columns.
     var zoomSteps by remember { mutableIntStateOf(0) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -255,16 +261,27 @@ private fun CardDetail(name: String) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(name, style = MaterialTheme.typography.headlineMedium, color = Color.White)
                     Spacer(Modifier.height(4.dp))
-                    val price = remember(main, prices) { CardPrices.cheapest(name) }
+                    val price = remember(main, foil, prices) { if (foil) priceOf(main) else CardPrices.cheapest(name) }
                     Text(price?.let { CardPrice.usd(it.retail) } ?: "No price", style = MaterialTheme.typography.displayMedium, color = Palette.Ochre)
-                    Text("Cheapest printing at Card Kingdom", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f))
+                    Text(
+                        if (foil) "Cheapest foil printing at Card Kingdom" else "Cheapest printing at Card Kingdom",
+                        style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("Regular", !foil) { foil = false }
+                        Chip("Foil", foil) { foil = true }
+                    }
                     Spacer(Modifier.height(6.dp))
-                    Text("${printings.size} printings", style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f))
+                    Text(
+                        if (foil) "${shown.size} printings in foil" else "${printings.size} printings",
+                        style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.8f),
+                    )
                 }
             }
         }
-        items(printings, key = { "${it.edition}|${it.collectorNumber}|${it.artIndex}" }) { p ->
-            val price = remember(p, prices) { CardPrices.of(p)?.takeIf { it.exact } }
+        items(shown, key = { "${it.edition}|${it.collectorNumber}|${it.artIndex}|${it.isFoil}" }) { p ->
+            val price = remember(p, prices) { priceOf(p) }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CardWithMenu(remember(p) { CardUi.fromPaper(p) }, tile)
                 Text(
@@ -279,11 +296,11 @@ private fun CardDetail(name: String) {
     }
 }
 
-/** A card whose right-click (Windows) offers to copy or save its picture. */
+/** A card whose right-click (Windows) or long press (Android) offers to copy / share or save its picture. */
 @Composable
 private fun CardWithMenu(ui: CardUi, width: androidx.compose.ui.unit.Dp) {
     var menu by remember { mutableStateOf(false) }
-    Box(Modifier.tapOrHold(ui.id, onTap = {}, onHold = { _, _ -> }, onSecondaryClick = rightClick { menu = true })) {
+    Box(Modifier.tapOrHold(ui.id, onTap = {}, onHold = { held, _ -> if (held && !IS_DESKTOP) menu = true }, onSecondaryClick = rightClick { menu = true })) {
         CardTile(ui, width, showTapped = false)
         CardImageMenu(ui, menu) { menu = false }
     }
