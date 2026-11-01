@@ -551,6 +551,12 @@
       "title": "v1.46.0: automatic sync across your devices",
       "body": "Once Google Drive is connected (Backup & restore), your collection and decks sync by themselves: every change is saved to Drive a few seconds after you make it, and every device on the same Google account picks it up each time it opens the home screen. Changes made on two devices are merged, not lost. You can still sync now or make a manual backup from Backup & restore.",
       "link": null
+    },
+    {
+      "id": "v1.47.0",
+      "title": "v1.47.0: sorting scrolls to the top",
+      "body": "Changing the sort order in the collection or the deck builder now scrolls the results back to the top.",
+      "link": null
     }
   ]
 }

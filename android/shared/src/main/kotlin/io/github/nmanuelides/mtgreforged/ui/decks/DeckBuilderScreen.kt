@@ -762,8 +762,12 @@ private fun CardSearch(
         Box(Modifier.fillMaxSize()) {
             val cascade = remember { java.util.concurrent.atomic.AtomicInteger(4) }
             var flashed by remember { mutableStateOf<String?>(null) }
+            // A new order starts from the top.
+            val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+            LaunchedEffect(filter.sort, filter.descending) { gridState.scrollToItem(0) }
             LazyVerticalGrid(
                 GridCells.Fixed(columns),
+                state = gridState,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
