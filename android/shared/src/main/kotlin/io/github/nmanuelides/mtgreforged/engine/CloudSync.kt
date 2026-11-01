@@ -61,6 +61,8 @@ object CloudSync {
             var previous: String? = null
             while (true) {
                 delay(TICK_MS)
+                // Forge's paths (ForgeConstants) mustn't be touched before the engine has set them up.
+                if (Engine.status.value != Engine.Status.Ready) continue
                 val now = runCatching { signature() }.getOrNull() ?: continue
                 if (now != syncedSignature && now == previous && _status.value.connected) sync()
                 previous = now
@@ -75,6 +77,7 @@ object CloudSync {
 
     /** Pulls and pushes now. Returns an error to show, or null. */
     suspend fun sync(withToken: String? = null): String? = lock.withLock {
+        if (Engine.status.value != Engine.Status.Ready) return@withLock "The app is still starting."
         val t = withToken ?: runCatching { token?.invoke() }.getOrNull()
         if (t == null) {
             _status.value = _status.value.copy(connected = false)
