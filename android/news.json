@@ -587,6 +587,12 @@
       "title": "v1.52 · Not owned filter",
       "body": "Filters › Search in has a new \"Not owned\" option: it shows only the cards you don't have in your collection, in any printing.",
       "link": null
+    },
+    {
+      "id": "v1.53.0",
+      "title": "v1.53 · Your printings first",
+      "body": "In the collection, with Hide duplicates on, a card you own now shows the printing you have instead of another one.",
+      "link": null
     }
   ]
 }

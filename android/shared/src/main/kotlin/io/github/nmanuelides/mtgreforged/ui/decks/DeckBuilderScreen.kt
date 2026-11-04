@@ -656,7 +656,7 @@ private fun CardSearch(
 
     val deckNames = (draft.commander.keys + draft.main.keys).map { it.name }.toSet()
     val collectionMode = LocalCollectionMode.current
-    val deckPrintings = if (filter.within != Within.All) (draft.commander.keys + draft.main.keys).toSet() else null
+    val deckPrintings = if (collectionMode || filter.within != Within.All) (draft.commander.keys + draft.main.keys).toSet() else null
     LaunchedEffect(query, filter, prices, deckPrintings) {
         delay(250) // debounce typing
         searching = true
@@ -665,6 +665,7 @@ private fun CardSearch(
                 filter.search(
                     query, deck = deckNames, collection = if (collectionMode) deckNames else CardCollection.names(),
                     owned = if (collectionMode) deckPrintings.orEmpty() else CardCollection.cards().keys,
+                    preferOwned = collectionMode,
                 )
             }.getOrElse { emptyList<PaperCard>() to 0 }
         }

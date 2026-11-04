@@ -126,6 +126,8 @@ data class CardFilter(
         deck: Set<String> = emptySet(),
         collection: Set<String> = emptySet(),
         owned: Collection<PaperCard>? = null,
+        /** With one printing per card, show a printing from [owned] when there is one. */
+        preferOwned: Boolean = false,
         limit: Int = 240,
     ): Pair<List<PaperCard>, Int> {
         val q = query.trim().lowercase()
@@ -178,7 +180,16 @@ data class CardFilter(
                 (conditions.isEmpty() || if (matchAny) conditions.any { it(card) } else conditions.all { it(card) })
         }
         // One printing per card: the first one that matched, so a set or artist filter shows that art.
-        if (hideDuplicates && !ownedPool && pool !== db.uniqueCards) matches = matches.distinctBy { it.name }
+        if (hideDuplicates && !ownedPool) {
+            val mine = if (preferOwned) owned.orEmpty().filter { finish == Finish.Any || it.isFoil == (finish == Finish.Foil) }.groupBy { it.name } else emptyMap()
+            val anyPrinting = pool === db.uniqueCards
+            matches = matches.groupBy { it.name }.values.asSequence().map { printings ->
+                // Owned foils aren't in the card pool, so printings are compared by set and number.
+                mine[printings.first().name]?.firstOrNull { o ->
+                    anyPrinting || printings.any { it.edition == o.edition && it.collectorNumber == o.collectorNumber && it.artIndex == o.artIndex }
+                } ?: printings.first()
+            }
+        }
 
         matches = when {
             ownedPool && finish == Finish.Foil -> matches.filter { it.isFoil }
