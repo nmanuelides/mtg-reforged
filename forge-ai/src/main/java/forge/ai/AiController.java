@@ -2026,7 +2026,7 @@ public class AiController {
             return onlySpells && top != null && top.getActivatingPlayer() != null && top.getActivatingPlayer().isOpponentOf(player)
                     ? FlatMonteCarloPicker.Mode.RESPOND : null;
         }
-        if (ph.getPlayerTurn() == player) {
+        if (ph.isPlayerTurn(player)) {
             return null;
         }
         if (ph.is(PhaseType.END_OF_TURN) && game.getPlayers().size() == 2) {
@@ -2145,7 +2145,7 @@ public class AiController {
         final PhaseHandler ph = game.getPhaseHandler();
         // Only sorcery-timing decisions on the AI's own turn: that is where the lines to compare are, and the
         // rollout ends at the second main phase. Everything reactive stays with the heuristics (and is cheap).
-        return ph.getPlayerTurn() == player && game.getStack().isEmpty()
+        return ph.isPlayerTurn(player) && game.getStack().isEmpty()
                 && (ph.is(PhaseType.MAIN1) || ph.is(PhaseType.MAIN2));
     }
 
@@ -3229,14 +3229,6 @@ public class AiController {
             final Card forCombo = deckPlan(player).combos.choose(player, destination, origin, fetchList);
             if (forCombo != null) {
                 return forCombo;
-            }
-            if (destination == ZoneType.Battlefield && origin.contains(ZoneType.Hand)
-                    && !sa.hasParam("AILogic") && !fetchList.isEmpty()) {
-                // whatever the deck, a cheating spell is not for a land when anything else can be put onto the battlefield
-                final CardCollection nonLands = CardLists.filter(fetchList, c -> !c.isLand());
-                if (!nonLands.isEmpty() && nonLands.size() < fetchList.size()) {
-                    return ComputerUtilCard.getBestAI(nonLands);
-                }
             }
         }
 
