@@ -108,7 +108,7 @@ fun FilterPanel(
                 section("finish"), { toggle("finish") }, onClear = { onChange(filter.copy(finish = Finish.Any)) }) {
                 ChipFlow { Finish.entries.forEach { f -> Chip(f.label, filter.finish == f) { onChange(filter.copy(finish = f)) } } }
             }
-            ToggleRow("Include Alchemy cards", "Arena-only rebalanced versions (A-…). Not legal in paper.", filter.includeAlchemy) {
+            ToggleRow("Include Alchemy cards", "Arena-only cards and rebalanced versions (A-…). Not legal in paper.", filter.includeAlchemy) {
                 onChange(filter.copy(includeAlchemy = it))
             }
             FilterRow("Sort by", "How results are ordered", "${filter.sort.label} ${if (filter.descending) "↓" else "↑"}", section("sort"), { toggle("sort") }) {

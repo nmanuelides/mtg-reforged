@@ -2,6 +2,7 @@ package io.github.nmanuelides.mtgreforged.ui.decks
 
 import io.github.nmanuelides.mtgreforged.engine.Engine
 import forge.StaticData
+import forge.card.CardEdition
 import forge.card.CardRarity
 import forge.card.CardRules
 import forge.card.CardType
@@ -43,6 +44,18 @@ enum class SortBy(val label: String) {
 }
 
 /** Card types in deck-list order, for sorting by type. */
+/** Names printed only in online sets (Alchemy, Arena exclusives): they don't exist on paper. Needs every card loaded. */
+private val digitalOnly: Set<String> by lazy {
+    val editions = StaticData.instance().editions
+    val all = HashSet<String>()
+    val paper = HashSet<String>()
+    StaticData.instance().commonCards.allCards.forEach { card ->
+        all += card.name
+        if (editions.get(card.edition)?.type != CardEdition.Type.ONLINE) paper += card.name
+    }
+    all - paper
+}
+
 private val TYPE_ORDER = listOf("Creature", "Planeswalker", "Battle", "Instant", "Sorcery", "Artifact", "Enchantment", "Land")
 
 /** A set of picked values plus how they combine. */
@@ -152,9 +165,12 @@ data class CardFilter(
             price?.let { f -> add { f.matches(priceOf(it)) } }
         }
 
+        // What you own stays visible; and the list needs every card loaded, which owned searches skip.
+        val digital = if (includeAlchemy || ownedPool) emptySet() else digitalOnly
+
         var matches = pool.asSequence().filter { card ->
             val name = card.name.lowercase()
-            (includeAlchemy || !card.name.startsWith("A-")) &&
+            (includeAlchemy || (!card.name.startsWith("A-") && card.name !in digital)) &&
                 (within != Within.Deck || card.name in deck) &&
                 (within != Within.Collection || card.name in collection) &&
                 (q.isEmpty() || if (exactName) name == q else q in name || q in card.rules.oracleText.orEmpty().lowercase()) &&

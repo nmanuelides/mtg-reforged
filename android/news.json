@@ -575,6 +575,12 @@
       "title": "v1.50 · Ideas for each deck",
       "body": "In the deck builder, right-click a card (long press on Android) and pick \"Move to Ideas\" to set it aside in the deck's Ideas list, or \"Add to Ideas\" from the search results. Ideas show at the end of the deck and in the List panel, don't count for the deck, and \"Move to the deck\" (or +) puts them back.",
       "link": null
+    },
+    {
+      "id": "v1.51.0",
+      "title": "v1.51 · Alchemy filter fixed",
+      "body": "With \"Include Alchemy cards\" off, card searches now also hide cards that only exist on Arena (like the ones from the Alchemy sets), not just the rebalanced A- versions. Cards in your collection always stay visible.",
+      "link": null
     }
   ]
 }
