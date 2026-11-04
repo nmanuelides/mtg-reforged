@@ -31,7 +31,7 @@ data class NumberFilter(val op: Op, val value: Double) {
 enum class GroupMode(val label: String) { Any("Any of"), All("All of"), Not("None of") }
 
 /** Where to search: the whole card pool, or only cards already in the deck / collection. */
-enum class Within(val label: String) { All("All cards"), Deck("This deck"), Collection("My collection") }
+enum class Within(val label: String) { All("All cards"), Deck("This deck"), Collection("My collection"), NotOwned("Not owned") }
 
 /** Regular or foil printings; "Foil" turns results into foil printings Card Kingdom sells. */
 enum class Finish(val label: String) { Any("Any"), Foil("Foil"), Regular("Non-foil") }
@@ -173,6 +173,7 @@ data class CardFilter(
             (includeAlchemy || (!card.name.startsWith("A-") && card.name !in digital)) &&
                 (within != Within.Deck || card.name in deck) &&
                 (within != Within.Collection || card.name in collection) &&
+                (within != Within.NotOwned || card.name !in collection) &&
                 (q.isEmpty() || if (exactName) name == q else q in name || q in card.rules.oracleText.orEmpty().lowercase()) &&
                 (conditions.isEmpty() || if (matchAny) conditions.any { it(card) } else conditions.all { it(card) })
         }

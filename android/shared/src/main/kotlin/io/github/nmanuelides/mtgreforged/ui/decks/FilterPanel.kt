@@ -97,9 +97,9 @@ fun FilterPanel(
             ToggleRow("Hide duplicates", "Show one printing of each card, even if there are several versions.", filter.hideDuplicates) {
                 onChange(filter.copy(hideDuplicates = it))
             }
-            FilterRow("Search in", "Every card, or only the ones you already have", filter.within.label, section("within"), { toggle("within") }) {
+            FilterRow("Search in", "Every card, only the ones you already have, or the ones you don't", filter.within.label, section("within"), { toggle("within") }) {
                 ChipFlow {
-                    Within.entries.filter { (it != Within.Collection || collectionAvailable) && (it != Within.Deck || !inCollection) }.forEach { w ->
+                    Within.entries.filter { (it !in listOf(Within.Collection, Within.NotOwned) || collectionAvailable) && (it != Within.Deck || !inCollection) }.forEach { w ->
                         Chip(w.label, filter.within == w) { onChange(filter.copy(within = w)) }
                     }
                 }

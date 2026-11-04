@@ -581,6 +581,12 @@
       "title": "v1.51 · Alchemy filter fixed",
       "body": "With \"Include Alchemy cards\" off, card searches now also hide cards that only exist on Arena (like the ones from the Alchemy sets), not just the rebalanced A- versions. Cards in your collection always stay visible.",
       "link": null
+    },
+    {
+      "id": "v1.52.0",
+      "title": "v1.52 · Not owned filter",
+      "body": "Filters › Search in has a new \"Not owned\" option: it shows only the cards you don't have in your collection, in any printing.",
+      "link": null
     }
   ]
 }
