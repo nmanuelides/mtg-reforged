@@ -593,6 +593,12 @@
       "title": "v1.53 · Your printings first",
       "body": "In the collection, with Hide duplicates on, a card you own now shows the printing you have instead of another one.",
       "link": null
+    },
+    {
+      "id": "v1.54.0",
+      "title": "v1.54 · Anonymous install count",
+      "body": "The app now tells our server once a day that an install is active: a random ID, the platform and the app version, nothing else. It helps us know how many people use the app. Details are in the privacy policy.",
+      "link": null
     }
   ]
 }

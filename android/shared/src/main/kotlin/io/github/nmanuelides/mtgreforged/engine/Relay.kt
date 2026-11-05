@@ -3,6 +3,7 @@ package io.github.nmanuelides.mtgreforged.engine
 import io.github.nmanuelides.mtgreforged.BuildConfig
 import io.github.nmanuelides.mtgreforged.platform.AppContext
 import io.github.nmanuelides.mtgreforged.platform.Log
+import io.github.nmanuelides.mtgreforged.platform.PLATFORM_NAME
 import io.github.nmanuelides.mtgreforged.platform.Prefs
 import io.github.nmanuelides.mtgreforged.platform.prefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +17,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
 import java.net.URLEncoder
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.concurrent.thread
 
@@ -51,6 +53,36 @@ object Relay {
     }
 
     private fun token(): String? = if (::prefs.isInitialized) prefs.getString("token", null) else null
+
+    /**
+     * At most once a day, tells the relay this install exists, to count installs: a random id made
+     * here, the platform and the app version, nothing else (see PRIVACY.md). Failures just try again next launch.
+     */
+    fun countInstall(context: AppContext) {
+        if (!configured) return
+        thread(isDaemon = true, name = "install-count") {
+            val install = context.prefs("install")
+            val now = System.currentTimeMillis()
+            if (now - install.getLong("pinged", 0L) < 86_400_000L) return@thread
+            val id = install.getString("id", null) ?: UUID.randomUUID().toString().replace("-", "").also { install.edit().putString("id", it).apply() }
+            val connection = URL("$RELAY_URL/ping").openConnection() as HttpURLConnection
+            try {
+                connection.requestMethod = "POST"
+                connection.doOutput = true
+                connection.connectTimeout = 10_000
+                connection.readTimeout = 15_000
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.setRequestProperty("User-Agent", "MTGReforged/${BuildConfig.VERSION_NAME}")
+                val body = JSONObject().put("id", id).put("platform", PLATFORM_NAME).put("version", BuildConfig.VERSION_NAME)
+                connection.outputStream.use { it.write(body.toString().toByteArray()) }
+                if (connection.responseCode == 200) install.edit().putLong("pinged", now).apply()
+            } catch (e: Exception) {
+                Log.w(TAG, "install count failed", e)
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
 
     /** Trades an access code for this device's token. Returns an error to show, or null. Call off the main thread. */
     fun activate(code: String, deviceName: String): String? {

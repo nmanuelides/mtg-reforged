@@ -32,6 +32,28 @@ export class Registry extends DurableObject {
       code TEXT PRIMARY KEY, note TEXT, created INTEGER, expires INTEGER, token TEXT, used INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS devices (
       token TEXT PRIMARY KEY, name TEXT, code TEXT, created INTEGER, last_seen INTEGER, revoked INTEGER DEFAULT 0)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS installs (
+      id TEXT PRIMARY KEY, platform TEXT, version TEXT, first_seen INTEGER, last_seen INTEGER)`);
+  }
+
+  /** One anonymous install saying it's alive: a random id, never an IP or anything about the player. */
+  ping(id, platform, version) {
+    const now = Date.now();
+    this.sql.exec(`INSERT INTO installs (id, platform, version, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET platform = excluded.platform, version = excluded.version, last_seen = excluded.last_seen`,
+      id, platform, version, now, now);
+    return { ok: true };
+  }
+
+  installs() {
+    const now = Date.now();
+    return {
+      platforms: this.sql.exec(`SELECT platform, COUNT(*) AS total,
+        SUM(last_seen > ?) AS active30, SUM(last_seen > ?) AS active7, SUM(first_seen > ?) AS new7
+        FROM installs GROUP BY platform ORDER BY total DESC`, now - 30 * 86400000, now - 7 * 86400000, now - 7 * 86400000).toArray(),
+      versions: this.sql.exec(`SELECT version, platform, COUNT(*) AS total FROM installs WHERE last_seen > ?
+        GROUP BY version, platform ORDER BY version DESC LIMIT 40`, now - 30 * 86400000).toArray(),
+    };
   }
 
   newCodes(count, days, note) {
@@ -173,6 +195,14 @@ export default {
       return json(result, result.error ? 403 : 200);
     }
 
+    if (path === "/ping" && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const id = String(body.id || "");
+      const platform = String(body.platform || "");
+      if (!/^[0-9a-f]{32}$/.test(id) || !["Android", "Windows"].includes(platform)) return json({ error: "Bad ping." }, 400);
+      return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20)));
+    }
+
     if (path === "/check") {
       return json({ ok: await registry.check(url.searchParams.get("token")) });
     }
@@ -218,6 +248,7 @@ export default {
       const body = await request.json().catch(() => ({}));
       switch (body.action) {
         case "list": return json(await registry.list());
+        case "installs": return json(await registry.installs());
         case "new": return json({ codes: await registry.newCodes(Math.min(Math.max(1, body.count | 0), 200), Math.max(1, body.days | 0 || 7), String(body.note || "")) });
         case "revoke": return json(await registry.revoke(String(body.token)));
         case "deleteCode": return json(await registry.deleteCode(String(body.code)));
@@ -245,10 +276,12 @@ const ADMIN_PAGE = `<!doctype html>
   #out { white-space:pre-wrap; font-family:ui-monospace, monospace; font-size:16px; }
   .scroll { overflow-x:auto; }
 </style></head><body>
-<h1>Online access codes</h1>
+<h1>Reforged admin</h1>
 <div class="row"><input id="key" type="password" placeholder="Admin key" autocomplete="current-password"><button onclick="load()">Load</button></div>
 <p class="muted">Set or change the admin key from the repo's <code>relay</code> folder:<br>
 <code>npx wrangler@4 secret put ADMIN_KEY</code></p>
+<h2>Installs</h2><div class="scroll"><table id="installs"></table></div>
+<h2>Active versions (last 30 days)</h2><div class="scroll"><table id="versions"></table></div>
 <h2>New codes</h2>
 <div class="row">
   <input id="count" type="number" value="5" min="1" max="200" style="width:80px"> codes,
@@ -271,6 +304,11 @@ const day = (t) => t ? new Date(t).toLocaleString() : "";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[c]);
 async function load() {
   const { codes, devices } = await api({ action:"list" });
+  const { platforms, versions } = await api({ action:"installs" });
+  document.getElementById("installs").innerHTML = "<tr><th>Platform</th><th>Total</th><th>Active 30 days</th><th>Active 7 days</th><th>New 7 days</th></tr>" +
+    platforms.map(p => "<tr><td>"+esc(p.platform)+"</td><td>"+p.total+"</td><td>"+p.active30+"</td><td>"+p.active7+"</td><td>"+p.new7+"</td></tr>").join("");
+  document.getElementById("versions").innerHTML = "<tr><th>Version</th><th>Platform</th><th>Installs</th></tr>" +
+    versions.map(v => "<tr><td>"+esc(v.version)+"</td><td>"+esc(v.platform)+"</td><td>"+v.total+"</td></tr>").join("");
   document.getElementById("devices").innerHTML = "<tr><th>Name</th><th>Code</th><th>Activated</th><th>Last seen</th><th></th></tr>" +
     devices.map(d => "<tr><td>"+esc(d.name)+"</td><td>"+esc(d.code)+"</td><td>"+day(d.created)+"</td><td>"+day(d.last_seen)+"</td><td>"+
       (d.revoked ? "<span class=muted>revoked</span>" : "<button class=small onclick=\\"revoke('"+d.token+"')\\">Revoke</button>")+"</td></tr>").join("");
