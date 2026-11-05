@@ -147,6 +147,8 @@ la página (también se previsualiza como artifact de Claude); `python build.py`
 documento completo y `netlify deploy --prod --dir _site` lo publica. Capturas en `website/img`, sacadas de
 BlueStacks (`HD-Adb -P 5038 -s 127.0.0.1:5555 exec-out screencap -p`). Siempre en tema claro (pedido del
 usuario). Vive fuera de `android/` para no disparar el build de CI.
+Español: diccionario `ES` en el script de `index.html`, con el HTML en inglés como clave (si cambia un texto,
+hay que cambiar su clave; sin entrada queda en inglés). Abre en el idioma del sistema o el elegido en el selector EN/ES.
 
 ## Pendiente / a confirmar con el usuario
 

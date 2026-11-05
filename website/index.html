@@ -175,6 +175,18 @@ img { max-width: 100%; display: block; }
 .hero-support svg { width: 1.05rem; height: 1.05rem; color: var(--terracotta); }
 @media (max-width: 640px) { .hero-support { position: relative; right: auto; bottom: auto; justify-self: center; margin-top: 1.4rem; } }
 
+.lang {
+  position: absolute; z-index: 3; display: flex; gap: 2px; padding: 3px; background: var(--paper-light);
+  top: max(12px, env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px));
+  border: 1.5px solid var(--line); box-shadow: 0 6px 14px -8px var(--shadow);
+}
+.lang button {
+  font-family: var(--display); font-weight: 600; font-size: .8rem; letter-spacing: .1em; min-width: 2.75rem; min-height: 2.25rem;
+  border: 0; background: none; color: var(--ink); cursor: pointer;
+}
+.lang button[aria-pressed="true"] { background: var(--terracotta); color: var(--on-accent); }
+.lang button:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
+
 /* ---- Chapters ---- */
 section { padding-block: clamp(3.5rem, 8vw, 6rem); position: relative; overflow: hidden; isolation: isolate; }
 .sect-art {
@@ -401,6 +413,10 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 
 <header class="hero">
   <div class="hero-art" aria-hidden="true"></div>
+  <div class="lang" role="group" aria-label="Language">
+    <button type="button" data-lang="en" lang="en" aria-label="English">EN</button>
+    <button type="button" data-lang="es" lang="es" aria-label="Español">ES</button>
+  </div>
   <canvas class="embers" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="plaque studs title-plaque tilt">
@@ -714,6 +730,131 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
 </footer>
 
 <script>
+// Spanish, keyed by the English markup on the page; anything without an entry stays in English.
+const ES = {
+"Forge engine": "Motor Forge",
+"Windows 10 &amp; 11": "Windows 10 y 11",
+"The only Magic: The Gathering app you'll ever need. Play Commander against up to three AI opponents, build decks from every card, keep your collection with real prices and look up any card in seconds, on your tablet, phone and PC.": "La única app de Magic: The Gathering que vas a necesitar. Juega Commander contra hasta tres oponentes de IA, arma mazos con todas las cartas, lleva tu colección con precios reales y busca cualquier carta en segundos, en tu tablet, teléfono y PC.",
+"Get it for Android<small>APK · tablets and phones<\/small>": "Descargar para Android<small>APK · tablets y teléfonos<\/small>",
+"Get it for Windows<small>Installer · Windows 10 and 11<\/small>": "Descargar para Windows<small>Instalador · Windows 10 y 11<\/small>",
+"About playing on a phone": "Sobre jugar en un teléfono",
+"About the Windows security warning": "Sobre la advertencia de seguridad de Windows",
+"Free and open source. Both apps update themselves from <a href=\"https://github.com/nmanuelides/mtg-reforged/releases\">GitHub releases<\/a>.": "Gratis y de código abierto. Las dos apps se actualizan solas desde las <a href=\"https://github.com/nmanuelides/mtg-reforged/releases\">versiones de GitHub<\/a>.",
+"Support the developer": "Apoya al desarrollador",
+"The table": "La mesa",
+"Play Commander against the AI": "Juega Commander contra la IA",
+"Forge's rules engine runs every card for real: the stack, priority, triggers, combat and state-based actions. The table around it was drawn from scratch for touch.": "El motor de reglas de Forge ejecuta cada carta de verdad: la pila, la prioridad, las habilidades disparadas, el combate y las acciones basadas en estado. La mesa que lo rodea se dibujó desde cero para pantallas táctiles.",
+"A four-player Commander game on turn 38: three opponents' boards across the top, the player's elves and lands below, and the hand along the bottom.": "Una partida de Commander a cuatro jugadores en el turno 38: los campos de tres oponentes arriba, los elfos y las tierras del jugador debajo, y la mano en la parte inferior.",
+"Turn 38 of a four-player Commander game.": "Turno 38 de una partida de Commander a cuatro jugadores.",
+"<b>One to three opponents<\/b> in Commander, each with their own deck, name and avatar.": "<b>De uno a tres oponentes<\/b> en Commander, cada uno con su mazo, nombre y avatar.",
+"<b>Undo, up to 20 steps.<\/b> Take back a land, a spell on the stack or an attack. Undo while paying a cost cancels the spell.": "<b>Deshacer, hasta 20 pasos.<\/b> Recupera una tierra, un hechizo en la pila o un ataque. Deshacer mientras pagas un coste cancela el hechizo.",
+"<b>Save and leave<\/b> any game and continue it later. Your undo steps come along.": "<b>Guarda y sal<\/b> de cualquier partida y sigue más tarde. Tus pasos para deshacer se conservan.",
+"<b>Clear combat.<\/b> Arrows from attackers to whoever they attack and from blockers to what they block. Struck cards shake, spells fly to their targets.": "<b>Combate claro.<\/b> Flechas de los atacantes a quien atacan y de los bloqueadores a lo que bloquean. Las cartas golpeadas se sacuden y los hechizos vuelan a sus objetivos.",
+"<b>Play with friends<\/b> <span class=\"soon\">Coming soon<\/span> on the same Wi-Fi: host a lobby, pick decks, fill empty seats with AI.": "<b>Juega con amigos<\/b> <span class=\"soon\">Próximamente<\/span> en la misma red Wi-Fi: crea una sala, elige mazos y completa los lugares libres con IA.",
+"The stack panel showing an opponent's Ransom Note waiting to resolve, with Resolve and End Turn plaques below.": "El panel de la pila con la Ransom Note de un oponente esperando para resolverse, y los botones Resolve y End Turn debajo.",
+"The stack shows what is waiting to resolve. Swipe to pass.": "La pila muestra lo que espera para resolverse. Desliza para pasar.",
+"Card lookup on the home screen: Sol Ring shown large with its Card Kingdom price of $2.79 and 135 printings.": "Búsqueda de cartas en la pantalla de inicio: Sol Ring en grande, con su precio de Card Kingdom de $2.79 y 135 impresiones.",
+"Look up any card from the home screen, with its cheapest price.": "Busca cualquier carta desde la pantalla de inicio, con su precio más bajo.",
+"The home screen with Serra angel art, the title plaque, the card search box and the Play button.": "La pantalla de inicio con arte de un ángel de Serra, el título, el buscador de cartas y el botón Play.",
+"New art every time you come home, and a dark theme for night games.": "Arte nuevo cada vez que vuelves al inicio, y un tema oscuro para jugar de noche.",
+"The workshop": "El taller",
+"Build decks from every card": "Arma mazos con todas las cartas",
+"A deck builder that searches like a database, prices like a store and reads like a binder.": "Un constructor de mazos que busca como una base de datos, pone precios como una tienda y se lee como una carpeta de cartas.",
+"The deck builder showing a 53-card Commander elf deck as card tiles with Card Kingdom prices and plus and minus buttons.": "El constructor de mazos con un mazo de elfos de Commander de 53 cartas, con precios de Card Kingdom y botones de más y menos.",
+"Every card in the deck with its price, sorted by type.": "Cada carta del mazo con su precio, ordenada por tipo.",
+"<b>Full search:<\/b> name, rules text, colours, colour identity, sets, keywords, legality, mana cost, types, power, toughness, rarity and artist.": "<b>Búsqueda completa:<\/b> nombre, texto de reglas, colores, identidad de color, ediciones, palabras clave, legalidad, coste de maná, tipos, fuerza, resistencia, rareza y artista.",
+"<b>Import<\/b> plain lists, Moxfield and ManaBox. Export to text or share.": "<b>Importa<\/b> listas de texto, Moxfield y ManaBox. Exporta a texto o comparte.",
+"<b>Card Kingdom prices<\/b>, updated daily, for regular and foil printings. One tap switches a deck to its cheapest printings.": "<b>Precios de Card Kingdom<\/b>, actualizados a diario, para impresiones normales y foil. Un toque cambia un mazo a sus impresiones más baratas.",
+"<b>Shopping list<\/b> of the cards you don't own yet, ready to copy or share.": "<b>Lista de compras<\/b> de las cartas que aún no tienes, lista para copiar o compartir.",
+"<b>Commanders<\/b> are picked with a star, and imports find the commander on their own.": "<b>Los comandantes<\/b> se eligen con una estrella, y al importar se detecta el comandante solo.",
+"The deck sheet for the Rhyzz deck: commander Rhys the Exiled, counts of creatures, spells and lands, a $200 value, and three key cards.": "La ficha del mazo Rhyzz: el comandante Rhys the Exiled, la cantidad de criaturas, hechizos y tierras, un valor de $200 y tres cartas clave.",
+"Each deck gets a sheet: commander, curve, value and key cards.": "Cada mazo tiene su ficha: comandante, curva, valor y cartas clave.",
+"The filters panel open beside the deck: exact-name match, hide duplicates, search in, finish, alchemy cards and sort options.": "El panel de filtros abierto junto al mazo: nombre exacto, ocultar duplicados, buscar en, acabado, cartas de Alchemy y opciones de orden.",
+"Filters Panel full of options to get what you need for your strategy.": "Un panel de filtros lleno de opciones para encontrar lo que tu estrategia necesita.",
+"The card viewer showing Vito, Thorn of the Dusk Rose large between its neighbours, printing 5 of 13, priced $13.99.": "El visor de cartas con Vito, Thorn of the Dusk Rose en grande entre sus vecinas, impresión 5 de 13, a $13.99.",
+"Swipe sideways through cards, up and down through printings.": "Desliza a los lados para cambiar de carta, y arriba y abajo para cambiar de impresión.",
+"The binder": "La carpeta",
+"Your collection, printing by printing": "Tu colección, impresión por impresión",
+"The home screen with vampire art, the title plaque, a card search box, the Play button and buttons for Commander, opponents, decks, collection and friends.": "La pantalla de inicio con arte de vampiros, el título, un buscador de cartas, el botón Play y botones para Commander, oponentes, mazos, colección y amigos.",
+"Home: look up a card, pick your format and opponents, play.": "Inicio: busca una carta, elige formato y oponentes, y juega.",
+"<b>Quick price check:<\/b> type any card in the search on the home screen to see it big with its cheapest Card Kingdom price, plus every printing and what each one costs.": "<b>Consulta rápida de precios:<\/b> escribe cualquier carta en el buscador de inicio para verla en grande con su precio más bajo en Card Kingdom, además de cada impresión y lo que cuesta.",
+"<b>Every printing and finish<\/b> is its own entry, so a foil and a regular copy of the same card are counted apart.": "<b>Cada impresión y acabado<\/b> es una entrada propia, así que una copia foil y una normal de la misma carta se cuentan por separado.",
+"<b>Foil cards shine<\/b>, with a holographic sweep across the art.": "<b>Las cartas foil brillan<\/b>, con un barrido holográfico sobre el arte.",
+"<b>Profiles:<\/b> your name and avatar, and avatars for each opponent, cropped from a photo or any card's art.": "<b>Perfiles:<\/b> tu nombre y avatar, y avatares para cada oponente, recortados de una foto o del arte de cualquier carta.",
+"Offline": "Sin conexión",
+"Play without a connection": "Juega sin conexión",
+"Download the card pictures ahead of time, and play, browse and build decks anywhere: on a plane, on the subway, or with bad Wi-Fi.": "Descarga las imágenes de las cartas con antelación y juega, explora y arma mazos en cualquier lugar: en un avión, en el metro o con mal Wi-Fi.",
+"The offline card images dialog: download the 21,581 pictures for every card in all decks, up to 1.9 GB, or one printing of every card, 33,860 pictures, up to 2.9 GB.": "El diálogo de imágenes sin conexión: descarga las 21.581 imágenes de todas las cartas de todos los mazos, hasta 1,9 GB, o una impresión de cada carta, 33.860 imágenes, hasta 2,9 GB.",
+"Pick what to download, see how big it is, and start.": "Elige qué descargar, mira cuánto pesa y empieza.",
+"<b>Every card in your decks<\/b>, plus the preconstructed ones you play against: everything you'll see in a match. About 21,600 pictures, up to 1.9 GB.": "<b>Todas las cartas de tus mazos<\/b>, más los preconstruidos contra los que juegas: todo lo que verás en una partida. Unas 21.600 imágenes, hasta 1,9 GB.",
+"<b>Every card in Magic:<\/b> one printing of each, to browse the whole card pool and build decks offline. About 33,900 pictures, up to 2.9 GB.": "<b>Todas las cartas de Magic:<\/b> una impresión de cada una, para explorar todas las cartas y armar mazos sin conexión. Unas 33.900 imágenes, hasta 2,9 GB.",
+"<b>Over Wi-Fi only<\/b>, in the background, so it never eats your mobile data.": "<b>Solo por Wi-Fi<\/b>, en segundo plano, para que nunca gaste tus datos móviles.",
+"<b>No need to finish in one go.<\/b> If the download stops halfway, start it again later and it picks up where it left off, skipping the pictures you already have.": "<b>No hace falta terminar de una vez.<\/b> Si la descarga se detiene a medias, iníciala de nuevo más tarde y seguirá donde quedó, saltando las imágenes que ya tienes.",
+"Backup &amp; restore": "Copia y restauración",
+"Your cards follow you": "Tus cartas te acompañan",
+"Save your collection and your decks to Google Drive, and bring them back on any phone, tablet or PC.": "Guarda tu colección y tus mazos en Google Drive, y recupéralos en cualquier teléfono, tablet o PC.",
+"The Backup and restore dialog: a Back up to Google Drive button, three dated backups with their card and deck counts and a Restore button each, and Save file and Open file for backups without Google Drive.": "El diálogo de copia y restauración: un botón para guardar en Google Drive, tres copias con su fecha, su cantidad de cartas y mazos y un botón para restaurar cada una, y opciones para guardar y abrir un archivo sin Google Drive.",
+"Every backup is listed with its date, cards and decks.": "Cada copia aparece con su fecha, cartas y mazos.",
+"<b>One tap to Google Drive.<\/b> Your collection and the decks you made are saved in your own Drive.": "<b>Un toque a Google Drive.<\/b> Tu colección y los mazos que armaste se guardan en tu propio Drive.",
+"<b>Restore on any device<\/b> signed in with the same Google account.": "<b>Restaura en cualquier dispositivo<\/b> con la misma cuenta de Google.",
+"<b>Pick the backup<\/b> to bring back: each one shows when it was made and how many cards and decks it holds.": "<b>Elige la copia<\/b> que quieres recuperar: cada una muestra cuándo se hizo y cuántas cartas y mazos tiene.",
+"<b>No Google account needed:<\/b> save the backup as a file and open it on another device.": "<b>No necesitas cuenta de Google:<\/b> guarda la copia como archivo y ábrela en otro dispositivo.",
+"Where to play": "Dónde jugar",
+"One game, two homes": "Un juego, dos hogares",
+"Android and Windows are built from the same code, with the same screens and decks.": "Android y Windows se construyen con el mismo código, con las mismas pantallas y mazos.",
+"Made for tablets: pinch to zoom card grids, hold a card to see it big, swipe to pass priority.": "Hecho para tablets: pellizca para hacer zoom en las cartas, mantén presionada una carta para verla en grande y desliza para pasar la prioridad.",
+"Download the APK": "Descargar el APK",
+"Its own installer, and it keeps itself up to date. Plays with the mouse and keyboard.": "Tiene su propio instalador y se mantiene actualizado solo. Se juega con mouse y teclado.",
+"Download the installer": "Descargar el instalador",
+"Support": "Apoyo",
+"Buy the developer a coffee": "Invítale un café al desarrollador",
+"MTG Reforged is made by one developer, in his spare time. It's free and has no ads. If it makes your games better, a small donation helps keep it growing.": "MTG Reforged lo hace un solo desarrollador, en su tiempo libre. Es gratis y no tiene publicidad. Si mejora tus partidas, una pequeña donación ayuda a que siga creciendo.",
+"From Argentina": "Desde Argentina",
+"Transfer to the Mercado Pago alias from any bank or wallet app. Transfers are free, so all of it arrives.": "Transfiere al alias de Mercado Pago desde cualquier banco o billetera. Las transferencias son gratis, así que llega todo.",
+"Copy alias": "Copiar alias",
+"Copied": "Copiado",
+"Press Ctrl+C": "Presiona Ctrl+C",
+"Mercado Pago (opens in a new tab)": "Mercado Pago (se abre en una pestaña nueva)",
+"Credits": "Créditos",
+"Built on Forge": "Hecho sobre Forge",
+"Every rule, every card script and every AI opponent in MTG Reforged comes from <a href=\"https://github.com/Card-Forge/forge\">Forge<\/a>, the open-source Magic: The Gathering engine its community has been building for more than fifteen years.": "Cada regla, cada script de carta y cada oponente de IA de MTG Reforged viene de <a href=\"https://github.com/Card-Forge/forge\">Forge<\/a>, el motor de Magic: The Gathering de código abierto que su comunidad construye desde hace más de quince años.",
+"The engine is Forge's own code, merged from Card-Forge/forge every day and compiled without changes, so new cards and rules fixes arrive as soon as Forge has them.": "El motor es el código de Forge, incorporado desde Card-Forge/forge todos los días y compilado sin cambios, así que las cartas nuevas y las correcciones de reglas llegan en cuanto Forge las tiene.",
+"Everything around it is MTG Reforged's own work. Besides a new interface designed for touch and mouse, it adds a lot that Forge doesn't have: undo up to 20 steps that survives saving, a collection that tracks every printing and foil, daily Card Kingdom prices, deck imports from Moxfield and ManaBox, cheapest-printing and shopping lists, Google Drive backup, profiles and avatars, offline card images, combat arrows and impact animations, and apps that update themselves.": "Todo lo que lo rodea es trabajo propio de MTG Reforged. Además de una interfaz nueva pensada para pantalla táctil y mouse, agrega mucho que Forge no tiene: deshacer hasta 20 pasos que sobrevive al guardado, una colección que registra cada impresión y foil, precios diarios de Card Kingdom, importación de mazos de Moxfield y ManaBox, listas de impresiones más baratas y de compras, copia de seguridad en Google Drive, perfiles y avatares, imágenes de cartas sin conexión, flechas de combate y animaciones de impacto, y apps que se actualizan solas.",
+"Thank you to everyone who has written for Forge. Like Forge, MTG Reforged is free software under the <a href=\"https://github.com/nmanuelides/mtg-reforged/blob/master/LICENSE\">GNU GPL v3<\/a>.": "Gracias a todos los que han escrito para Forge. Como Forge, MTG Reforged es software libre bajo la <a href=\"https://github.com/nmanuelides/mtg-reforged/blob/master/LICENSE\">GNU GPL v3<\/a>.",
+"Visit Forge on GitHub": "Visita Forge en GitHub",
+"<b>Scryfall<\/b>Card images.": "<b>Scryfall<\/b>Imágenes de las cartas.",
+"<b>Card Kingdom<\/b>Daily card prices.": "<b>Card Kingdom<\/b>Precios diarios de las cartas.",
+"<b>keldon-market<\/b>The holographic foil shine.": "<b>keldon-market<\/b>El brillo holográfico de las cartas foil.",
+"<b>The art on this page<\/b><span class=\"credit\">Tiamat by Chris Rahn.<\/span><span class=\"credit\">Rite of the Dragoncaller by Olivier Bernard.<\/span><span class=\"credit\">Kozilek, Butcher of Truth by Michael Komarck.<\/span>": "<b>El arte de esta página<\/b><span class=\"credit\">Tiamat, de Chris Rahn.<\/span><span class=\"credit\">Rite of the Dragoncaller, de Olivier Bernard.<\/span><span class=\"credit\">Kozilek, Butcher of Truth, de Michael Komarck.<\/span>",
+"<b>Wizards of the Coast<\/b>Magic: The Gathering, its card names, text and art are property of Wizards of the Coast. MTG Reforged is an unofficial fan project, not produced, endorsed or supported by Wizards of the Coast.": "<b>Wizards of the Coast<\/b>Magic: The Gathering, los nombres, textos y arte de sus cartas son propiedad de Wizards of the Coast. MTG Reforged es un proyecto no oficial de fans, no producido, avalado ni respaldado por Wizards of the Coast.",
+"Android phones": "Teléfonos Android",
+"Best played on a tablet": "Se disfruta más en una tablet",
+"A Commander table with four players needs room. On a phone the cards and controls get too small to play comfortably.": "Una mesa de Commander con cuatro jugadores necesita espacio. En un teléfono, las cartas y los controles quedan demasiado chicos para jugar cómodo.",
+"A phone is still a great companion: look up any card and its price, keep your collection up to date and build decks wherever you are, then play them on your tablet or PC.": "Aun así, el teléfono es un gran compañero: busca cualquier carta y su precio, mantén tu colección al día y arma mazos donde estés, y después juégalos en tu tablet o PC.",
+"Got it": "Entendido",
+"Installing on Windows": "Instalar en Windows",
+"Windows may warn you about the installer": "Windows puede advertirte sobre el instalador",
+"When you open the installer, Windows may show a blue screen saying <b>“Windows protected your PC”<\/b>. Windows shows it for apps from independent developers that haven't paid for a code-signing certificate. It doesn't mean anything harmful was found.": "Al abrir el instalador, Windows puede mostrar una pantalla azul que dice <b>“Windows protegió tu PC”<\/b>. Windows la muestra con apps de desarrolladores independientes que no pagaron un certificado de firma de código. No significa que se haya encontrado algo dañino.",
+"Windows protected your PC": "Windows protegió tu PC",
+"Microsoft Defender SmartScreen prevented an unrecognized app from starting.": "Microsoft Defender SmartScreen impidió que se iniciara una aplicación no reconocida.",
+"More info": "Más información",
+"Run anyway": "Ejecutar de todas formas",
+"Don't run": "No ejecutar",
+"MTG Reforged is safe to install. It's open source, so anyone can read its code on <a href=\"https://github.com/nmanuelides/mtg-reforged\">GitHub<\/a>, and the installer is built from that code by GitHub's own servers. It has no ads or analytics and collects no personal data.": "MTG Reforged es seguro de instalar. Es de código abierto, así que cualquiera puede leer su código en <a href=\"https://github.com/nmanuelides/mtg-reforged\">GitHub<\/a>, y el instalador lo generan los propios servidores de GitHub a partir de ese código. No tiene publicidad ni analíticas y no recopila datos personales.",
+"Click <b>More info<\/b>.": "Haz clic en <b>Más información<\/b>.",
+"Click <b>Run anyway<\/b>.": "Haz clic en <b>Ejecutar de todas formas<\/b>.",
+"Screenshots": "Capturas",
+"Screenshot": "Captura",
+"Close": "Cerrar",
+"Previous screenshot": "Captura anterior",
+"Next screenshot": "Captura siguiente",
+"MTG Reforged by Magatsu · <a href=\"https://github.com/nmanuelides/mtg-reforged\">Source on GitHub<\/a> · <a href=\"https://github.com/nmanuelides/mtg-reforged/blob/master/android/PRIVACY.md\">Privacy<\/a>": "MTG Reforged por Magatsu · <a href=\"https://github.com/nmanuelides/mtg-reforged\">Código en GitHub<\/a> · <a href=\"https://github.com/nmanuelides/mtg-reforged/blob/master/android/PRIVACY.md\">Privacidad<\/a>",
+"Language": "Idioma",
+"Magic: The Gathering for Android and Windows 10/11, played on the Forge rules engine. Commander against up to three AI opponents, a full deck builder, your collection with prices, and undo.": "Magic: The Gathering para Android y Windows 10/11, con el motor de reglas Forge. Commander contra hasta tres oponentes de IA, un constructor de mazos completo, tu colección con precios y deshacer."
+};
+let lang = "en";
+const tr = (text) => (lang === "es" && ES[text]) || text;
+
 (() => {
   const shots = [...document.querySelectorAll("figure.mount")];
   const dlg = document.getElementById("carousel");
@@ -983,10 +1124,39 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
   const label = document.getElementById("alias-label");
   const alias = document.getElementById("alias");
   btn.addEventListener("click", () => {
-    const done = () => { label.textContent = "Copied"; setTimeout(() => { label.textContent = "Copy alias"; }, 2000); };
-    const select = () => { const r = document.createRange(); r.selectNodeContents(alias); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); label.textContent = "Press Ctrl+C"; };
+    const done = () => { label.textContent = tr("Copied"); setTimeout(() => { label.textContent = tr("Copy alias"); }, 2000); };
+    const select = () => { const r = document.createRange(); r.selectNodeContents(alias); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); label.textContent = tr("Press Ctrl+C"); };
     if (navigator.clipboard) navigator.clipboard.writeText(alias.textContent.trim()).then(done, select);
     else select();
   });
+})();
+(() => {
+  // The page opens in the visitor's choice, else the system's language (Spanish or English).
+  const texts = [...document.querySelectorAll(`.tag > span:not(.diamond), .lede, .fine, .lbl, .hero-support span, .eyebrow, h2, h3,
+    .chapter-head p, figcaption, .feats li > span, .fill > span, .platform p, .dl-row a.btn, .donate-text p, #alias-label, .forge p,
+    .forge a.btn, .thanks li, .note-body p, .steps li, [data-close], .ss-title, .ss-text, .ss-link, .ss-buttons span, footer p`)]
+    .map((el) => ({ el, en: el.innerHTML.trim() }));
+  const attrs = ["alt", "aria-label", "title"].flatMap((name) => [...document.querySelectorAll(`[${name}]:not([lang]):not(#c-dots button)`)]
+    .map((el) => ({ el, name, en: el.getAttribute(name) })));
+  const description = document.querySelector('meta[name="description"]');
+  const descriptionEn = description.content;
+  const buttons = [...document.querySelectorAll("[data-lang]")];
+  const apply = (code) => {
+    lang = code;
+    document.documentElement.lang = code;
+    for (const { el, en } of texts) el.innerHTML = tr(en);
+    for (const { el, name, en } of attrs) if (en) el.setAttribute(name, tr(en));
+    description.content = tr(descriptionEn);
+    [...document.getElementById("c-dots").children].forEach((d, i) => d.setAttribute("aria-label", tr("Screenshot") + " " + (i + 1)));
+    buttons.forEach((b) => b.setAttribute("aria-pressed", b.dataset.lang === code ? "true" : "false"));
+  };
+  let saved = null;
+  try { saved = localStorage.getItem("lang"); } catch {}
+  const system = (navigator.languages ?? [navigator.language]).find((l) => /^(es|en)\b/i.test(l)) ?? "en";
+  apply(saved === "es" || saved === "en" ? saved : system.slice(0, 2).toLowerCase());
+  buttons.forEach((b) => b.addEventListener("click", () => {
+    apply(b.dataset.lang);
+    try { localStorage.setItem("lang", b.dataset.lang); } catch {}
+  }));
 })();
 </script>
