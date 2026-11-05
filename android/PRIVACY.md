@@ -3,8 +3,8 @@
 _Last updated: 2026-11-05_
 
 MTG Reforged is a free, open-source Magic: The Gathering app for Android. It has no accounts
-and no ads, and the developer does not collect or receive any personal data. The only thing it
-reports is an anonymous install count (see below).
+and no ads, and the developer does not collect or receive any personal data, unless you choose
+to send a bug report. Otherwise the only thing it reports is an anonymous install count (see below).
 
 ## What stays on your device
 Your decks, card collection, saved matches, profile name and avatars are stored only on your
@@ -29,6 +29,13 @@ the app when it first runs, the platform (Android or Windows) and the app versio
 linked to you, your device, your Google account or your decks, and it's used only to count how
 many installs are active and which versions they run. The server doesn't store your IP address.
 Uninstalling the app deletes the ID from your device.
+
+## Bug reports (optional)
+If you choose **Report a bug**, the app needs your Google account connected. Your report goes to
+the developer with your Google name and email address, your platform and the app version, so the
+developer can answer you. It's delivered through Telegram. To confirm who is sending it, the
+project's server briefly uses the app's Google access token, without storing it. The server keeps a
+scrambled (hashed) form of your email for one day, only to limit how many reports can be sent.
 
 ## Contact
 Questions: open an issue at https://github.com/nmanuelides/mtg-reforged/issues

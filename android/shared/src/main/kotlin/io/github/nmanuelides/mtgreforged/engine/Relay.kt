@@ -84,6 +84,35 @@ object Relay {
         }
     }
 
+    /**
+     * Sends a bug report to the developer. The relay asks Google who [googleToken] belongs to, so
+     * they can answer, and limits how often one account can send. Returns an error to show, or null.
+     * Call off the main thread.
+     */
+    fun reportBug(googleToken: String, text: String): String? {
+        if (!configured) return "Bug reports aren't available in this build."
+        val connection = URL("$RELAY_URL/report").openConnection() as HttpURLConnection
+        return try {
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 20_000
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("User-Agent", "MTGReforged/${BuildConfig.VERSION_NAME}")
+            val body = JSONObject().put("token", googleToken).put("text", text).put("platform", PLATFORM_NAME).put("version", BuildConfig.VERSION_NAME)
+            connection.outputStream.use { it.write(body.toString().toByteArray()) }
+            if (connection.responseCode == 200) null else {
+                val answer = connection.errorStream?.use { String(it.readBytes()) }.orEmpty()
+                runCatching { JSONObject(answer).optString("error") }.getOrNull()?.ifBlank { null } ?: "Couldn't send the report (error ${connection.responseCode})."
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "report failed", e)
+            "Couldn't reach the online service. Check your connection."
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     /** Trades an access code for this device's token. Returns an error to show, or null. Call off the main thread. */
     fun activate(code: String, deviceName: String): String? {
         if (!configured) return "Online play isn't available in this build."

@@ -599,6 +599,12 @@
       "title": "v1.54 · Anonymous install count",
       "body": "The app now tells our server once a day that an install is active: a random ID, the platform and the app version, nothing else. It helps us know how many people use the app. Details are in the privacy policy.",
       "link": null
+    },
+    {
+      "id": "v1.55.0",
+      "title": "v1.55 · Report a bug",
+      "body": "Found something wrong? Open your profile and tap Report a bug to send it straight to the developer. It needs your Google account connected, so the developer can answer you by email.",
+      "link": null
     }
   ]
 }

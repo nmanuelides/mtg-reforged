@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -92,6 +93,7 @@ fun AvatarImage(seat: Int, fallback: String, modifier: Modifier) {
 fun ProfileDialog(update: UpdateUi, onCheckUpdate: suspend () -> UpdateUi, onInstallUpdate: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(Profiles.name) }
     var editing by remember { mutableStateOf<Int?>(null) }
+    var reporting by remember { mutableStateOf(false) }
     OrnateDialog(onDismiss = { Profiles.name = name; onDismiss() }, maxWidth = 620.dp) {
         SectionLabel("Profile")
         Spacer(Modifier.height(12.dp))
@@ -113,6 +115,9 @@ fun ProfileDialog(update: UpdateUi, onCheckUpdate: suspend () -> UpdateUi, onIns
         Spacer(Modifier.height(16.dp))
         UpdateCheck(update, onCheckUpdate, onInstallUpdate)
         Spacer(Modifier.height(16.dp))
+        OrnateButton("Report a bug", { reporting = true }, Modifier.fillMaxWidth(), icon = Icons.Default.BugReport, accent = Palette.Slate)
+        if (reporting) BugReportDialog { reporting = false }
+        Spacer(Modifier.height(10.dp))
         OrnateButton("Done", { Profiles.name = name; onDismiss() }, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
     }
     editing?.let { seat -> AvatarEditor(seat) { editing = null } }

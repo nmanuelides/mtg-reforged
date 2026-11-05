@@ -13,6 +13,9 @@ import { DurableObject } from "cloudflare:workers";
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const MAX_GUESTS = 6; // tunnels per room: 3 friends, with room for a reconnect each
+const REPORT_GAP = 2 * 60000; // between two bug reports from one person
+const REPORTS_PER_DAY = 5; // from one person
+const REPORTS_PER_DAY_ALL = 100; // from everyone: the last line against a flood
 
 function randomString(alphabet, length) {
   const bytes = crypto.getRandomValues(new Uint8Array(length));
@@ -34,6 +37,25 @@ export class Registry extends DurableObject {
       token TEXT PRIMARY KEY, name TEXT, code TEXT, created INTEGER, last_seen INTEGER, revoked INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS installs (
       id TEXT PRIMARY KEY, platform TEXT, version TEXT, first_seen INTEGER, last_seen INTEGER)`);
+    this.sql.exec("CREATE TABLE IF NOT EXISTS reports (who TEXT, at INTEGER)");
+  }
+
+  /** Why [who] (a hash of the Google account) can't send a bug report now, or null if they can. */
+  reportBlocked(who) {
+    const now = Date.now();
+    this.sql.exec("DELETE FROM reports WHERE at < ?", now - 86400000);
+    const mine = this.sql.exec("SELECT at FROM reports WHERE who = ? ORDER BY at DESC", who).toArray();
+    if (mine.length >= REPORTS_PER_DAY) return "You've reached today's limit of reports. Try again tomorrow.";
+    if (mine.length && now - mine[0].at < REPORT_GAP) {
+      const minutes = Math.ceil((REPORT_GAP - (now - mine[0].at)) / 60000);
+      return `You just sent a report. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+    }
+    const all = this.sql.exec("SELECT COUNT(*) AS n FROM reports").one().n;
+    return all >= REPORTS_PER_DAY_ALL ? "Too many reports today. Try again tomorrow." : null;
+  }
+
+  reportSent(who) {
+    this.sql.exec("INSERT INTO reports (who, at) VALUES (?, ?)", who, Date.now());
   }
 
   /** One anonymous install saying it's alive: a random id, never an IP or anything about the player. */
@@ -178,6 +200,21 @@ export class Room extends DurableObject {
   }
 }
 
+/** The Google account behind a Drive token, asked of Google so the app can't claim to be someone else. */
+async function googleUser(token) {
+  const response = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)", {
+    headers: { authorization: "Bearer " + token },
+  });
+  if (!response.ok) return null;
+  const { user } = await response.json();
+  return user?.emailAddress ? user : null;
+}
+
+async function sha256(text) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function isAdmin(request, env) {
   return env.ADMIN_KEY && request.headers.get("x-admin-key") === env.ADMIN_KEY;
 }
@@ -201,6 +238,32 @@ export default {
       const platform = String(body.platform || "");
       if (!/^[0-9a-f]{32}$/.test(id) || !["Android", "Windows"].includes(platform)) return json({ error: "Bad ping." }, 400);
       return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20)));
+    }
+
+    // Bug report: goes to the developer's Telegram with the sender's verified Google account.
+    if (path === "/report" && request.method === "POST") {
+      if (!env.TELEGRAM_TOKEN || !env.TELEGRAM_CHAT) return json({ error: "Bug reports aren't available right now." }, 503);
+      const body = await request.json().catch(() => ({}));
+      const text = String(body.text || "").trim().slice(0, 1000);
+      if (!text) return json({ error: "Write what happened first." }, 400);
+      const user = await googleUser(String(body.token || ""));
+      if (!user) return json({ error: "Couldn't verify your Google account. Connect it from Backup and try again." }, 401);
+      const who = await sha256(user.emailAddress.toLowerCase());
+      const blocked = await registry.reportBlocked(who);
+      if (blocked) return json({ error: blocked }, 429);
+      const about = String(body.platform || "?").slice(0, 20) + " · v" + String(body.version || "?").slice(0, 20);
+      const sent = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chat_id: env.TELEGRAM_CHAT,
+          text: `🐞 Bug report\n${user.displayName || ""} <${user.emailAddress}>\n${about}\n\n${text}`,
+          link_preview_options: { is_disabled: true },
+        }),
+      });
+      if (!sent.ok) return json({ error: "Couldn't send the report. Try again later." }, 502);
+      await registry.reportSent(who);
+      return json({ ok: true });
     }
 
     if (path === "/check") {
