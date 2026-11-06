@@ -32,7 +32,7 @@ import io.github.nmanuelides.mtgreforged.platform.loadImageRes
  */
 object PaperTexture {
     /** How strongly the paper shows through on backgrounds. */
-    const val STRENGTH = 0.35f
+    const val STRENGTH = 0.22f
 
     /** Buttons, bars and panels: much fainter, so they read as their own pieces of paper. */
     const val ELEMENT_STRENGTH = 0.14f

@@ -53,7 +53,7 @@ object Palette {
     val PaperLight get() = pick(0xFFF8E2C2, 0xFF3A2E25)
     val PaperDeep get() = pick(0xFFE7C595, 0xFF221A15)
     val Ink get() = pick(0xFF3A2E26, 0xFFEADBC0)
-    val InkSoft get() = pick(0xFF7A6656, 0xFFB9A587)
+    val InkSoft get() = pick(0xFF54433A, 0xFFD2C1A4)
     val Line get() = pick(0xFFC09A82, 0xFF6E5745)
     val LineStrong get() = pick(0xFFB0705A, 0xFFB4876A)
 
@@ -134,12 +134,12 @@ private val typography = Typography(
     titleLarge = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, letterSpacing = 1.sp),
     titleMedium = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, letterSpacing = 0.8.sp),
     titleSmall = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.8.sp),
-    bodyLarge = TextStyle(fontFamily = Garamond, fontSize = 18.sp, lineHeight = 24.sp),
-    bodyMedium = TextStyle(fontFamily = Garamond, fontSize = 16.sp, lineHeight = 21.sp),
-    bodySmall = TextStyle(fontFamily = Garamond, fontSize = 14.sp, lineHeight = 18.sp),
+    bodyLarge = TextStyle(fontFamily = Garamond, fontWeight = FontWeight.Medium, fontSize = 19.sp, lineHeight = 25.sp),
+    bodyMedium = TextStyle(fontFamily = Garamond, fontWeight = FontWeight.Medium, fontSize = 17.sp, lineHeight = 23.sp),
+    bodySmall = TextStyle(fontFamily = Garamond, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 20.sp),
     labelLarge = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, letterSpacing = 1.sp),
     labelMedium = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 0.8.sp),
-    labelSmall = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, letterSpacing = 0.8.sp),
+    labelSmall = TextStyle(fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, letterSpacing = 0.8.sp),
 )
 
 @Composable

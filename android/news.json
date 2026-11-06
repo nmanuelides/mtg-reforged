@@ -605,6 +605,12 @@
       "title": "v1.55 · Report a bug",
       "body": "Found something wrong? Open your profile and tap Report a bug to send it straight to the developer. It needs your Google account connected, so the developer can answer you by email.",
       "link": null
+    },
+    {
+      "id": "v1.56.0",
+      "title": "v1.56 · Easier to read",
+      "body": "Text across the app is larger, thicker and darker, and the paper texture behind it is softer.",
+      "link": null
     }
   ]
 }
