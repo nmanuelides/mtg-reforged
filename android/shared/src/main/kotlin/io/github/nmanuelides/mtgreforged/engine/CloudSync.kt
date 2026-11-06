@@ -66,7 +66,7 @@ object CloudSync {
                 // Forge's paths (ForgeConstants) mustn't be touched before the engine has set them up.
                 if (Engine.status.value != Engine.Status.Ready) continue
                 val now = runCatching { signature() }.getOrNull() ?: continue
-                if (now != syncedSignature && now == previous && _status.value.connected) sync()
+                if (now != syncedSignature && now == previous && _status.value.connected && Relay.shareChoice(context) == true) sync()
                 previous = now
             }
         }
@@ -84,6 +84,11 @@ object CloudSync {
         if (t == null) {
             _status.value = _status.value.copy(connected = false)
             return@withLock "Not connected to Google Drive."
+        }
+        // Sync comes with sharing the account: see SharingNotice.
+        if (::appContext.isInitialized && Relay.shareChoice(appContext) != true) {
+            _status.value = _status.value.copy(connected = true, syncing = false, error = null)
+            return@withLock "Sync needs you to accept sharing your account."
         }
         _status.value = _status.value.copy(connected = true, syncing = true, error = null)
         val error = runCatching { syncWith(t) }.exceptionOrNull()?.let {

@@ -92,9 +92,13 @@ fun BackupDialog(onDismiss: () -> Unit) {
     val refresh = driveJob { t -> backups = DriveBackup.list(t) }
 
     val driveToken = rememberDriveToken()
+    // Google Drive needs the sharing notice accepted; files saved by hand don't.
+    var accepted by remember { mutableStateOf(Relay.shareChoice(context) == true) }
+    var asking by remember { mutableStateOf(!accepted) }
 
     /** Runs [action] with a Drive token, asking the user for access the first time. */
     fun withDrive(action: (String) -> Unit) {
+        if (!accepted) { asking = true; return }
         token?.let { action(it); return }
         scope.launch {
             busy = true
@@ -106,11 +110,9 @@ fun BackupDialog(onDismiss: () -> Unit) {
     }
 
     // List the Drive backups straight away (asks for access the first time), and start syncing.
-    var answered by remember { mutableStateOf(Relay.shareChoice(context) != null) }
-    if (!answered) SharingNotice { answered = true }
-    LaunchedEffect(answered) { if (answered) withDrive { t -> refresh(t); CloudSync.syncSoon(t) } }
+    if (asking) SharingNotice { asking = false; accepted = Relay.shareChoice(context) == true }
+    LaunchedEffect(accepted) { if (accepted) withDrive { t -> refresh(t); CloudSync.syncSoon(t) } }
     val sync by CloudSync.status.collectAsState()
-    var sharing by remember(answered) { mutableStateOf(Relay.shareChoice(context) == true) }
 
     // Plain-file fallback.
     val saveFile = rememberCreateDocument("application/json") { open ->
@@ -145,6 +147,7 @@ fun BackupDialog(onDismiss: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         Text(
             when {
+                !accepted -> "Sync and Google backups are off."
                 sync.syncing -> "Syncing…"
                 sync.error != null -> "Last sync failed: ${sync.error}"
                 !sync.connected -> "Sync starts once Google Drive is connected."
@@ -170,21 +173,18 @@ fun BackupDialog(onDismiss: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Share my account with the developers", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
-                Text("Your Google name and email, and your app and system versions, to help fix errors and improve the app.", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+                Text("Needed for sync and Google backups: your Google name and email, and your app and system versions.", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
             }
             Switch(
-                sharing,
+                accepted,
                 { on ->
-                    withDrive(driveJob { t ->
-                        if (on) {
-                            Relay.setShareChoice(context, true)
-                            CloudSync.syncSoon(t)
-                        } else {
-                            // Deleted first: the switch only goes off once the relay has forgotten them.
-                            if (!withContext(Dispatchers.IO) { Relay.forgetProfile(context, t) }) error("Couldn't delete your shared details. Try again.")
-                            Relay.setShareChoice(context, false)
-                        }
-                        sharing = on
+                    if (on) asking = true else withDrive(driveJob { t ->
+                        // Deleted first: the switch only goes off once the relay has forgotten them.
+                        if (!withContext(Dispatchers.IO) { Relay.forgetProfile(context, t) }) error("Couldn't delete your shared details. Try again.")
+                        Relay.setShareChoice(context, false)
+                        accepted = false
+                        backups = null
+                        status = "Sharing is off, and so are sync and Google backups."
                     })
                 },
                 enabled = !busy,
@@ -282,7 +282,7 @@ fun SyncOnHome() {
     if (sync.connected && !answered) SharingNotice { answered = true }
 }
 
-/** Says what connecting Google shares with the developer, before it happens, and lets the player say no. */
+/** Says what sync and Google backups share with the developers, before it happens. Without a yes they stay off. */
 @Composable
 private fun SharingNotice(onAnswer: () -> Unit) {
     val context = LocalAppContext.current
@@ -291,16 +291,17 @@ private fun SharingNotice(onAnswer: () -> Unit) {
         SectionLabel("Your Google account")
         Spacer(Modifier.height(10.dp))
         Text(
-            "If you agree, your Google name and email, the app version and your ${if (IS_DESKTOP) "Windows" else "Android"} version are shared with " +
-                "the developers. They will NOT be shared with anyone, and are used only for practical purposes: fixing errors and improving your experience with the app.",
+            "MTG Reforged is free. To use sync and Google Drive backups, your Google name and email, the app version and your " +
+                "${if (IS_DESKTOP) "Windows" else "Android"} version are shared with the developers. They will NOT be shared with anyone, " +
+                "and are used only for practical purposes: fixing errors and improving your experience with the app.",
             style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
         )
         Spacer(Modifier.height(8.dp))
-        Text("Sync and backups work either way. You can change this at any time in Backup & restore.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        Text("You can stop at any time in Backup & restore, which also turns these off. Saving a backup to a file works without this.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OrnateButton("Don't share", { answer(false) }, Modifier.weight(1f), accent = Palette.Slate)
-            OrnateButton("Share", { answer(true) }, Modifier.weight(1f), style = OrnateStyle.Primary)
+            OrnateButton("Not now", { answer(false) }, Modifier.weight(1f), accent = Palette.Slate)
+            OrnateButton("Accept", { answer(true) }, Modifier.weight(1f), style = OrnateStyle.Primary)
         }
     }
 }
