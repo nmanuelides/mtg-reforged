@@ -11,8 +11,8 @@ import io.github.nmanuelides.mtgreforged.platform.prefs
 import io.github.nmanuelides.mtgreforged.platform.AppContext
 
 /**
- * Messages from the developer to every player: android/news.json in the GitHub repo, read
- * when the app opens. Each message shows once (remembered by its id).
+ * Messages from the developer to every player: android/news.json in the GitHub repo and the ones
+ * written on the relay's /admin page, read when the app opens. Each shows once (remembered by its id).
  */
 object News {
     /** [ids]: every message it stands for (several changelog entries shown as one). */
@@ -30,28 +30,9 @@ object News {
     fun refresh(context: AppContext) {
         val prefs = context.prefs(PREFS)
         val seen = prefs.getStringSet(KEY_SEEN, emptySet()).orEmpty()
-        val items = runCatching {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            connection.useCaches = false
-            try {
-                if (connection.responseCode != 200) return
-                val json = JSONObject(connection.inputStream.bufferedReader().readText())
-                val list = json.optJSONArray("messages") ?: return
-                (0 until list.length()).map { i ->
-                    val m = list.getJSONObject(i)
-                    Item(
-                        id = m.getString("id"),
-                        title = m.optString("title"),
-                        body = m.optString("body"),
-                        link = m.optString("link").takeIf { it.isNotBlank() && it != "null" },
-                    )
-                }
-            } finally {
-                connection.disconnect()
-            }
-        }.getOrNull() ?: return
+        val sources = listOfNotNull(url, Relay.messagesUrl.takeIf { Relay.configured }).map(::read)
+        if (sources.all { it == null }) return
+        val items = sources.filterNotNull().flatten()
         val fresh = items.filter { it.id !in seen && isForInstalledVersion(it.id) }
         // Every version's changelog missed (after skipping several updates) in one message, newest first.
         val (changelogs, others) = fresh.partition { VERSION.containsMatchIn(it.id) }
@@ -68,6 +49,30 @@ object News {
         }
         _unseen.value = others + listOfNotNull(changelog)
     }
+
+    /** The messages at [source], or null when it can't be read. */
+    private fun read(source: String): List<Item>? = runCatching {
+        val connection = URL(source).openConnection() as HttpURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        connection.useCaches = false
+        try {
+            if (connection.responseCode != 200) return null
+            val json = JSONObject(connection.inputStream.bufferedReader().readText())
+            val list = json.optJSONArray("messages") ?: return null
+            (0 until list.length()).map { i ->
+                val m = list.getJSONObject(i)
+                Item(
+                    id = m.getString("id"),
+                    title = m.optString("title"),
+                    body = m.optString("body"),
+                    link = m.optString("link").takeIf { it.isNotBlank() && it != "null" },
+                )
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }.getOrNull()
 
     /**
      * A changelog entry ("v0.82.0") belongs to that version: it shows only once that version (or a

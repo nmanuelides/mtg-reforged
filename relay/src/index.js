@@ -9,6 +9,7 @@
 // redeemed for a device token. Joining a room only needs the room code.
 
 import { DurableObject } from "cloudflare:workers";
+import ADMIN_PAGE from "./admin.html";
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -38,6 +39,31 @@ export class Registry extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS installs (
       id TEXT PRIMARY KEY, platform TEXT, version TEXT, first_seen INTEGER, last_seen INTEGER)`);
     this.sql.exec("CREATE TABLE IF NOT EXISTS reports (who TEXT, at INTEGER)");
+    this.sql.exec("CREATE TABLE IF NOT EXISTS pings (day TEXT, id TEXT, PRIMARY KEY (day, id))");
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY, title TEXT, body TEXT, link TEXT, target TEXT, created INTEGER)`);
+    // Throws once the column exists, which is the normal case.
+    try { this.sql.exec("ALTER TABLE installs ADD COLUMN country TEXT"); } catch (e) {}
+  }
+
+  newMessage(title, body, link, target) {
+    const id = "m-" + randomString("abcdefghijklmnopqrstuvwxyz0123456789", 12);
+    this.sql.exec("INSERT INTO messages (id, title, body, link, target, created) VALUES (?, ?, ?, ?, ?, ?)", id, title, body, link, target, Date.now());
+    return { id };
+  }
+
+  messages() {
+    return { messages: this.sql.exec("SELECT * FROM messages ORDER BY created DESC LIMIT 100").toArray() };
+  }
+
+  /** What an app on [platform] should show. */
+  messagesFor(platform) {
+    return { messages: this.sql.exec("SELECT id, title, body, link FROM messages WHERE target = 'all' OR target = ? ORDER BY created DESC LIMIT 20", platform).toArray() };
+  }
+
+  deleteMessage(id) {
+    this.sql.exec("DELETE FROM messages WHERE id = ?", id);
+    return { ok: true };
   }
 
   /** Why [who] (a hash of the Google account) can't send a bug report now, or null if they can. */
@@ -59,11 +85,14 @@ export class Registry extends DurableObject {
   }
 
   /** One anonymous install saying it's alive: a random id, never an IP or anything about the player. */
-  ping(id, platform, version) {
+  ping(id, platform, version, country) {
     const now = Date.now();
-    this.sql.exec(`INSERT INTO installs (id, platform, version, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET platform = excluded.platform, version = excluded.version, last_seen = excluded.last_seen`,
-      id, platform, version, now, now);
+    this.sql.exec(`INSERT INTO installs (id, platform, version, country, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET platform = excluded.platform, version = excluded.version,
+        country = excluded.country, last_seen = excluded.last_seen`,
+      id, platform, version, country, now, now);
+    this.sql.exec("INSERT OR IGNORE INTO pings (day, id) VALUES (?, ?)", new Date(now).toISOString().slice(0, 10), id);
+    this.sql.exec("DELETE FROM pings WHERE day < ?", new Date(now - 90 * 86400000).toISOString().slice(0, 10));
     return { ok: true };
   }
 
@@ -75,6 +104,11 @@ export class Registry extends DurableObject {
         FROM installs GROUP BY platform ORDER BY total DESC`, now - 30 * 86400000, now - 7 * 86400000, now - 7 * 86400000).toArray(),
       versions: this.sql.exec(`SELECT version, platform, COUNT(*) AS total FROM installs WHERE last_seen > ?
         GROUP BY version, platform ORDER BY version DESC LIMIT 40`, now - 30 * 86400000).toArray(),
+      countries: this.sql.exec("SELECT country, COUNT(*) AS total FROM installs GROUP BY country ORDER BY total DESC LIMIT 40").toArray(),
+      daily: this.sql.exec(`SELECT p.day, COUNT(*) AS active, SUM(date(i.first_seen / 1000, 'unixepoch') = p.day) AS fresh
+        FROM pings p JOIN installs i ON i.id = p.id WHERE p.day >= ? GROUP BY p.day`, new Date(now - 30 * 86400000).toISOString().slice(0, 10)).toArray(),
+      list: this.sql.exec("SELECT id, platform, version, country, first_seen, last_seen FROM installs ORDER BY last_seen DESC LIMIT 200").toArray(),
+      reports: this.sql.exec("SELECT COUNT(*) AS n FROM reports WHERE at > ?", now - 86400000).one().n,
     };
   }
 
@@ -237,7 +271,12 @@ export default {
       const id = String(body.id || "");
       const platform = String(body.platform || "");
       if (!/^[0-9a-f]{32}$/.test(id) || !["Android", "Windows"].includes(platform)) return json({ error: "Bad ping." }, 400);
-      return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20)));
+      return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20), String(request.cf?.country || "")));
+    }
+
+    // Messages from /admin, read by the app next to the changelog.
+    if (path === "/messages") {
+      return json(await registry.messagesFor(String(url.searchParams.get("platform") || "")));
     }
 
     // Bug report: goes to the developer's Telegram with the sender's verified Google account.
@@ -312,6 +351,17 @@ export default {
       switch (body.action) {
         case "list": return json(await registry.list());
         case "installs": return json(await registry.installs());
+        case "messages": return json(await registry.messages());
+        case "sendMessage": {
+          const title = String(body.title || "").trim().slice(0, 120);
+          const text = String(body.body || "").trim().slice(0, 2000);
+          const link = String(body.link || "").trim().slice(0, 300);
+          const target = ["all", "Android", "Windows"].includes(body.target) ? body.target : "all";
+          if (!title || !text) return json({ error: "Write a title and a message." }, 400);
+          if (link && !/^https:\/\//.test(link)) return json({ error: "The link must start with https://" }, 400);
+          return json(await registry.newMessage(title, text, link, target));
+        }
+        case "deleteMessage": return json(await registry.deleteMessage(String(body.id)));
         case "new": return json({ codes: await registry.newCodes(Math.min(Math.max(1, body.count | 0), 200), Math.max(1, body.days | 0 || 7), String(body.note || "")) });
         case "revoke": return json(await registry.revoke(String(body.token)));
         case "deleteCode": return json(await registry.deleteCode(String(body.code)));
@@ -322,67 +372,3 @@ export default {
     return new Response("MTG Reforged relay", { status: 404 });
   },
 };
-
-const ADMIN_PAGE = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reforged Relay Admin</title>
-<style>
-  :root { --bg:#f6efe1; --ink:#2b2418; --soft:#6d6250; --accent:#a8492f; --line:#d8ccb4; color-scheme: light; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#1c1915; --ink:#ece3d2; --soft:#a89c87; --accent:#e07a5a; --line:#3a342b; color-scheme: dark; } }
-  body { background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, sans-serif; margin:0 auto; max-width:900px; padding:16px; }
-  h1 { font-size:20px; } h2 { font-size:16px; margin-top:28px; }
-  input, button { font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--ink); }
-  button { background:var(--accent); color:#fff; border:none; cursor:pointer; }
-  button.small { padding:2px 8px; font-size:13px; }
-  table { border-collapse:collapse; width:100%; font-size:13px; } td, th { border-bottom:1px solid var(--line); padding:6px 4px; text-align:left; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; } .muted { color:var(--soft); } code { font-size:15px; }
-  #out { white-space:pre-wrap; font-family:ui-monospace, monospace; font-size:16px; }
-  .scroll { overflow-x:auto; }
-</style></head><body>
-<h1>Reforged admin</h1>
-<div class="row"><input id="key" type="password" placeholder="Admin key" autocomplete="current-password"><button onclick="load()">Load</button></div>
-<p class="muted">Set or change the admin key from the repo's <code>relay</code> folder:<br>
-<code>npx wrangler@4 secret put ADMIN_KEY</code></p>
-<h2>Installs</h2><div class="scroll"><table id="installs"></table></div>
-<h2>Active versions (last 30 days)</h2><div class="scroll"><table id="versions"></table></div>
-<h2>New codes</h2>
-<div class="row">
-  <input id="count" type="number" value="5" min="1" max="200" style="width:80px"> codes,
-  valid for <input id="days" type="number" value="7" min="1" style="width:70px"> days,
-  note <input id="note" placeholder="who they're for">
-  <button onclick="make()">Generate</button>
-</div>
-<p id="out"></p>
-<h2>Activated devices</h2><div class="scroll"><table id="devices"></table></div>
-<h2>Codes</h2><div class="scroll"><table id="codes"></table></div>
-<script>
-const key = document.getElementById("key");
-try { key.value = sessionStorage.getItem("k") || ""; } catch (e) {}
-async function api(body) {
-  try { sessionStorage.setItem("k", key.value); } catch (e) {}
-  const r = await fetch("/admin/api", { method:"POST", headers:{ "content-type":"application/json", "x-admin-key":key.value }, body:JSON.stringify(body) });
-  const j = await r.json(); if (j.error) { alert(j.error); throw new Error(j.error); } return j;
-}
-const day = (t) => t ? new Date(t).toLocaleString() : "";
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" })[c]);
-async function load() {
-  const { codes, devices } = await api({ action:"list" });
-  const { platforms, versions } = await api({ action:"installs" });
-  document.getElementById("installs").innerHTML = "<tr><th>Platform</th><th>Total</th><th>Active 30 days</th><th>Active 7 days</th><th>New 7 days</th></tr>" +
-    platforms.map(p => "<tr><td>"+esc(p.platform)+"</td><td>"+p.total+"</td><td>"+p.active30+"</td><td>"+p.active7+"</td><td>"+p.new7+"</td></tr>").join("");
-  document.getElementById("versions").innerHTML = "<tr><th>Version</th><th>Platform</th><th>Installs</th></tr>" +
-    versions.map(v => "<tr><td>"+esc(v.version)+"</td><td>"+esc(v.platform)+"</td><td>"+v.total+"</td></tr>").join("");
-  document.getElementById("devices").innerHTML = "<tr><th>Name</th><th>Code</th><th>Activated</th><th>Last seen</th><th></th></tr>" +
-    devices.map(d => "<tr><td>"+esc(d.name)+"</td><td>"+esc(d.code)+"</td><td>"+day(d.created)+"</td><td>"+day(d.last_seen)+"</td><td>"+
-      (d.revoked ? "<span class=muted>revoked</span>" : "<button class=small onclick=\\"revoke('"+d.token+"')\\">Revoke</button>")+"</td></tr>").join("");
-  document.getElementById("codes").innerHTML = "<tr><th>Code</th><th>Note</th><th>Expires</th><th>Used</th><th></th></tr>" +
-    codes.map(c => "<tr><td><code>"+c.code+"</code></td><td>"+esc(c.note)+"</td><td>"+day(c.expires)+"</td><td>"+(c.used ? day(c.used) : "<span class=muted>no</span>")+"</td><td>"+
-      (c.used ? "" : "<button class=small onclick=\\"del('"+c.code+"')\\">Delete</button>")+"</td></tr>").join("");
-}
-async function make() {
-  const { codes } = await api({ action:"new", count:+document.getElementById("count").value, days:+document.getElementById("days").value, note:document.getElementById("note").value });
-  document.getElementById("out").textContent = codes.join("\\n"); load();
-}
-async function revoke(token) { if (confirm("Revoke this device?")) { await api({ action:"revoke", token }); load(); } }
-async function del(code) { await api({ action:"deleteCode", code }); load(); }
-</script></body></html>`;

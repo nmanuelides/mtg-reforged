@@ -611,6 +611,12 @@
       "title": "v1.56 · Easier to read",
       "body": "Text across the app is larger, thicker and darker, and the paper texture behind it is softer.",
       "link": null
+    },
+    {
+      "id": "v1.57.0",
+      "title": "v1.57 · Messages from the developer",
+      "body": "The developer can now send you announcements straight to the app. They show once when you open it. The anonymous install count now also includes your approximate country; see the privacy policy.",
+      "link": null
     }
   ]
 }

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reforged Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:wght@500;600;700&display=swap">
+<style>
+/* The app's parchment, kept plain behind text so everything stays easy to read. */
+:root {
+  --paper: #F2D5AC; --paper-light: #FBEBD2; --paper-deep: #E7C595;
+  --ink: #2E241D; --ink-soft: #54433A; --line: #C09A82; --line-strong: #B0705A;
+  --terracotta: #B4472C; --title: #7A2418; --sage: #4F6B44; --slate: #3F6085; --ochre: #8A6412;
+  --on-accent: #FBF3E4; --shadow: rgba(58, 46, 38, .25);
+  --display: "Cinzel", "Times New Roman", serif; --body: "EB Garamond", Georgia, serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh; color: var(--ink); font: 500 18px/1.45 var(--body);
+  background: radial-gradient(ellipse at top, var(--paper-light), var(--paper) 55%, var(--paper-deep));
+  background-attachment: fixed;
+}
+[hidden] { display: none !important; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 56px; }
+h1, h2, h3 { font-family: var(--display); color: var(--title); margin: 0; font-weight: 700; }
+h1 { font-size: clamp(1.5rem, 4vw, 2.1rem); letter-spacing: .04em; }
+h2 { font-size: 1.05rem; letter-spacing: .12em; text-transform: uppercase; display: flex; align-items: center; gap: .6rem; margin-bottom: 14px; }
+h2::before { content: ""; width: 8px; height: 8px; background: var(--terracotta); transform: rotate(45deg); flex: none; }
+a { color: var(--terracotta); }
+.muted { color: var(--ink-soft); }
+.plaque {
+  background: var(--paper-light); border: 1.5px solid var(--line); padding: 18px; position: relative; min-width: 0;
+  box-shadow: 0 0 0 3px var(--paper-light), 0 0 0 4px var(--line), 0 10px 20px -14px var(--shadow);
+}
+.stack { display: grid; gap: 22px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.top .sub { font-family: var(--display); font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; color: var(--terracotta); }
+.btn {
+  font: 600 .82rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink); cursor: pointer;
+  padding: .6rem 1rem; min-height: 2.6rem; background: var(--paper-light); border: 1.5px solid var(--line);
+}
+.btn:hover { border-color: var(--line-strong); }
+.btn.primary { background: var(--terracotta); border-color: var(--terracotta); color: var(--on-accent); }
+.btn.small { padding: .3rem .6rem; min-height: 2rem; font-size: .72rem; }
+.btn:disabled { opacity: .55; cursor: default; }
+:is(.btn, a, input, select, textarea):focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
+.tabs { display: flex; gap: 8px; overflow-x: auto; padding: 5px 5px 8px; margin: 0 -5px 16px; }
+.tabs .btn { flex: none; }
+.tabs .btn[aria-selected="true"] { background: var(--terracotta); border-color: var(--terracotta); color: var(--on-accent); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.stat b { display: block; font: 700 2.2rem/1.1 var(--display); color: var(--title); }
+.stat span { font-family: var(--display); font-weight: 600; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+.stat small { display: block; font-size: 1rem; color: var(--ink-soft); margin-top: 4px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 22px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th { font: 600 .74rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); text-align: left; white-space: nowrap; }
+th, td { padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+code { font: 600 .95rem ui-monospace, Consolas, monospace; }
+label { display: grid; gap: 4px; font: 600 .74rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+input, select, textarea {
+  font: 500 1.05rem var(--body); color: var(--ink); background: #FFF8EC; border: 1.5px solid var(--line); padding: .5rem .6rem; width: 100%;
+}
+textarea { min-height: 7rem; resize: vertical; }
+.form { display: grid; gap: 12px; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.row > label { flex: 1 1 150px; }
+.login { max-width: 420px; margin: 12vh auto 0; display: grid; gap: 14px; text-align: center; }
+.badge { font: 600 .72rem var(--display); letter-spacing: .05em; white-space: nowrap; border: 1.5px solid currentColor; padding: .1rem .45rem; }
+.ok { color: var(--sage); } .bad { color: var(--terracotta); } .wait { color: var(--ochre); } .run { color: var(--slate); }
+.bar { height: 12px; background: var(--paper-deep); border: 1px solid var(--line); margin: 8px 0 4px; }
+.bar i { display: block; height: 100%; background: var(--slate); transition: width .4s; }
+.item { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.item:last-child { border-bottom: 0; }
+.item .head { display: flex; gap: 10px; justify-content: space-between; flex-wrap: wrap; align-items: baseline; }
+.message-body { white-space: pre-wrap; }
+.preview { border: 1.5px dashed var(--line); padding: 12px; }
+.preview h3 { font-size: 1rem; margin-bottom: 4px; }
+.notice { padding: 10px 12px; border: 1.5px solid currentColor; }
+#tip {
+  position: fixed; z-index: 5; pointer-events: none; background: var(--ink); color: var(--on-accent); padding: 4px 8px; font-size: 1rem;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+svg.chart { display: block; width: 100%; height: auto; }
+svg.chart text { font: 500 13px var(--body); fill: var(--ink-soft); }
+svg.chart .hit { fill: transparent; }
+svg.chart g:hover .mark { fill: var(--title); }
+details summary { cursor: pointer; font-family: var(--display); font-size: .8rem; letter-spacing: .06em; margin-top: 10px; }
+#codes-out { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <form class="plaque login" id="login">
+    <h1>Reforged Admin</h1>
+    <label>Clave de administrador<input id="key" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Entrar</button>
+    <p class="bad" id="login-error" role="alert" hidden></p>
+  </form>
+
+  <div id="app" hidden>
+    <header class="top">
+      <div><div class="sub">MTG Reforged</div><h1>Panel de control</h1></div>
+      <div class="row"><span class="muted" id="updated"></span><button class="btn" id="refresh" type="button">Actualizar</button><button class="btn" id="logout" type="button">Salir</button></div>
+    </header>
+    <nav class="tabs" role="tablist" id="tabs">
+      <button class="btn" role="tab" data-tab="overview" type="button">Resumen</button>
+      <button class="btn" role="tab" data-tab="installs" type="button">Instalaciones</button>
+      <button class="btn" role="tab" data-tab="deploys" type="button">Deploys</button>
+      <button class="btn" role="tab" data-tab="messages" type="button">Mensajes</button>
+      <button class="btn" role="tab" data-tab="access" type="button">Acceso online</button>
+    </nav>
+
+    <section class="stack" data-panel="overview">
+      <div class="stats" id="stats"></div>
+      <div class="plaque"><h2>Activas por día</h2><div id="chart-active"></div></div>
+      <div class="two">
+        <div class="plaque"><h2>Nuevas por día</h2><div id="chart-new"></div></div>
+        <div class="plaque"><h2>Último deploy</h2><div id="last-deploy"></div></div>
+      </div>
+      <details class="plaque"><summary>Ver los datos por día como tabla</summary><div class="scroll"><table id="daily"></table></div></details>
+    </section>
+
+    <section class="stack" data-panel="installs" hidden>
+      <div class="two">
+        <div class="plaque"><h2>Versiones (30 días)</h2><div class="scroll"><table id="versions"></table></div></div>
+        <div class="plaque"><h2>Países</h2><div class="scroll"><table id="countries"></table></div></div>
+      </div>
+      <div class="plaque">
+        <h2>Instalaciones</h2>
+        <p class="muted">Son anónimas: el ID es aleatorio y no identifica a la persona.</p>
+        <div class="scroll"><table id="installs"></table></div>
+      </div>
+    </section>
+
+    <section class="stack" data-panel="deploys" hidden>
+      <div class="plaque"><h2>Builds</h2><p class="muted" id="deploy-note"></p><div id="runs"></div></div>
+      <div class="plaque"><h2>Versiones publicadas</h2><div class="scroll"><table id="releases"></table></div></div>
+    </section>
+
+    <section class="stack" data-panel="messages" hidden>
+      <div class="two">
+        <form class="plaque form" id="message-form">
+          <h2>Nuevo mensaje</h2>
+          <label>Título<input id="m-title" maxlength="120" required></label>
+          <label>Mensaje<textarea id="m-body" maxlength="2000" required></textarea></label>
+          <div class="row">
+            <label>Link (opcional)<input id="m-link" type="url" maxlength="300" placeholder="https://"></label>
+            <label>Para<select id="m-target"><option value="all">Todos</option><option value="Android">Android</option><option value="Windows">Windows</option></select></label>
+          </div>
+          <button class="btn primary" type="submit">Enviar</button>
+          <p class="muted">Cada instalación lo ve una vez, al abrir la app. Necesita la v1.57 o más nueva.</p>
+        </form>
+        <div class="plaque">
+          <h2>Vista previa</h2>
+          <div class="preview"><h3 id="p-title">Título</h3><p class="message-body" id="p-body" style="margin:0">El mensaje aparece acá.</p></div>
+        </div>
+      </div>
+      <div class="plaque"><h2>Enviados</h2><div id="sent"></div></div>
+    </section>
+
+    <section class="stack" data-panel="access" hidden>
+      <form class="plaque form" id="codes-form">
+        <h2>Códigos nuevos</h2>
+        <div class="row">
+          <label>Cantidad<input id="count" type="number" value="5" min="1" max="200"></label>
+          <label>Días de validez<input id="days" type="number" value="7" min="1"></label>
+          <label>Nota<input id="note" placeholder="para quién son"></label>
+          <button class="btn primary" type="submit">Generar</button>
+        </div>
+        <code id="codes-out"></code>
+      </form>
+      <div class="plaque"><h2>Dispositivos activados</h2><div class="scroll"><table id="devices"></table></div></div>
+      <div class="plaque"><h2>Códigos</h2><div class="scroll"><table id="codes"></table></div></div>
+    </section>
+  </div>
+</div>
+<div id="tip" hidden></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const REPO = "https://api.github.com/repos/nmanuelides/mtg-reforged";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const when = (t) => (t ? new Date(t).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "");
+const table = (el, heads, rows, empty) => {
+  $(el).innerHTML = rows.length
+    ? "<tr>" + heads.map((h) => `<th class="${h.startsWith("#") ? "num" : ""}">${esc(h.replace(/^#/, ""))}</th>`).join("") + "</tr>" +
+      rows.map((r) => "<tr>" + r.map((c, i) => `<td class="${heads[i].startsWith("#") ? "num" : ""}">${c}</td>`).join("") + "</tr>").join("")
+    : `<tr><td class="muted">${esc(empty)}</td></tr>`;
+};
+
+let key = "";
+try { key = sessionStorage.getItem("k") || ""; } catch (e) {}
+async function api(body) {
+  const r = await fetch("/admin/api", { method: "POST", headers: { "content-type": "application/json", "x-admin-key": key }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error);
+  return j;
+}
+
+// Bars for the last 30 days, one series; hovering a bar shows its day and value.
+function bars(el, days, field, label) {
+  const W = 720, H = 200, left = 30, bottom = 24, top = 10;
+  const max = Math.max(1, ...days.map((d) => d[field]));
+  const slot = (W - left) / days.length, plot = H - bottom - top;
+  const y = (v) => top + plot - (v / max) * plot;
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">`;
+  for (const v of [...new Set([0, Math.ceil(max / 2), max])]) {
+    svg += `<line x1="${left}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="#C09A82" stroke-width="1"/><text x="${left - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  days.forEach((d, i) => {
+    const x = left + i * slot, h = (d[field] / max) * plot, w = Math.max(3, Math.min(16, slot - 2));
+    const r = Math.min(4, h, w / 2), bx = x + (slot - w) / 2, by = top + plot - h;
+    const shape = h > 0 ? `<path class="mark" fill="#B4472C" d="M${bx} ${by + h}V${by + r}Q${bx} ${by} ${bx + r} ${by}H${bx + w - r}Q${bx + w} ${by} ${bx + w} ${by + r}V${by + h}Z"/>` : "";
+    svg += `<g data-tip="${esc(d.day.slice(5) + ": " + d[field])}"><rect class="hit" x="${x}" y="${top}" width="${slot}" height="${plot}"/>${shape}</g>`;
+  });
+  const first = days[0]?.day.slice(5) ?? "", last = days.at(-1)?.day.slice(5) ?? "";
+  svg += `<text x="${left}" y="${H - 6}">${first}</text><text x="${W}" y="${H - 6}" text-anchor="end">${last}</text></svg>`;
+  $(el).innerHTML = svg;
+}
+document.addEventListener("pointermove", (e) => {
+  const g = e.target.closest?.("[data-tip]");
+  $("tip").hidden = !g;
+  if (g) { $("tip").textContent = g.dataset.tip; $("tip").style.left = e.clientX + "px"; $("tip").style.top = e.clientY + "px"; }
+});
+
+// The 30 days up to today, with zeros for the days nothing happened.
+function fill(daily) {
+  const byDay = new Map(daily.map((d) => [d.day, d]));
+  return Array.from({ length: 30 }, (_, i) => {
+    const day = new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10);
+    return { day, active: byDay.get(day)?.active ?? 0, fresh: byDay.get(day)?.fresh ?? 0 };
+  });
+}
+
+async function loadInstalls() {
+  const s = await api({ action: "installs" });
+  const sum = (f) => s.platforms.reduce((n, p) => n + (p[f] ?? 0), 0);
+  const split = (f) => s.platforms.map((p) => `${esc(p.platform)} ${p[f] ?? 0}`).join(" · ");
+  $("stats").innerHTML = [["Instalaciones", "total"], ["Activas 7 días", "active7"], ["Activas 30 días", "active30"], ["Nuevas 7 días", "new7"]]
+    .map(([name, f]) => `<div class="plaque stat"><b>${sum(f)}</b><span>${name}</span><small>${split(f)}</small></div>`).join("") +
+    `<div class="plaque stat"><b>${s.reports}</b><span>Reportes 24 h</span><small>Llegan a Telegram</small></div>`;
+  const days = fill(s.daily);
+  bars("chart-active", days, "active", "Instalaciones activas por día, últimos 30 días");
+  bars("chart-new", days, "fresh", "Instalaciones nuevas por día, últimos 30 días");
+  table("daily", ["Día", "#Activas", "#Nuevas"], days.slice().reverse().map((d) => [esc(d.day), d.active, d.fresh]), "");
+  table("versions", ["Versión", "Plataforma", "#Instalaciones"], s.versions.map((v) => [esc(v.version), esc(v.platform), v.total]), "Sin datos todavía.");
+  table("countries", ["País", "#Instalaciones"], s.countries.map((c) => [esc(c.country || "Sin dato"), c.total]), "Sin datos todavía.");
+  table("installs", ["ID", "Plataforma", "Versión", "País", "Primera vez", "Última vez"],
+    s.list.map((i) => [`<code>${esc(i.id.slice(0, 8))}</code>`, esc(i.platform), esc(i.version), esc(i.country || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
+}
+
+const badge = (run) => {
+  if (run.status !== "completed") return run.status === "in_progress" ? '<span class="badge run">⟳ En curso</span>' : '<span class="badge wait">⏳ En cola</span>';
+  if (run.conclusion === "success") return '<span class="badge ok">✓ Listo</span>';
+  return run.conclusion === "cancelled" || run.conclusion === "skipped" ? '<span class="badge wait">– Cancelado</span>' : '<span class="badge bad">✕ Falló</span>';
+};
+const minutes = (from, to) => Math.max(0, Math.round((new Date(to) - new Date(from)) / 60000)) + " min";
+let deployTimer = null;
+async function loadDeploys() {
+  clearTimeout(deployTimer);
+  const get = (path) => fetch(REPO + path, { headers: { accept: "application/vnd.github+json" } }).then((r) => { if (!r.ok) throw new Error("GitHub " + r.status); return r.json(); });
+  try {
+    const [{ workflow_runs: runs }, releases] = await Promise.all([get("/actions/workflows/reforged-android.yml/runs?per_page=8"), get("/releases?per_page=8")]);
+    const active = runs.find((r) => r.status !== "completed");
+    let progress = "";
+    if (active) {
+      const { jobs } = await get(`/actions/runs/${active.id}/jobs`);
+      const steps = jobs.flatMap((j) => j.steps ?? []);
+      const done = steps.filter((s) => s.status === "completed").length;
+      const now = steps.find((s) => s.status === "in_progress")?.name ?? "Esperando";
+      const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
+      progress = `<div class="bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div><span class="muted">${pct}% · ${esc(now)} · paso ${done} de ${steps.length}</span>`;
+    }
+    const item = (r) => `<div class="item"><div class="head"><a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.display_title)}</a>${badge(r)}</div>` +
+      `<span class="muted">${when(r.created_at)} · ${minutes(r.created_at, r.status === "completed" ? r.updated_at : Date.now())}</span>${r === active ? progress : ""}</div>`;
+    $("runs").innerHTML = runs.map(item).join("") || '<p class="muted">Sin builds.</p>';
+    $("last-deploy").innerHTML = runs[0] ? item(runs[0]) : '<p class="muted">Sin builds.</p>';
+    const count = (r, test) => r.assets.filter((a) => test(a.name)).reduce((n, a) => n + a.download_count, 0);
+    table("releases", ["Versión", "Fecha", "#Android", "#Windows"], releases.filter((r) => !r.draft).map((r) => [
+      `<a href="${esc(r.html_url)}" target="_blank" rel="noopener">${esc(r.name || r.tag_name)}</a>`, when(r.published_at),
+      count(r, (n) => n.endsWith(".apk")), count(r, (n) => n.endsWith("-windows.exe")),
+    ]), "Sin versiones.");
+    $("deploy-note").textContent = active ? "Se actualiza solo cada 90 segundos mientras hay un build en curso." : "No hay builds en curso.";
+    if (active) deployTimer = setTimeout(loadDeploys, 90000);
+  } catch (e) {
+    $("deploy-note").textContent = "GitHub no respondió (puede ser su límite de consultas por hora). Probá en unos minutos.";
+    if (!$("last-deploy").innerHTML) $("last-deploy").innerHTML = '<p class="muted">Sin datos de GitHub.</p>';
+  }
+}
+
+async function loadMessages() {
+  const { messages } = await api({ action: "messages" });
+  const target = { all: "Todos", Android: "Android", Windows: "Windows" };
+  $("sent").innerHTML = messages.map((m) => `<div class="item"><div class="head"><b>${esc(m.title)}</b><span><span class="muted">${esc(target[m.target] ?? m.target)} · ${when(m.created)}</span> <button class="btn small" type="button" data-delete-message="${esc(m.id)}">Borrar</button></span></div>` +
+    `<div class="message-body">${esc(m.body)}</div>${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.link)}</a>` : ""}</div>`).join("") || '<p class="muted">Todavía no enviaste mensajes.</p>';
+}
+
+async function loadAccess() {
+  const { codes, devices } = await api({ action: "list" });
+  table("devices", ["Nombre", "Código", "Activado", "Última vez", ""], devices.map((d) => [esc(d.name), esc(d.code), when(d.created), when(d.last_seen),
+    d.revoked ? '<span class="muted">Revocado</span>' : `<button class="btn small" type="button" data-revoke="${esc(d.token)}">Revocar</button>`]), "Ningún dispositivo activado.");
+  table("codes", ["Código", "Nota", "Vence", "Usado", ""], codes.map((c) => [`<code>${esc(c.code)}</code>`, esc(c.note), when(c.expires), c.used ? when(c.used) : '<span class="muted">No</span>',
+    c.used ? "" : `<button class="btn small" type="button" data-delete-code="${esc(c.code)}">Borrar</button>`]), "No hay códigos.");
+}
+
+async function loadAll() {
+  await Promise.all([loadInstalls(), loadMessages(), loadAccess()]);
+  $("updated").textContent = "Actualizado " + new Date().toLocaleTimeString(undefined, { timeStyle: "short" });
+  loadDeploys();
+}
+
+function show(tab) {
+  document.querySelectorAll("[data-panel]").forEach((p) => { p.hidden = p.dataset.panel !== tab; });
+  document.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"));
+  try { sessionStorage.setItem("tab", tab); } catch (e) {}
+}
+
+async function enter() {
+  try {
+    await loadAll();
+    try { sessionStorage.setItem("k", key); } catch (e) {}
+    $("login").hidden = true;
+    $("app").hidden = false;
+    let tab = "overview";
+    try { tab = sessionStorage.getItem("tab") || tab; } catch (e) {}
+    show(tab);
+  } catch (e) {
+    $("login-error").textContent = e.message === "Wrong admin key." ? "Clave incorrecta." : "No se pudo cargar: " + e.message;
+    $("login-error").hidden = false;
+  }
+}
+
+$("login").addEventListener("submit", (e) => { e.preventDefault(); key = $("key").value; $("login-error").hidden = true; enter(); });
+$("logout").addEventListener("click", () => { try { sessionStorage.removeItem("k"); } catch (e) {} location.reload(); });
+$("refresh").addEventListener("click", () => loadAll().catch((e) => alert(e.message)));
+$("tabs").addEventListener("click", (e) => { const b = e.target.closest("[data-tab]"); if (b) show(b.dataset.tab); });
+
+const preview = () => { $("p-title").textContent = $("m-title").value || "Título"; $("p-body").textContent = $("m-body").value || "El mensaje aparece acá."; };
+$("m-title").addEventListener("input", preview);
+$("m-body").addEventListener("input", preview);
+$("message-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const target = $("m-target").value;
+  if (!confirm(`¿Enviar este mensaje a ${target === "all" ? "todas las instalaciones" : "las instalaciones de " + target}?`)) return;
+  try {
+    await api({ action: "sendMessage", title: $("m-title").value, body: $("m-body").value, link: $("m-link").value, target });
+    e.target.reset();
+    preview();
+    await loadMessages();
+  } catch (err) { alert(err.message); }
+});
+$("codes-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    const { codes } = await api({ action: "new", count: +$("count").value, days: +$("days").value, note: $("note").value });
+    $("codes-out").textContent = codes.join("\n");
+    await loadAccess();
+  } catch (err) { alert(err.message); }
+});
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-revoke], [data-delete-code], [data-delete-message]");
+  if (!b) return;
+  try {
+    if (b.dataset.revoke) { if (confirm("¿Revocar este dispositivo?")) { await api({ action: "revoke", token: b.dataset.revoke }); await loadAccess(); } }
+    else if (b.dataset.deleteCode) { await api({ action: "deleteCode", code: b.dataset.deleteCode }); await loadAccess(); }
+    else if (confirm("¿Borrar este mensaje? Quienes no lo vieron ya no lo van a recibir.")) { await api({ action: "deleteMessage", id: b.dataset.deleteMessage }); await loadMessages(); }
+  } catch (err) { alert(err.message); }
+});
+
+if (key) enter();
+</script>
+</body>
+</html>

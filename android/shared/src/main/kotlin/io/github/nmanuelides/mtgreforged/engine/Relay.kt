@@ -35,6 +35,9 @@ object Relay {
     private const val RELAY_URL = "https://mtg-reforged-relay.magatsu82.workers.dev"
 
     val configured: Boolean get() = RELAY_URL.isNotBlank()
+
+    /** Messages written on the relay's /admin page for this platform; same shape as news.json. */
+    val messagesUrl: String get() = "$RELAY_URL/messages?platform=$PLATFORM_NAME"
     private val wsBase get() = RELAY_URL.trimEnd('/').replaceFirst("https://", "wss://").replaceFirst("http://", "ws://")
 
     private lateinit var prefs: Prefs
