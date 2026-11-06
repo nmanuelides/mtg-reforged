@@ -41,6 +41,7 @@ object CloudSync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
     private lateinit var prefs: Prefs
+    private lateinit var appContext: AppContext
     @Volatile private var token: (suspend () -> String?)? = null
     private var watching = false
     @Volatile private var syncedSignature: String? = null
@@ -53,6 +54,7 @@ object CloudSync {
             prefs = context.prefs("cloud-sync")
             _status.value = _status.value.copy(lastSync = prefs.getLong(KEY_LAST, 0L))
         }
+        appContext = context
         token = quietToken
         if (watching) return
         watching = true
@@ -90,6 +92,7 @@ object CloudSync {
         }
         val last = if (error == null) System.currentTimeMillis().also { prefs.edit().putLong(KEY_LAST, it).apply() } else _status.value.lastSync
         _status.value = _status.value.copy(syncing = false, lastSync = last, error = error)
+        if (error == null && ::appContext.isInitialized) scope.launch { runCatching { Relay.shareProfile(appContext, t) } }
         error
     }
 

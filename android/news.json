@@ -617,6 +617,12 @@
       "title": "v1.57 · Messages from the developer",
       "body": "The developer can now send you announcements straight to the app. They show once when you open it. The anonymous install count now also includes your approximate country; see the privacy policy.",
       "link": null
+    },
+    {
+      "id": "v1.58.0",
+      "title": "v1.58 · Your account, your choice",
+      "body": "When you connect Google, the app now asks whether to share your name, email and app and system versions with the developers, to help fix errors and improve the app. Sync works either way, and you can change it in Backup & restore.",
+      "link": null
     }
   ]
 }

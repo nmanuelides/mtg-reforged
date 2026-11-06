@@ -3,6 +3,7 @@ package io.github.nmanuelides.mtgreforged.engine
 import io.github.nmanuelides.mtgreforged.BuildConfig
 import io.github.nmanuelides.mtgreforged.platform.AppContext
 import io.github.nmanuelides.mtgreforged.platform.Log
+import io.github.nmanuelides.mtgreforged.platform.OS_NAME
 import io.github.nmanuelides.mtgreforged.platform.PLATFORM_NAME
 import io.github.nmanuelides.mtgreforged.platform.Prefs
 import io.github.nmanuelides.mtgreforged.platform.prefs
@@ -67,7 +68,7 @@ object Relay {
             val install = context.prefs("install")
             val now = System.currentTimeMillis()
             if (now - install.getLong("pinged", 0L) < 86_400_000L) return@thread
-            val id = install.getString("id", null) ?: UUID.randomUUID().toString().replace("-", "").also { install.edit().putString("id", it).apply() }
+            val id = installId(install)
             val connection = URL("$RELAY_URL/ping").openConnection() as HttpURLConnection
             try {
                 connection.requestMethod = "POST"
@@ -84,6 +85,55 @@ object Relay {
             } finally {
                 connection.disconnect()
             }
+        }
+    }
+
+    private fun installId(install: Prefs): String =
+        install.getString("id", null) ?: UUID.randomUUID().toString().replace("-", "").also { install.edit().putString("id", it).apply() }
+
+    /** Whether the player agreed to share their account with the developer; null until they've answered. */
+    fun shareChoice(context: AppContext): Boolean? =
+        context.prefs("install").getString("share", null)?.let { it == "yes" }
+
+    fun setShareChoice(context: AppContext, share: Boolean) {
+        context.prefs("install").edit().putString("share", if (share) "yes" else "no").putLong("shared", 0L).apply()
+    }
+
+    /**
+     * At most once a day, if the player agreed: links their Google name and email (the relay asks
+     * Google for them with [googleToken]) and their system version to this install. Call off the main thread.
+     */
+    fun shareProfile(context: AppContext, googleToken: String) {
+        if (!configured || shareChoice(context) != true) return
+        val install = context.prefs("install")
+        val now = System.currentTimeMillis()
+        if (now - install.getLong("shared", 0L) < 86_400_000L) return
+        val body = JSONObject().put("id", installId(install)).put("token", googleToken).put("os", OS_NAME)
+        if (post("/profile", body) == 200) install.edit().putLong("shared", now).apply()
+    }
+
+    /** Deletes what [shareProfile] sent. Returns whether the relay did. Call off the main thread. */
+    fun forgetProfile(context: AppContext, googleToken: String): Boolean {
+        val body = JSONObject().put("id", installId(context.prefs("install"))).put("token", googleToken)
+        return post("/profile/forget", body) == 200
+    }
+
+    private fun post(path: String, body: JSONObject): Int? {
+        val connection = URL(RELAY_URL + path).openConnection() as HttpURLConnection
+        return try {
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 20_000
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("User-Agent", "MTGReforged/${BuildConfig.VERSION_NAME}")
+            connection.outputStream.use { it.write(body.toString().toByteArray()) }
+            connection.responseCode
+        } catch (e: Exception) {
+            Log.w(TAG, "$path failed", e)
+            null
+        } finally {
+            connection.disconnect()
         }
     }
 

@@ -1,6 +1,9 @@
 package io.github.nmanuelides.mtgreforged.ui.home
 
 import io.github.nmanuelides.mtgreforged.engine.CloudSync
+import io.github.nmanuelides.mtgreforged.engine.Relay
+import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
+import androidx.compose.material3.Switch
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.collectAsState
 import io.github.nmanuelides.mtgreforged.platform.rememberQuietDriveToken
@@ -103,8 +106,11 @@ fun BackupDialog(onDismiss: () -> Unit) {
     }
 
     // List the Drive backups straight away (asks for access the first time), and start syncing.
-    LaunchedEffect(Unit) { withDrive { t -> refresh(t); CloudSync.syncSoon(t) } }
+    var answered by remember { mutableStateOf(Relay.shareChoice(context) != null) }
+    if (!answered) SharingNotice { answered = true }
+    LaunchedEffect(answered) { if (answered) withDrive { t -> refresh(t); CloudSync.syncSoon(t) } }
     val sync by CloudSync.status.collectAsState()
+    var sharing by remember(answered) { mutableStateOf(Relay.shareChoice(context) == true) }
 
     // Plain-file fallback.
     val saveFile = rememberCreateDocument("application/json") { open ->
@@ -158,6 +164,30 @@ fun BackupDialog(onDismiss: () -> Unit) {
                 "Back up now",
                 { withDrive(driveJob { t -> DriveBackup.upload(t); status = "Backup saved to Google Drive."; backups = DriveBackup.list(t) }) },
                 Modifier.weight(1f), icon = Icons.Default.CloudUpload, accent = Palette.Slate, enabled = !busy,
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Share my account with the developers", style = MaterialTheme.typography.titleSmall, color = Palette.Ink)
+                Text("Your Google name and email, and your app and system versions, to help fix errors and improve the app.", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+            }
+            Switch(
+                sharing,
+                { on ->
+                    withDrive(driveJob { t ->
+                        if (on) {
+                            Relay.setShareChoice(context, true)
+                            CloudSync.syncSoon(t)
+                        } else {
+                            // Deleted first: the switch only goes off once the relay has forgotten them.
+                            if (!withContext(Dispatchers.IO) { Relay.forgetProfile(context, t) }) error("Couldn't delete your shared details. Try again.")
+                            Relay.setShareChoice(context, false)
+                        }
+                        sharing = on
+                    })
+                },
+                enabled = !busy,
             )
         }
         Spacer(Modifier.height(14.dp))
@@ -245,6 +275,34 @@ fun CloudSyncHost() {
 @Composable
 fun SyncOnHome() {
     LaunchedEffect(Unit) { CloudSync.syncSoon() }
+    // Players already connected before the notice existed answer it here.
+    val context = LocalAppContext.current
+    val sync by CloudSync.status.collectAsState()
+    var answered by remember { mutableStateOf(Relay.shareChoice(context) != null) }
+    if (sync.connected && !answered) SharingNotice { answered = true }
+}
+
+/** Says what connecting Google shares with the developer, before it happens, and lets the player say no. */
+@Composable
+private fun SharingNotice(onAnswer: () -> Unit) {
+    val context = LocalAppContext.current
+    val answer = { share: Boolean -> Relay.setShareChoice(context, share); onAnswer() }
+    OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 520.dp) {
+        SectionLabel("Your Google account")
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "If you agree, your Google name and email, the app version and your ${if (IS_DESKTOP) "Windows" else "Android"} version are shared with " +
+                "the developers. They will NOT be shared with anyone, and are used only for practical purposes: fixing errors and improving your experience with the app.",
+            style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
+        )
+        Spacer(Modifier.height(8.dp))
+        Text("Sync and backups work either way. You can change this at any time in Backup & restore.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            OrnateButton("Don't share", { answer(false) }, Modifier.weight(1f), accent = Palette.Slate)
+            OrnateButton("Share", { answer(true) }, Modifier.weight(1f), style = OrnateStyle.Primary)
+        }
+    }
 }
 
 private fun dateOf(entry: DriveBackup.Entry): String =

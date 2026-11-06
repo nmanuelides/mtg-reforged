@@ -46,6 +46,9 @@ typealias ResId = Int
 const val IS_DESKTOP = false
 const val PLATFORM_NAME = "Android"
 
+/** The system and its version, for the account details the player may agree to share. */
+val OS_NAME: String get() = "Android ${android.os.Build.VERSION.RELEASE}"
+
 fun AppContext.prefs(name: String): Prefs = getSharedPreferences(name, Context.MODE_PRIVATE)
 
 /** Where files the user can reach from outside the app go (adb pull). */

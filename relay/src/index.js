@@ -42,8 +42,22 @@ export class Registry extends DurableObject {
     this.sql.exec("CREATE TABLE IF NOT EXISTS pings (day TEXT, id TEXT, PRIMARY KEY (day, id))");
     this.sql.exec(`CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY, title TEXT, body TEXT, link TEXT, target TEXT, created INTEGER)`);
+    this.sql.exec("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, name TEXT, email TEXT, os TEXT, updated INTEGER)");
     // Throws once the column exists, which is the normal case.
     try { this.sql.exec("ALTER TABLE installs ADD COLUMN country TEXT"); } catch (e) {}
+  }
+
+  /** The Google name and email of a player who agreed to share them, linked to their install. */
+  saveProfile(id, name, email, os) {
+    this.sql.exec(`INSERT INTO profiles (id, name, email, os, updated) VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email, os = excluded.os, updated = excluded.updated`,
+      id, name, email, os, Date.now());
+    return { ok: true };
+  }
+
+  forgetProfile(id, email) {
+    this.sql.exec("DELETE FROM profiles WHERE id = ? OR email = ?", id, email);
+    return { ok: true };
   }
 
   newMessage(title, body, link, target) {
@@ -107,7 +121,9 @@ export class Registry extends DurableObject {
       countries: this.sql.exec("SELECT country, COUNT(*) AS total FROM installs GROUP BY country ORDER BY total DESC LIMIT 40").toArray(),
       daily: this.sql.exec(`SELECT p.day, COUNT(*) AS active, SUM(date(i.first_seen / 1000, 'unixepoch') = p.day) AS fresh
         FROM pings p JOIN installs i ON i.id = p.id WHERE p.day >= ? GROUP BY p.day`, new Date(now - 30 * 86400000).toISOString().slice(0, 10)).toArray(),
-      list: this.sql.exec("SELECT id, platform, version, country, first_seen, last_seen FROM installs ORDER BY last_seen DESC LIMIT 200").toArray(),
+      list: this.sql.exec(`SELECT i.id, i.platform, i.version, i.country, i.first_seen, i.last_seen, p.name, p.email, p.os
+        FROM installs i LEFT JOIN profiles p ON p.id = i.id ORDER BY i.last_seen DESC LIMIT 200`).toArray(),
+      shared: this.sql.exec("SELECT COUNT(*) AS n FROM profiles").one().n,
       reports: this.sql.exec("SELECT COUNT(*) AS n FROM reports WHERE at > ?", now - 86400000).one().n,
     };
   }
@@ -272,6 +288,17 @@ export default {
       const platform = String(body.platform || "");
       if (!/^[0-9a-f]{32}$/.test(id) || !["Android", "Windows"].includes(platform)) return json({ error: "Bad ping." }, 400);
       return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20), String(request.cf?.country || "")));
+    }
+
+    // A player who agreed to share their account. Google says who they are, not the app.
+    if ((path === "/profile" || path === "/profile/forget") && request.method === "POST") {
+      const body = await request.json().catch(() => ({}));
+      const id = String(body.id || "");
+      if (!/^[0-9a-f]{32}$/.test(id)) return json({ error: "Bad request." }, 400);
+      const user = await googleUser(String(body.token || ""));
+      if (!user) return json({ error: "Couldn't verify your Google account." }, 401);
+      if (path === "/profile/forget") return json(await registry.forgetProfile(id, user.emailAddress));
+      return json(await registry.saveProfile(id, String(user.displayName || "").slice(0, 100), user.emailAddress, String(body.os || "").slice(0, 40)));
     }
 
     // Messages from /admin, read by the app next to the changelog.

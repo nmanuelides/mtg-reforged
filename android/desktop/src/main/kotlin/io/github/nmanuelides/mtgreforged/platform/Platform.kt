@@ -47,6 +47,9 @@ typealias ResId = String
 const val IS_DESKTOP = true
 const val PLATFORM_NAME = "Windows"
 
+/** The system and its version, for the account details the player may agree to share. */
+val OS_NAME: String get() = System.getProperty("os.name").orEmpty()
+
 /**
  * Where the app keeps its files, like an Android app's private storage: card data, images,
  * decks, saves and settings, under %LOCALAPPDATA%\MTG Reforged Data (the app itself installs to

@@ -132,7 +132,7 @@ details summary { cursor: pointer; font-family: var(--display); font-size: .8rem
       </div>
       <div class="plaque">
         <h2>Instalaciones</h2>
-        <p class="muted">Son anónimas: el ID es aleatorio y no identifica a la persona.</p>
+        <p class="muted">El nombre, el mail y el sistema solo aparecen si la persona aceptó compartirlos. El resto es anónimo.</p>
         <div class="scroll"><table id="installs"></table></div>
       </div>
     </section>
@@ -242,6 +242,7 @@ async function loadInstalls() {
   const split = (f) => s.platforms.map((p) => `${esc(p.platform)} ${p[f] ?? 0}`).join(" · ");
   $("stats").innerHTML = [["Instalaciones", "total"], ["Activas 7 días", "active7"], ["Activas 30 días", "active30"], ["Nuevas 7 días", "new7"]]
     .map(([name, f]) => `<div class="plaque stat"><b>${sum(f)}</b><span>${name}</span><small>${split(f)}</small></div>`).join("") +
+    `<div class="plaque stat"><b>${s.shared}</b><span>Con cuenta compartida</span><small>Aceptaron compartir sus datos</small></div>` +
     `<div class="plaque stat"><b>${s.reports}</b><span>Reportes 24 h</span><small>Llegan a Telegram</small></div>`;
   const days = fill(s.daily);
   bars("chart-active", days, "active", "Instalaciones activas por día, últimos 30 días");
@@ -249,8 +250,9 @@ async function loadInstalls() {
   table("daily", ["Día", "#Activas", "#Nuevas"], days.slice().reverse().map((d) => [esc(d.day), d.active, d.fresh]), "");
   table("versions", ["Versión", "Plataforma", "#Instalaciones"], s.versions.map((v) => [esc(v.version), esc(v.platform), v.total]), "Sin datos todavía.");
   table("countries", ["País", "#Instalaciones"], s.countries.map((c) => [esc(c.country || "Sin dato"), c.total]), "Sin datos todavía.");
-  table("installs", ["ID", "Plataforma", "Versión", "País", "Primera vez", "Última vez"],
-    s.list.map((i) => [`<code>${esc(i.id.slice(0, 8))}</code>`, esc(i.platform), esc(i.version), esc(i.country || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
+  table("installs", ["Nombre", "Mail", "Plataforma", "Sistema", "Versión", "País", "Primera vez", "Última vez"],
+    s.list.map((i) => [i.name ? esc(i.name) : `<code>${esc(i.id.slice(0, 8))}</code>`, i.email ? `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>` : '<span class="muted">Anónima</span>',
+      esc(i.platform), esc(i.os || "—"), esc(i.version), esc(i.country || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
 }
 
 const badge = (run) => {
