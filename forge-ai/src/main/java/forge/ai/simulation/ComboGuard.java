@@ -30,8 +30,8 @@ import forge.game.zone.ZoneType;
 /**
  * Plays that Flat Monte Carlo must not spend a card on, whatever the rollouts think of them. Three kinds:
  * <ul>
- *   <li><b>The legend rule</b>: reanimating (Reanimate, Animate Dead, Exhume, Goryo's Vengeance, ...) or cheating in
- *       a legendary creature the AI already has in play and that still does its job. One of the two copies would go
+ *   <li><b>The legend rule</b>: casting, reanimating (Reanimate, Animate Dead, Exhume, Goryo's Vengeance, ...) or cheating
+ *       in a legendary permanent the AI already has in play and that still does its job. One of the two copies would go
  *       straight back to the graveyard. A copy that is useless (it cannot attack, it is phased out, it has no power
  *       left, it leaves at end of turn) does not count: replacing it is fine.</li>
  *   <li><b>Duplicated win pieces</b>: a second Omniscience, Dream Halls, Sneak Attack, or a second copy of a win card
@@ -67,6 +67,18 @@ public final class ComboGuard {
         if (ai == null || sa == null) {
             return null;
         }
+        // A Pact first and on its own: another guard failing (a card with an odd mana ability, an unreadable script) must
+        // not let a Pact through that cannot be paid, which loses the game at the next upkeep. If it cannot be told,
+        // the Pact waits.
+        try {
+            if (pactUnpayable(ai, sa, plan)) {
+                return "pact-unpayable";
+            }
+        } catch (final RuntimeException e) {
+            if (isPact(sa)) {
+                return "pact-unpayable";
+            }
+        }
         try {
             return problemImpl(ai, sa, aim, plan);
         } catch (final RuntimeException e) {
@@ -96,6 +108,12 @@ public final class ComboGuard {
         }
         if (host == null) {
             return null;
+        }
+        // A second working copy of a legendary permanent is wasted even when it is cast directly (not reanimated).
+        // Respect cards with an explicit AI legendary exception; Mirror Gallery is handled by duplicatesWorkingLegend.
+        if (sa.isSpell() && host.isPermanent() && !host.ignoreLegendRule() && !host.hasSVar("AILegendaryException")
+                && duplicatesWorkingLegend(ai, host)) {
+            return "duplicate-legend";
         }
         // Balustrade Spy and Undercity Informer milling their own controller without the Oracle to follow it
         if (plan != null && plan.has(ComboPlan.Kind.LIBRARY_OUT)
@@ -140,9 +158,11 @@ public final class ComboGuard {
         if (walled != null) {
             return walled;
         }
-        // a creature land (Mutavault) animated with nothing to attack or block with it only wastes the mana
-        if (wastedManland(ai, sa, host)) {
-            return "manland-wasted";
+        // a creature land (Mutavault), a crew, a saddle or a station at a moment it cannot do anything: only wastes the mana
+        // and the creatures tapped for it (see TimedAbilityGuard)
+        final String untimely = TimedAbilityGuard.problem(ai, sa);
+        if (untimely != null) {
+            return untimely;
         }
         // Demonic Consultation exiles the library: only to win, with the Oracle's trigger on the stack (ConsultationWin)
         if (ConsultationWin.isConsultation(sa) && !ConsultationWin.winnerOnStack(ai.getGame(), ai)) {
@@ -151,6 +171,15 @@ public final class ComboGuard {
         // Doomsday without the Oracle in hand (or the life, or a library to cut) only throws the deck away
         if (sa.isSpell() && DoomsdayPile.isDoomsday(host) && !DoomsdayPile.ready(ai)) {
             return "doomsday-not-ready";
+        }
+        // with a winning Doomsday in hand, a creature cast or a cycling first only spends what Doomsday needs
+        if (DoomsdayPile.mustWaitForDoomsday(ai, sa)) {
+            return "doomsday-first";
+        }
+        // Illusions of Grandeur without the Donate that makes it a combo, Donate with nothing to give
+        final String donate = DonateCombo.problem(ai, sa);
+        if (donate != null) {
+            return donate;
         }
         // Doomsday Excruciator, or Superior Spider-Man with nothing else to copy: the cut loses without a finisher
         if (cutsTheLibraries(ai, sa, plan)) {
@@ -193,35 +222,22 @@ public final class ComboGuard {
      * a cost. A deck without a combo plan and a cost that sacrifices the card itself are never a problem.
      */
     /**
-     * A land that animates itself until end of turn (Mutavault, Stirring Wildwood): worth the mana only in the
-     * AI's main phase or beginning of combat when it can attack (untapped, not summoning sick, not a creature yet), or
-     * on the opponent's turn once attackers are declared, to block. Anything else, and a second animation, is waste.
+     * A land that animates itself until end of turn (Mutavault, Stirring Wildwood) at a moment it is worth nothing:
+     * see {@link TimedAbilityGuard}, which also covers Vehicles, Mounts and Spacecraft.
      */
     static boolean wastedManland(final Player ai, final SpellAbility sa, final Card host) {
-        if (sa == null || !sa.isAbility() || sa.getApi() != ApiType.Animate || host == null || !host.isLand()
-                || !ai.equals(host.getController()) || !"Self".equals(sa.getParamOrDefault("Defined", ""))
-                || !host.isInZone(forge.game.zone.ZoneType.Battlefield)) {
-            return false;
+        return sa != null && host != null && host.isLand() && "manland-wasted".equals(TimedAbilityGuard.problem(ai, sa));
+    }
+
+    /** Whether the spell is a Pact, also when its script cannot be read any further. */
+    static boolean isPact(final SpellAbility sa) {
+        try {
+            return pactCost(sa) != null;
+        } catch (final RuntimeException e) {
+            final Card host = sa == null ? null : sa.getHostCard();
+            return host != null && host.getName() != null && host.getName().endsWith(" Pact") || host != null
+                    && host.getName() != null && host.getName().startsWith("Pact of ");
         }
-        if (host.isCreature()) {
-            return true; // already a creature this turn
-        }
-        final forge.game.phase.PhaseHandler ph = ai.getGame().getPhaseHandler();
-        if (ph.isPlayerTurn(ai)) {
-            final boolean timing = ph.is(forge.game.phase.PhaseType.MAIN1) || ph.is(forge.game.phase.PhaseType.COMBAT_BEGIN);
-            if (!timing || host.isTapped() || host.hasSickness()) {
-                return true;
-            }
-            for (final Player opp : ai.getOpponents()) {
-                if (opp.getLife() > 0) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        final forge.game.combat.Combat combat = ph.getCombat();
-        return !ph.is(forge.game.phase.PhaseType.COMBAT_DECLARE_ATTACKERS) || combat == null
-                || combat.getAttackers().isEmpty() || host.isTapped();
     }
 
     private static final Pattern PACT_COST = Pattern.compile("UnlessCost\\$\\s*([^|]+)");
@@ -290,9 +306,13 @@ public final class ComboGuard {
                         || ma.getPayCosts().hasSpecificCostType(CostDiscard.class))) {
                     continue; // used up by making the mana
                 }
-                best = Math.max(best, Math.max(1, ma.amountOfManaGenerated(false)));
-                for (int i = 0; i < 5; i++) {
-                    makes[i] |= ma.canProduce(String.valueOf("WUBRG".charAt(i)));
+                try {
+                    best = Math.max(best, Math.max(1, ma.amountOfManaGenerated(false)));
+                    for (int i = 0; i < 5; i++) {
+                        makes[i] |= ma.canProduce(String.valueOf("WUBRG".charAt(i)));
+                    }
+                } catch (final RuntimeException e) {
+                    best = Math.max(best, 1); // an odd mana ability (Chrome Mox, Gemstone Mine): one mana, of no color we can name
                 }
             }
             total += best;
