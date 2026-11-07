@@ -1,6 +1,6 @@
 # MTG Reforged — Privacy Policy
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-08_
 
 MTG Reforged is a free, open-source Magic: The Gathering app for Android. It has no accounts
 and no ads, and the developer only receives personal data if you accept sharing your account (it's
@@ -27,8 +27,9 @@ privacy policies.
 At most once a day the app sends the project's own server three things: a random ID created by
 the app when it first runs, the platform (Android or Windows) and the app version. The ID is not
 linked to you, your device, your Google account or your decks, and it's used only to count how
-many installs are active and which versions they run. The server also records the country the
-request came from, which Cloudflare works out from your IP address. It doesn't store the IP address.
+many installs are active and which versions they run. The server also records the approximate
+location the request came from (country, region, city and time zone), which Cloudflare works out
+from your IP address. It doesn't store the IP address.
 Uninstalling the app deletes the ID from your device.
 
 ## Sharing your account (needed for sync and Google Drive backups)

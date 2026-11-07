@@ -128,7 +128,7 @@ details summary { cursor: pointer; font-family: var(--display); font-size: .8rem
     <section class="stack" data-panel="installs" hidden>
       <div class="two">
         <div class="plaque"><h2>Versiones (30 días)</h2><div class="scroll"><table id="versions"></table></div></div>
-        <div class="plaque"><h2>Países</h2><div class="scroll"><table id="countries"></table></div></div>
+        <div class="plaque"><h2>Ubicaciones</h2><p class="muted">Aproximadas: salen de la IP, que no se guarda. Con datos móviles suelen marcar la ciudad del proveedor.</p><div class="scroll"><table id="places"></table></div></div>
       </div>
       <div class="plaque">
         <h2>Instalaciones</h2>
@@ -249,10 +249,11 @@ async function loadInstalls() {
   bars("chart-new", days, "fresh", "Instalaciones nuevas por día, últimos 30 días");
   table("daily", ["Día", "#Activas", "#Nuevas"], days.slice().reverse().map((d) => [esc(d.day), d.active, d.fresh]), "");
   table("versions", ["Versión", "Plataforma", "#Instalaciones"], s.versions.map((v) => [esc(v.version), esc(v.platform), v.total]), "Sin datos todavía.");
-  table("countries", ["País", "#Instalaciones"], s.countries.map((c) => [esc(c.country || "Sin dato"), c.total]), "Sin datos todavía.");
-  table("installs", ["Nombre", "Mail", "Plataforma", "Sistema", "Versión", "País", "Primera vez", "Última vez"],
+  table("places", ["País", "Región", "#Instalaciones"], s.places.map((c) => [esc(c.country || "Sin dato"), esc(c.region || "—"), c.total]), "Sin datos todavía.");
+  table("installs", ["Nombre", "Mail", "Plataforma", "Sistema", "Versión", "Ubicación", "Zona horaria", "Primera vez", "Última vez"],
     s.list.map((i) => [i.name ? esc(i.name) : `<code>${esc(i.id.slice(0, 8))}</code>`, i.email ? `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>` : '<span class="muted">Anónima</span>',
-      esc(i.platform), esc(i.os || "—"), esc(i.version), esc(i.country || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
+      esc(i.platform), esc(i.os || "—"), esc(i.version),
+      esc([i.city, i.region, i.country].filter(Boolean).join(", ") || "—"), esc(i.timezone || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
 }
 
 const badge = (run) => {

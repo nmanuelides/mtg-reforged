@@ -44,7 +44,9 @@ export class Registry extends DurableObject {
       id TEXT PRIMARY KEY, title TEXT, body TEXT, link TEXT, target TEXT, created INTEGER)`);
     this.sql.exec("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, name TEXT, email TEXT, os TEXT, updated INTEGER)");
     // Throws once the column exists, which is the normal case.
-    try { this.sql.exec("ALTER TABLE installs ADD COLUMN country TEXT"); } catch (e) {}
+    for (const column of ["country", "region", "city", "timezone"]) {
+      try { this.sql.exec(`ALTER TABLE installs ADD COLUMN ${column} TEXT`); } catch (e) {}
+    }
   }
 
   /** The Google name and email of a player who agreed to share them, linked to their install. */
@@ -99,12 +101,14 @@ export class Registry extends DurableObject {
   }
 
   /** One anonymous install saying it's alive: a random id, never an IP or anything about the player. */
-  ping(id, platform, version, country) {
+  /** [place]: where Cloudflare places the request's IP (country, region, city, time zone); the IP itself isn't kept. */
+  ping(id, platform, version, place) {
     const now = Date.now();
-    this.sql.exec(`INSERT INTO installs (id, platform, version, country, first_seen, last_seen) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET platform = excluded.platform, version = excluded.version,
-        country = excluded.country, last_seen = excluded.last_seen`,
-      id, platform, version, country, now, now);
+    this.sql.exec(`INSERT INTO installs (id, platform, version, country, region, city, timezone, first_seen, last_seen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET platform = excluded.platform, version = excluded.version, country = excluded.country,
+        region = excluded.region, city = excluded.city, timezone = excluded.timezone, last_seen = excluded.last_seen`,
+      id, platform, version, place.country, place.region, place.city, place.timezone, now, now);
     this.sql.exec("INSERT OR IGNORE INTO pings (day, id) VALUES (?, ?)", new Date(now).toISOString().slice(0, 10), id);
     this.sql.exec("DELETE FROM pings WHERE day < ?", new Date(now - 90 * 86400000).toISOString().slice(0, 10));
     return { ok: true };
@@ -118,10 +122,12 @@ export class Registry extends DurableObject {
         FROM installs GROUP BY platform ORDER BY total DESC`, now - 30 * 86400000, now - 7 * 86400000, now - 7 * 86400000).toArray(),
       versions: this.sql.exec(`SELECT version, platform, COUNT(*) AS total FROM installs WHERE last_seen > ?
         GROUP BY version, platform ORDER BY version DESC LIMIT 40`, now - 30 * 86400000).toArray(),
-      countries: this.sql.exec("SELECT country, COUNT(*) AS total FROM installs GROUP BY country ORDER BY total DESC LIMIT 40").toArray(),
+      places: this.sql.exec(`SELECT country, region, COUNT(*) AS total FROM installs
+        GROUP BY country, region ORDER BY total DESC LIMIT 60`).toArray(),
       daily: this.sql.exec(`SELECT p.day, COUNT(*) AS active, SUM(date(i.first_seen / 1000, 'unixepoch') = p.day) AS fresh
         FROM pings p JOIN installs i ON i.id = p.id WHERE p.day >= ? GROUP BY p.day`, new Date(now - 30 * 86400000).toISOString().slice(0, 10)).toArray(),
-      list: this.sql.exec(`SELECT i.id, i.platform, i.version, i.country, i.first_seen, i.last_seen, p.name, p.email, p.os
+      list: this.sql.exec(`SELECT i.id, i.platform, i.version, i.country, i.region, i.city, i.timezone, i.first_seen, i.last_seen,
+          p.name, p.email, p.os
         FROM installs i LEFT JOIN profiles p ON p.id = i.id ORDER BY i.last_seen DESC LIMIT 200`).toArray(),
       shared: this.sql.exec("SELECT COUNT(*) AS n FROM profiles").one().n,
       reports: this.sql.exec("SELECT COUNT(*) AS n FROM reports WHERE at > ?", now - 86400000).one().n,
@@ -287,7 +293,10 @@ export default {
       const id = String(body.id || "");
       const platform = String(body.platform || "");
       if (!/^[0-9a-f]{32}$/.test(id) || !["Android", "Windows"].includes(platform)) return json({ error: "Bad ping." }, 400);
-      return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20), String(request.cf?.country || "")));
+      return json(await registry.ping(id, platform, String(body.version || "").slice(0, 20), {
+        country: String(request.cf?.country || ""), region: String(request.cf?.region || "").slice(0, 80),
+        city: String(request.cf?.city || "").slice(0, 80), timezone: String(request.cf?.timezone || "").slice(0, 60),
+      }));
     }
 
     // A player who agreed to share their account. Google says who they are, not the app.
