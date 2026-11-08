@@ -3,6 +3,7 @@ package io.github.nmanuelides.mtgreforged.ui.home
 import io.github.nmanuelides.mtgreforged.engine.CloudSync
 import io.github.nmanuelides.mtgreforged.engine.Relay
 import io.github.nmanuelides.mtgreforged.platform.IS_DESKTOP
+import io.github.nmanuelides.mtgreforged.platform.prefs
 import androidx.compose.material3.Switch
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.runtime.collectAsState
@@ -280,7 +281,103 @@ fun SyncOnHome() {
     val sync by CloudSync.status.collectAsState()
     var answered by remember { mutableStateOf(Relay.shareChoice(context) != null) }
     if (sync.connected && !answered) SharingNotice { answered = true }
+    // First run: offer to set up sync, so nobody loses their cards without knowing it existed.
+    val setup = remember { context.prefs("setup") }
+    var wizard by remember { mutableStateOf(!setup.getBoolean("syncWizard", false) && !answered) }
+    if (wizard && !sync.connected) SyncWizard {
+        wizard = false
+        answered = true
+        setup.edit().putBoolean("syncWizard", true).apply()
+    }
 }
+
+/** The first-run steps that turn sync on: why it matters, what it shares, then connecting Google. */
+@Composable
+private fun SyncWizard(onDone: () -> Unit) {
+    val context = LocalAppContext.current
+    val scope = rememberCoroutineScope()
+    val driveToken = rememberDriveToken()
+    var step by remember { mutableStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    fun connect() {
+        busy = true
+        error = null
+        scope.launch {
+            runCatching { driveToken() }
+                .onSuccess { t -> CloudSync.syncSoon(t); step = 3 }
+                .onFailure { error = it.message ?: "Couldn't connect to Google." }
+            busy = false
+        }
+    }
+    OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 540.dp) {
+        SectionLabel("Keep your cards safe · ${minOf(step, 2) + 1} of 3")
+        Spacer(Modifier.height(10.dp))
+        when (step) {
+            0 -> {
+                Text(
+                    "Your collection and your decks live on this device. If you uninstall the app or change " +
+                        "${if (IS_DESKTOP) "PC" else "phone"}, they are lost, unless sync is on.",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.Ink,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Sync saves them in your own Google Drive after every change, and brings them to every phone, tablet " +
+                        "and PC signed in with the same Google account.",
+                    style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+                )
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrnateButton("Not now", { step = 4 }, Modifier.weight(1f), accent = Palette.Slate)
+                    OrnateButton("Set up sync", { step = 1 }, Modifier.weight(1f), icon = Icons.Default.Sync, style = OrnateStyle.Primary)
+                }
+            }
+            1 -> {
+                Text(sharingText(), style = MaterialTheme.typography.bodyMedium, color = Palette.Ink)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrnateButton("Not now", { Relay.setShareChoice(context, false); step = 4 }, Modifier.weight(1f), accent = Palette.Slate)
+                    OrnateButton("Accept", { Relay.setShareChoice(context, true); step = 2 }, Modifier.weight(1f), style = OrnateStyle.Primary)
+                }
+            }
+            2 -> {
+                Text(
+                    "Last step: sign in with Google and allow MTG Reforged to keep its files in your Drive. " +
+                        "It only sees the files it creates.",
+                    style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
+                )
+                error?.let {
+                    Spacer(Modifier.height(10.dp))
+                    StatusBanner(it, failed = true)
+                }
+                Spacer(Modifier.height(14.dp))
+                if (busy) CircularProgressIndicator(color = Palette.Terracotta)
+                else Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrnateButton("Later", { step = 4 }, Modifier.weight(1f), accent = Palette.Slate)
+                    OrnateButton("Connect Google", ::connect, Modifier.weight(1f), style = OrnateStyle.Primary)
+                }
+            }
+            3 -> {
+                StatusBanner("Sync is on. Your cards and decks are saved in your Google Drive.", failed = false)
+                Spacer(Modifier.height(14.dp))
+                OrnateButton("Done", onDone, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
+            }
+            else -> {
+                Text(
+                    "No problem. You can turn sync on at any time with the Backup & restore button at the top of the home screen.",
+                    style = MaterialTheme.typography.bodyLarge, color = Palette.Ink,
+                )
+                Spacer(Modifier.height(14.dp))
+                OrnateButton("Got it", onDone, Modifier.fillMaxWidth(), style = OrnateStyle.Primary)
+            }
+        }
+    }
+}
+
+private fun sharingText() =
+    "MTG Reforged is free. To use sync and Google Drive backups, your Google name and email, the app version and your " +
+        "${if (IS_DESKTOP) "Windows" else "Android"} version are shared with the developers. They will NOT be shared with anyone, " +
+        "and are used only for practical purposes: fixing errors and improving your experience with the app."
 
 /** Says what sync and Google backups share with the developers, before it happens. Without a yes they stay off. */
 @Composable
@@ -290,12 +387,7 @@ private fun SharingNotice(onAnswer: () -> Unit) {
     OrnateDialog(onDismiss = {}, dismissible = false, maxWidth = 520.dp) {
         SectionLabel("Your Google account")
         Spacer(Modifier.height(10.dp))
-        Text(
-            "MTG Reforged is free. To use sync and Google Drive backups, your Google name and email, the app version and your " +
-                "${if (IS_DESKTOP) "Windows" else "Android"} version are shared with the developers. They will NOT be shared with anyone, " +
-                "and are used only for practical purposes: fixing errors and improving your experience with the app.",
-            style = MaterialTheme.typography.bodyMedium, color = Palette.Ink,
-        )
+        Text(sharingText(), style = MaterialTheme.typography.bodyMedium, color = Palette.Ink)
         Spacer(Modifier.height(8.dp))
         Text("You can stop at any time in Backup & restore, which also turns these off. Saving a backup to a file works without this.", style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft)
         Spacer(Modifier.height(14.dp))

@@ -641,6 +641,12 @@
       "title": "v1.61 · Constructed formats",
       "body": "Game settings: with Constructed you can pick a format (Standard, Pioneer, Modern, Pauper, Legacy or Vintage). Only decks legal in it can be played, for you and your opponents. Any keeps every deck.",
       "link": null
+    },
+    {
+      "id": "v1.62.0",
+      "title": "v1.62 · Set up sync",
+      "body": "The first time you open the app, a short guide offers to turn on sync with Google Drive, so your collection and decks are never lost when you change device.",
+      "link": null
     }
   ]
 }
