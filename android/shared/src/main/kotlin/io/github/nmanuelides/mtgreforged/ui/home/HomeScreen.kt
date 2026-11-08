@@ -135,6 +135,10 @@ fun HomeScreen(
     onStart: (Format, DeckEntry, List<DeckEntry>) -> Unit,
     format: Format,
     onFormat: (Format) -> Unit,
+    legality: Engine.Legality = Engine.Legality.Any,
+    /** True while Constructed decks are being checked against [legality]. */
+    checkingDecks: Boolean = false,
+    onLegality: (Engine.Legality) -> Unit = {},
     art: LocalArt,
     saved: SavedGame? = null,
     onContinue: () -> Unit = {},
@@ -381,7 +385,7 @@ fun HomeScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "${format.label} · $opponentCount opponent${if (opponentCount > 1) "s" else ""} · playing " + (mine?.name ?: "a random deck"),
+                    "${if (format == Format.Constructed && legality != Engine.Legality.Any) legality.label else format.label} · $opponentCount opponent${if (opponentCount > 1) "s" else ""} · playing " + (if (checkingDecks) "checking decks…" else if (decks.isEmpty()) "no legal decks" else mine?.name ?: "a random deck"),
                     style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
@@ -392,6 +396,8 @@ fun HomeScreen(
             GameSettingsDialog(
                 format = format,
                 onFormat = onFormat,
+                legality = legality,
+                onLegality = onLegality,
                 count = opponentCount,
                 onCount = { chosenCount = it },
                 phone = phone,
@@ -485,6 +491,8 @@ internal fun buildProgress(build: PendingBuild): Float {
 private fun GameSettingsDialog(
     format: Format,
     onFormat: (Format) -> Unit,
+    legality: Engine.Legality,
+    onLegality: (Engine.Legality) -> Unit,
     count: Int,
     onCount: (Int) -> Unit,
     phone: Boolean,
@@ -502,6 +510,29 @@ private fun GameSettingsDialog(
                 OrnateButton(
                     f.label, { onFormat(f) }, Modifier.weight(1f),
                     style = if (f == format) OrnateStyle.Primary else OrnateStyle.Secondary, height = 46.dp,
+                )
+            }
+        }
+        if (format == Format.Constructed) {
+            Spacer(Modifier.height(16.dp))
+            Text("Format", style = MaterialTheme.typography.labelLarge, color = Palette.InkSoft)
+            Spacer(Modifier.height(6.dp))
+            Engine.Legality.entries.chunked(4).forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { l ->
+                        OrnateButton(
+                            l.label, { onLegality(l) }, Modifier.weight(1f),
+                            style = if (l == legality) OrnateStyle.Primary else OrnateStyle.Secondary, height = 42.dp,
+                            textStyle = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (legality != Engine.Legality.Any) {
+                Text(
+                    "Only decks legal in ${legality.label} can be played, yours and your opponents'.",
+                    style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft,
                 )
             }
         }

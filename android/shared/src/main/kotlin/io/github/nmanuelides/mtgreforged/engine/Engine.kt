@@ -1,6 +1,7 @@
 package io.github.nmanuelides.mtgreforged.engine
 
 import forge.deck.Deck
+import forge.deck.DeckSection
 import forge.deck.io.DeckSerializer
 import forge.game.GameRules
 import forge.game.GameState
@@ -231,6 +232,30 @@ object Engine {
         // GameType's static init needs the engine loaded, so don't touch it eagerly.
         val gameType: GameType
             get() = if (this == Commander) GameType.Commander else GameType.Constructed
+    }
+
+    /** The format a Constructed game is limited to; [Any] allows every deck. */
+    enum class Legality(val label: String) {
+        Any("Any"), Standard("Standard"), Pioneer("Pioneer"), Modern("Modern"),
+        Pauper("Pauper"), Legacy("Legacy"), Vintage("Vintage");
+    }
+
+    private val legalCache = HashMap<String, Boolean>()
+
+    /**
+     * The decks in [decks] that are legal in [legality]. Only the main deck counts (the sideboard
+     * holds a deck's Ideas). Slow the first time: it loads every deck, so call it off the main thread.
+     */
+    fun legalDecks(decks: List<DeckEntry>, legality: Legality): List<DeckEntry> {
+        if (legality == Legality.Any) return decks
+        val format = FModel.getFormats().getFormat(legality.name) ?: return decks
+        return decks.filter { entry ->
+            val key = "${legality.name}|${entry.file.path}|${entry.file.lastModified()}"
+            synchronized(legalCache) { legalCache[key] } ?: runCatching {
+                val deck = loadDeck(entry)
+                format.isDeckLegal(Deck(deck.name).apply { putSection(DeckSection.Main, deck.main) })
+            }.getOrDefault(false).also { synchronized(legalCache) { legalCache[key] = it } }
+        }
     }
 
     private val deckCache = HashMap<Format, List<DeckEntry>>()

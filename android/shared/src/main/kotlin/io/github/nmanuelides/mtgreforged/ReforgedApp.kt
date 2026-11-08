@@ -53,6 +53,9 @@ import io.github.nmanuelides.mtgreforged.ui.theme.ThemeMode
 import io.github.nmanuelides.mtgreforged.update.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import io.github.nmanuelides.mtgreforged.platform.prefs
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,9 +73,23 @@ fun ReforgedApp(model: AppModel) {
     val prompt by PromptHost.current.collectAsStateWithLifecycle()
     val update by model.update.collectAsStateWithLifecycle()
     val decks by model.decks.collectAsStateWithLifecycle()
+    val context = LocalAppContext.current
     LaunchedEffect(status) { if (status == Engine.Status.Ready) model.loadDecks() }
 
     var format by rememberSaveable { mutableStateOf(Engine.Format.Commander) }
+    // Constructed games can be limited to one format; only decks legal in it can be picked.
+    val gamePrefs = remember { context.prefs("game") }
+    var legality by remember {
+        mutableStateOf(runCatching { Engine.Legality.valueOf(gamePrefs.getString("legality", null) ?: "Any") }.getOrDefault(Engine.Legality.Any))
+    }
+    val allConstructed = decks[Engine.Format.Constructed].orEmpty()
+    // Null while the decks are being checked.
+    val legalConstructed by produceState<List<Engine.DeckEntry>?>(null, allConstructed, legality) {
+        value = if (legality == Engine.Legality.Any) allConstructed else null
+        value = withContext(Dispatchers.Default) { Engine.legalDecks(allConstructed, legality) }
+    }
+    fun decksOf(fmt: Engine.Format): List<Engine.DeckEntry> =
+        if (fmt == Engine.Format.Constructed) legalConstructed.orEmpty() else decks[fmt].orEmpty()
     var selections by remember { mutableStateOf<Map<Int, Engine.DeckEntry>>(emptyMap()) }
     var browsing by remember { mutableStateOf<Pair<Engine.Format, Int>?>(null) }
     // Deck editor: which deck (null = new) and whether to open on the importer.
@@ -85,7 +102,6 @@ fun ReforgedApp(model: AppModel) {
 
     // The boot window shows the same art the landing will open on, then grows
     // into it ("stepping through the window"). Later landings rotate the art.
-    val context = LocalAppContext.current
     var landingArt by remember { mutableStateOf(LandingArt.next(context)) }
     var saved by remember { mutableStateOf<SavedGame?>(null) }
     fun nextLanding() {
@@ -110,7 +126,7 @@ fun ReforgedApp(model: AppModel) {
     val game = match
     when {
         game != null -> MatchScreen(game, onLeave = { Engine.leaveMatch(); nextLanding() })
-        friends -> OnlineScreen(format, decks[format].orEmpty()) { friends = false }
+        friends -> OnlineScreen(format, decksOf(format)) { friends = false }
         collecting -> DeckBuilderScreen(Engine.Format.Constructed, null, false, collection = true) { collecting = false }
         editing != null -> {
             val (fmt, entry, importFirst) = editing!!
@@ -125,9 +141,9 @@ fun ReforgedApp(model: AppModel) {
             val (fmt, slot) = browsing!!
             DeckBrowserScreen(
                 title = if (slot < 0) "Your deck" else "Opponent ${slot + 1}",
-                decks = decks[fmt].orEmpty(),
+                decks = decksOf(fmt),
                 format = fmt,
-                initial = selections[slot] ?: Favorites.of(fmt, decks[fmt].orEmpty()).takeIf { slot < 0 },
+                initial = selections[slot] ?: Favorites.of(fmt, decksOf(fmt)).takeIf { slot < 0 },
                 onSelect = { selections = selections + (slot to it); browsing = null; nextLanding() },
                 onBack = { browsing = null; nextLanding() },
                 onNew = { choosingFormat = true },
@@ -141,7 +157,7 @@ fun ReforgedApp(model: AppModel) {
             // in the same spot it keeps afterwards, so its chrome can animate in.
             if (status == Engine.Status.Ready) {
                 HomeScreen(
-                    decksFor = { decks[it].orEmpty() },
+                    decksFor = ::decksOf,
                     update = update,
                     onInstallUpdate = model::installUpdate,
                     onCheckUpdate = model::checkForUpdateNow,
@@ -150,6 +166,13 @@ fun ReforgedApp(model: AppModel) {
                     onStart = Engine::startMatch,
                     format = format,
                     onFormat = { format = it; selections = emptyMap() },
+                    legality = legality,
+                    checkingDecks = format == Engine.Format.Constructed && legalConstructed == null,
+                    onLegality = {
+                        legality = it
+                        selections = emptyMap()
+                        gamePrefs.edit().putString("legality", it.name).apply()
+                    },
                     art = landingArt,
                     saved = saved,
                     onContinue = {

@@ -635,6 +635,12 @@
       "title": "v1.60 · Ko-fi",
       "body": "You can now support the developer from anywhere with Ko-fi (card or PayPal), from Support the developer on the home screen.",
       "link": null
+    },
+    {
+      "id": "v1.61.0",
+      "title": "v1.61 · Constructed formats",
+      "body": "Game settings: with Constructed you can pick a format (Standard, Pioneer, Modern, Pauper, Legacy or Vintage). Only decks legal in it can be played, for you and your opponents. Any keeps every deck.",
+      "link": null
     }
   ]
 }
