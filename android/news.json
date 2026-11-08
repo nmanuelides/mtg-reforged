@@ -629,6 +629,12 @@
       "title": "v1.59 · Sync and sharing",
       "body": "Sync and Google Drive backups now need you to accept sharing your Google name and email and your app and system versions with the developers. They are not shared with anyone else. Backups saved to a file work without this, and you can stop at any time in Backup & restore.",
       "link": null
+    },
+    {
+      "id": "v1.60.0",
+      "title": "v1.60 · Ko-fi",
+      "body": "You can now support the developer from anywhere with Ko-fi (card or PayPal), from Support the developer on the home screen.",
+      "link": null
     }
   ]
 }

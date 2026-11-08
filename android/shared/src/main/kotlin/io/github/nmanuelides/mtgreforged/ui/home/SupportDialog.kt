@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,7 +44,7 @@ import kotlinx.coroutines.delay
 
 private const val ALIAS = "magatsu.mp"
 
-/** Same content as the website's Support section: who makes the app and the Mercado Pago alias. */
+/** Same content as the website's Support section: who makes the app, the Mercado Pago alias and Ko-fi. */
 @Composable
 fun SupportDialog(onDismiss: () -> Unit) {
     val context = LocalAppContext.current
@@ -88,6 +89,15 @@ fun SupportDialog(onDismiss: () -> Unit) {
                 imageRes(R.drawable.mercadopago_logo), contentDescription = "Mercado Pago",
                 modifier = Modifier.width(96.dp).clickable { context.openUrl("https://www.mercadopago.com.ar") },
             )
+        }
+        Spacer(Modifier.height(22.dp))
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("From anywhere", fontFamily = Cinzel, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = Palette.Terracotta)
+            Text(
+                "Donate on Ko-fi with a card or PayPal, once or monthly.",
+                style = MaterialTheme.typography.bodyMedium, color = Palette.InkSoft,
+            )
+            OrnateButton("Donate on Ko-fi", { context.openUrl("https://ko-fi.com/magatsu82") }, icon = Icons.Default.Favorite, style = OrnateStyle.Primary)
         }
     }
 }

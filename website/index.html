@@ -299,6 +299,8 @@ h3 { font-family: var(--display); font-weight: 600; font-size: 1.12rem; letter-s
   user-select: all;
 }
 .mp-mark { display: grid; gap: .4rem; justify-items: center; }
+.donate + .donate { margin-top: 1.6rem; }
+.kofi { background: #00b9fe; border-color: #0090c6; color: #fff; }
 .mp-mark img { width: 180px; height: auto; }
 .mp-mark { transition: transform .3s cubic-bezier(.2,.7,.2,1); }
 .mp-mark:hover { transform: scale(1.05); }
@@ -649,6 +651,18 @@ figure.mount:focus-visible { outline: 2px solid var(--slate); outline-offset: 6p
           <img src="img/mercadopago.svg" alt="Mercado Pago" width="180" height="170">
         </a>
       </div>
+      <div class="plaque studs donate tilt">
+        <div class="donate-text">
+          <h3>From anywhere</h3>
+          <p>Donate on Ko-fi with a card or PayPal, once or monthly.</p>
+          <div class="alias-row">
+            <a class="btn primary kofi" href="https://ko-fi.com/magatsu82" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h14v7a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5V6zm14 1.5h1.5a2.5 2.5 0 0 1 0 5H17v-2h1.5a.5.5 0 0 0 0-1H17v-2zM2 20h16v1.5H2z"/></svg>
+              <span>Donate on Ko-fi</span>
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -810,6 +824,9 @@ const ES = {
 "Buy the developer a coffee": "Invítale un café al desarrollador",
 "MTG Reforged is made by one developer, in his spare time. It's free and has no ads. If it makes your games better, a small donation helps keep it growing.": "MTG Reforged lo hace un solo desarrollador, en su tiempo libre. Es gratis y no tiene publicidad. Si mejora tus partidas, una pequeña donación ayuda a que siga creciendo.",
 "From Argentina": "Desde Argentina",
+"From anywhere": "Desde cualquier lugar",
+"Donate on Ko-fi with a card or PayPal, once or monthly.": "Dona en Ko-fi con tarjeta o PayPal, una vez o todos los meses.",
+"Donate on Ko-fi": "Donar en Ko-fi",
 "Transfer to the Mercado Pago alias from any bank or wallet app. Transfers are free, so all of it arrives.": "Transfiere al alias de Mercado Pago desde cualquier banco o billetera. Las transferencias son gratis, así que llega todo.",
 "Copy alias": "Copiar alias",
 "Copied": "Copiado",
@@ -1159,4 +1176,13 @@ const tr = (text) => (lang === "es" && ES[text]) || text;
     try { localStorage.setItem("lang", b.dataset.lang); } catch {}
   }));
 })();
+</script>
+<script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+<script>
+  kofiWidgetOverlay.draw('magatsu82', {
+    'type': 'floating-chat',
+    'floating-chat.donateButton.text': document.documentElement.lang === 'es' ? 'Apóyame' : 'Support me',
+    'floating-chat.donateButton.background-color': '#00b9fe',
+    'floating-chat.donateButton.text-color': '#fff'
+  });
 </script>
