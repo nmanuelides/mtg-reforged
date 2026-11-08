@@ -247,8 +247,9 @@ object Engine {
      * holds a deck's Ideas). Slow the first time: it loads every deck, so call it off the main thread.
      */
     fun legalDecks(decks: List<DeckEntry>, legality: Legality): List<DeckEntry> {
-        if (legality == Legality.Any) return decks
-        val format = FModel.getFormats().getFormat(legality.name) ?: return decks
+        // Before the engine is ready there are no decks, and its formats can't be read yet.
+        if (legality == Legality.Any || decks.isEmpty() || status.value != Status.Ready) return decks
+        val format = runCatching { FModel.getFormats().getFormat(legality.name) }.getOrNull() ?: return decks
         return decks.filter { entry ->
             val key = "${legality.name}|${entry.file.path}|${entry.file.lastModified()}"
             synchronized(legalCache) { legalCache[key] } ?: runCatching {

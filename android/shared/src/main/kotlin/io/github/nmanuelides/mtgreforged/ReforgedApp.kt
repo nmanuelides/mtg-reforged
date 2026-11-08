@@ -86,7 +86,7 @@ fun ReforgedApp(model: AppModel) {
     // Null while the decks are being checked.
     val legalConstructed by produceState<List<Engine.DeckEntry>?>(null, allConstructed, legality) {
         value = if (legality == Engine.Legality.Any) allConstructed else null
-        value = withContext(Dispatchers.Default) { Engine.legalDecks(allConstructed, legality) }
+        value = withContext(Dispatchers.Default) { runCatching { Engine.legalDecks(allConstructed, legality) }.getOrDefault(allConstructed) }
     }
     fun decksOf(fmt: Engine.Format): List<Engine.DeckEntry> =
         if (fmt == Engine.Format.Constructed) legalConstructed.orEmpty() else decks[fmt].orEmpty()

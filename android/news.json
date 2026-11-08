@@ -653,6 +653,12 @@
       "title": "v1.63 · Fix",
       "body": "Fixed a blank screen when choosing a deck in a format with no legal decks: it now says so, with buttons to go back, build or import one.",
       "link": null
+    },
+    {
+      "id": "v1.64.0",
+      "title": "v1.64 · Fix",
+      "body": "Fixed the app closing on start after picking a Constructed format other than Any.",
+      "link": null
     }
   ]
 }
