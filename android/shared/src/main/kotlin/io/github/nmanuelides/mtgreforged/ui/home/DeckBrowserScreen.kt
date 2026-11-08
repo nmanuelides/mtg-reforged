@@ -153,7 +153,26 @@ fun DeckBrowserScreen(
     onImport: () -> Unit = {},
     onEdit: (DeckEntry) -> Unit = {},
     onDelete: (DeckEntry) -> Unit = {},
+    /** Shown when [decks] is empty, e.g. no deck is legal in the chosen format. */
+    emptyText: String = "No decks yet. Build or import one.",
 ) {
+    if (decks.isEmpty()) {
+        BackHandler(onBack = onBack)
+        Box(Modifier.fillMaxSize().parchment().ornateFrame(inset = 6.dp), contentAlignment = Alignment.Center) {
+            Column(Modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                SectionLabel(title)
+                Spacer(Modifier.height(12.dp))
+                Text(emptyText, style = MaterialTheme.typography.bodyLarge, color = Palette.Ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OrnateButton("Back", onBack, icon = Icons.AutoMirrored.Filled.ArrowBack, accent = Palette.Slate)
+                    OrnateButton("New", onNew, icon = Icons.Default.Add, accent = Palette.Sage, frameColor = Palette.Sage)
+                    OrnateButton("Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate, frameColor = Palette.Slate)
+                }
+            }
+        }
+        return
+    }
     var index by remember(decks) { mutableIntStateOf(decks.indexOf(initial).coerceAtLeast(0)) }
     var searching by remember { mutableStateOf(false) }
     var mineOnly by remember { mutableStateOf(false) }

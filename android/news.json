@@ -647,6 +647,12 @@
       "title": "v1.62 · Set up sync",
       "body": "The first time you open the app, a short guide offers to turn on sync with Google Drive, so your collection and decks are never lost when you change device.",
       "link": null
+    },
+    {
+      "id": "v1.63.0",
+      "title": "v1.63 · Fix",
+      "body": "Fixed a blank screen when choosing a deck in a format with no legal decks: it now says so, with buttons to go back, build or import one.",
+      "link": null
     }
   ]
 }

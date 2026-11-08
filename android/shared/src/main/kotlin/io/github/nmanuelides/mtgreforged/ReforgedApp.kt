@@ -150,6 +150,11 @@ fun ReforgedApp(model: AppModel) {
                 onImport = { editing = Triple(fmt, null, true) },
                 onEdit = { editing = Triple(fmt, it, false) },
                 onDelete = { deleting = fmt to it },
+                emptyText = when {
+                    fmt != Engine.Format.Constructed || legality == Engine.Legality.Any -> "No decks yet. Build or import one."
+                    legalConstructed == null -> "Checking which decks are legal in ${legality.label}… Come back in a moment."
+                    else -> "No deck is legal in ${legality.label}. Build or import one, or pick another format in Game settings."
+                },
             )
         }
         else -> Box(Modifier.fillMaxSize()) {
