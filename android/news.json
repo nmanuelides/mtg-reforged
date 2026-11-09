@@ -659,6 +659,12 @@
       "title": "v1.64 · Fix",
       "body": "Fixed the app closing on start after picking a Constructed format other than Any.",
       "link": null
+    },
+    {
+      "id": "v1.65.0",
+      "title": "v1.65 · All in English",
+      "body": "The app is now entirely in English, including game prompts and card names, even on devices set to Spanish.",
+      "link": null
     }
   ]
 }

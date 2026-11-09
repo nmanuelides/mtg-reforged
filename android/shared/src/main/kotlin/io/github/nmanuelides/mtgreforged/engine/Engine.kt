@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
-import java.util.Locale
 import io.github.nmanuelides.mtgreforged.platform.prefs
 import io.github.nmanuelides.mtgreforged.platform.AppContext
 import io.github.nmanuelides.mtgreforged.platform.Log
@@ -167,10 +166,12 @@ object Engine {
         }, "Boot progress").apply { isDaemon = true; start() }
 
         FModel.initialize(ProgressBridge) { prefs ->
-            if (Locale.getDefault().language == "es") prefs.setPref(FPref.UI_LANGUAGE, "es-ES")
+            // The whole app is in English, Forge's own texts (prompts, card names) too.
+            prefs.setPref(FPref.UI_LANGUAGE, "en-US")
             prefs.setPref(FPref.UI_ENABLE_ONLINE_IMAGE_FETCHER, true)
             // Forge otherwise interrupts the first match to ask for a name.
-            if (prefs.getPref(FPref.PLAYER_NAME).isNullOrBlank()) prefs.setPref(FPref.PLAYER_NAME, "Jugador")
+            val name = prefs.getPref(FPref.PLAYER_NAME)
+            if (name.isNullOrBlank() || name == "Jugador") prefs.setPref(FPref.PLAYER_NAME, "Player")
             // We draw our own UI; Forge's own deck-generation matrix only slows boot down.
             prefs.setPref(FPref.DECKGEN_CARDBASED, false)
             // Sound effects play through the platform's audio clips; there is no music player (yet).
