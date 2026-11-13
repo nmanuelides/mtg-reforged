@@ -371,13 +371,13 @@ object Engine {
         }
     }
 
-    /** Mirrors HostedMatch's defaults, minus the "AI can't play these cards" interruption. */
+    /** Mirrors HostedMatch's defaults, including the warning about cards the AI can't play well. */
     private fun matchRules(type: GameType) = GameRules(type).apply {
         val prefs = FModel.getPreferences()
         setManaBurn(prefs.getPrefBoolean(FPref.LEGACY_MANABURN))
         setOrderCombatants(prefs.getPrefBoolean(FPref.LEGACY_ORDER_COMBATANTS))
         setGamesPerMatch(prefs.getPrefInt(FPref.UI_MATCHES_PER_GAME))
-        setWarnAboutAICards(false)
+        setWarnAboutAICards(true)
     }
 
     fun leaveMatch() {

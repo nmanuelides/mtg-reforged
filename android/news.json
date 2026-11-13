@@ -665,6 +665,12 @@
       "title": "v1.65 · All in English",
       "body": "The app is now entirely in English, including game prompts and card names, even on devices set to Spanish.",
       "link": null
+    },
+    {
+      "id": "v1.66.0",
+      "title": "v1.66 · AI card warning",
+      "body": "Before a game starts, you're warned about the cards in each deck that the AI doesn't know how to play well, like in Forge.",
+      "link": null
     }
   ]
 }
