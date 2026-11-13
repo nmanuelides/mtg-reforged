@@ -114,6 +114,8 @@ object PromptHost {
 /** Convenience used by both the IGuiBase and IGuiGame implementations. */
 internal fun <T> describe(item: T, display: ((T) -> String)?): PromptItem {
     val label = display?.invoke(item) ?: item.toString()
-    val card = (item as? CardView)?.let(CardUi::from)
+    // Printings (e.g. the cards the AI can't play well, listed before a game) show as cards too.
+    val card = (item as? CardView ?: (item as? forge.item.IPaperCard)?.let { runCatching { CardView.getCardForUi(it) }.getOrNull() })
+        ?.let(CardUi::from)
     return PromptItem(label, card)
 }

@@ -181,7 +181,10 @@ private fun ChooseDialog(p: Prompt.Choose, onDone: (List<Int>?) -> Unit) {
         if (hasCards) {
             val choices = androidx.compose.foundation.lazy.rememberLazyListState()
             LazyRow(Modifier.mouseDrag(choices), state = choices, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(p.items) { i, item -> CardChoice(item, i in selected) { toggle(i) } }
+                itemsIndexed(p.items) { i, item ->
+                    // A list to read (reveal) can mix in section headings; only the cards are drawn.
+                    if (!displayOnly || item.card != null) CardChoice(item, i in selected) { toggle(i) }
+                }
             }
         } else {
             LazyColumn(Modifier.heightIn(max = 380.dp)) {

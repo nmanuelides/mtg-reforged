@@ -671,6 +671,12 @@
       "title": "v1.66 · AI card warning",
       "body": "Before a game starts, you're warned about the cards in each deck that the AI doesn't know how to play well, like in Forge.",
       "link": null
+    },
+    {
+      "id": "v1.67.0",
+      "title": "v1.67 · AI card warning with pictures",
+      "body": "The warning about cards the AI can't play well now shows each card's picture, not just its name.",
+      "link": null
     }
   ]
 }
