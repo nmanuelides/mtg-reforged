@@ -677,6 +677,12 @@
       "title": "v1.67 · AI card warning with pictures",
       "body": "The warning about cards the AI can't play well now shows each card's picture, not just its name.",
       "link": null
+    },
+    {
+      "id": "v1.68.0",
+      "title": "v1.68 · Fixes",
+      "body": "• Undo puts your mana pool back exactly as it was: tapping a land, undoing and tapping it again no longer piles up mana.\n• Discarding after drawing (\"draw a card, then discard a card\") now shows the card you just drew among the choices.",
+      "link": null
     }
   ]
 }

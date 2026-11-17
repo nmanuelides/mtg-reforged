@@ -187,7 +187,7 @@ class ComposeGuiGame : NetworkGuiGame() {
         }
 
         val selectable = cards.values.filter { isSelectable(it) }.mapTo(HashSet()) { it.id }
-        val boardChoice = boardChoice(view, selectable, ::card)
+        val boardChoice = boardChoice(view, selectable, cards, ::card)
         val highlighted = (cards.values + players.values).filter { isHighlighted(it) }.mapTo(HashSet()) { it.id }
         val zoneChoice = if (boardChoice != null) null else zoneChoice(selectable, highlighted, cards, ::card)
 
@@ -442,11 +442,12 @@ class ComposeGuiGame : NetworkGuiGame() {
         )
     }
 
-    private fun boardChoice(view: GameView, selectable: Set<Int>, toUi: (CardView) -> CardUi): BoardChoiceUi? {
+    /** [cards] are this snapshot's (cardsById is still the previous one: a card just drawn isn't in it yet). */
+    private fun boardChoice(view: GameView, selectable: Set<Int>, cards: Map<Int, CardView>, toUi: (CardView) -> CardUi): BoardChoiceUi? {
         val top = view.stack?.firstOrNull()?.id
         if (top != choiceStackId) { choiceStackId = top; choiceHistory.clear() }
         if (currentInput() !is InputSelectEntitiesFromList<*> || selectable.isEmpty()) return null
-        val options = selectable.mapNotNull { cardsById[it] }
+        val options = selectable.mapNotNull { cards[it] }
         val groups = options.groupBy { it.controller?.name ?: "" }
             .map { (owner, cs) -> (if (owner.isEmpty()) "Cards" else "$owner's") to cs.map(toUi) }
         val selected = runCatching { selectedInInput().mapTo(HashSet()) { it.id } }.getOrDefault(emptySet())
@@ -470,7 +471,11 @@ class ComposeGuiGame : NetworkGuiGame() {
     // into Undo, and stops at anything the opponent does.
 
     /** [position] is the same state as text, so a save can carry the history (null if it failed). */
-    private class UndoEntry(val memento: GameMemento, val logSize: Int, val position: SavedGame.Position?)
+    private class UndoEntry(
+        val memento: GameMemento, val logSize: Int, val position: SavedGame.Position?,
+        /** Each player's floating mana at that prompt, laid back exactly so undoing a land tap never leaves its mana behind. */
+        val pools: Map<forge.game.player.Player, List<forge.game.mana.Mana>> = emptyMap(),
+    )
 
     /** Newest last; while the player sits in [promptInput], the last entry is that prompt's state. */
     private val history = ArrayList<UndoEntry>()
@@ -567,7 +572,12 @@ class ComposeGuiGame : NetworkGuiGame() {
             resumeLog = emptyList()
         }
         if (skipNextRecord) { skipNextRecord = false; return }
-        runCatching { UndoEntry(recorder.capture(game), game.gameLog.size(), runCatching { SavedGames.position(game) }.getOrNull()) }
+        runCatching {
+            UndoEntry(
+                recorder.capture(game), game.gameLog.size(), runCatching { SavedGames.position(game) }.getOrNull(),
+                game.players.associateWith { it.manaPool.toList() },
+            )
+        }
             .onSuccess {
                 undoError = null
                 history += it
@@ -667,7 +677,14 @@ class ComposeGuiGame : NetworkGuiGame() {
             val entry = history.getOrNull(target) ?: return
             runCatching {
                 game.fireEvent(GameEventSnapshotRestored(true))
-                entry.memento.restore()
+                val ok = entry.memento.restore()
+                if (!ok) Log.w("Undo", "memento not restorable: ${entry.memento.problems}")
+                // Floating mana exactly as it was (nothing tapped since stays in the pool).
+                entry.pools.forEach { (p, saved) ->
+                    val pool = p.manaPool
+                    pool.toList().forEach { pool.removeManaNoEvent(it) }
+                    saved.forEach { pool.addManaNoEvent(it) }
+                }
                 game.gameLog.truncateTo(entry.logSize)
                 refreshViews(game)
                 game.fireEvent(GameEventSnapshotRestored(false))
