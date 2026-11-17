@@ -58,6 +58,11 @@ a { color: var(--terracotta); }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; }
 th { font: 600 .74rem var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); text-align: left; white-space: nowrap; }
+th.sort { cursor: pointer; user-select: none; }
+th.sort:hover, th.sort.on { color: var(--ink); }
+th.sort::after { content: " ↕"; opacity: .35; }
+th.sort.on.asc::after { content: " ▲"; opacity: 1; }
+th.sort.on.desc::after { content: " ▼"; opacity: 1; }
 th, td { padding: 8px 18px 8px 0; white-space: nowrap; border-bottom: 1px solid var(--line); vertical-align: top; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 code { font: 600 .95rem ui-monospace, Consolas, monospace; }
@@ -250,10 +255,46 @@ async function loadInstalls() {
   table("daily", ["Día", "#Activas", "#Nuevas"], days.slice().reverse().map((d) => [esc(d.day), d.active, d.fresh]), "");
   table("versions", ["Versión", "Plataforma", "#Instalaciones"], s.versions.map((v) => [esc(v.version), esc(v.platform), v.total]), "Sin datos todavía.");
   table("places", ["País", "Región", "#Instalaciones"], s.places.map((c) => [esc(c.country || "Sin dato"), esc(c.region || "—"), c.total]), "Sin datos todavía.");
-  table("installs", ["Nombre", "Mail", "Plataforma", "Sistema", "Versión", "Ubicación", "Zona horaria", "Primera vez", "Última vez"],
-    s.list.map((i) => [i.name ? esc(i.name) : `<code>${esc(i.id.slice(0, 8))}</code>`, i.email ? `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>` : '<span class="muted">Anónima</span>',
+  installList = s.list;
+  drawInstalls();
+}
+
+// Installs table: click a heading to sort by it, click again to flip the order.
+const place = (i) => [i.city, i.region, i.country].filter(Boolean).join(", ");
+const versionKey = (v) => String(v || "").replace(/^v/, "").split(/[.\-]/).map((n) => (/^\d+$/.test(n) ? n.padStart(6, "0") : n)).join(".");
+const INSTALL_COLS = [
+  ["Nombre", (i) => (i.name || "~" + i.id).toLowerCase(), "text"],
+  ["Mail", (i) => (i.email || "~").toLowerCase(), "text"],
+  ["Plataforma", (i) => (i.platform || "").toLowerCase(), "text"],
+  ["Sistema", (i) => (i.os || "~").toLowerCase(), "text"],
+  ["Versión", (i) => versionKey(i.version), "version"],
+  ["Ubicación", (i) => (place(i) || "~").toLowerCase(), "text"],
+  ["Zona horaria", (i) => (i.timezone || "~").toLowerCase(), "text"],
+  ["Primera vez", (i) => i.first_seen || 0, "date"],
+  ["Última vez", (i) => i.last_seen || 0, "date"],
+];
+let installList = [], installSort = { col: 8, dir: -1 };
+function drawInstalls() {
+  const [, keyOf] = INSTALL_COLS[installSort.col];
+  const rows = installList.slice().sort((a, b) => {
+    const x = keyOf(a), y = keyOf(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * installSort.dir;
+  });
+  table("installs", INSTALL_COLS.map((c) => c[0]),
+    rows.map((i) => [i.name ? esc(i.name) : `<code>${esc(i.id.slice(0, 8))}</code>`, i.email ? `<a href="mailto:${esc(i.email)}">${esc(i.email)}</a>` : '<span class="muted">Anónima</span>',
       esc(i.platform), esc(i.os || "—"), esc(i.version),
-      esc([i.city, i.region, i.country].filter(Boolean).join(", ") || "—"), esc(i.timezone || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
+      esc(place(i) || "—"), esc(i.timezone || "—"), when(i.first_seen), when(i.last_seen)]), "Sin instalaciones todavía.");
+  $("installs").querySelectorAll("th").forEach((th, n) => {
+    th.classList.add("sort");
+    if (n === installSort.col) th.classList.add("on", installSort.dir > 0 ? "asc" : "desc");
+    const kind = INSTALL_COLS[n][2];
+    th.title = kind === "date" ? "Ordenar por fecha" : kind === "version" ? "Ordenar por versión" : "Ordenar alfabéticamente";
+    th.onclick = () => {
+      // Dates start newest first, versions highest first, text A to Z.
+      installSort = n === installSort.col ? { col: n, dir: -installSort.dir } : { col: n, dir: kind === "text" ? 1 : -1 };
+      drawInstalls();
+    };
+  });
 }
 
 const badge = (run) => {
