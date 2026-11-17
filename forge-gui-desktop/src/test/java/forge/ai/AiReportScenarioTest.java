@@ -606,6 +606,12 @@ public class AiReportScenarioTest extends AITest {
                     c.game.getPhaseHandler().setCombat(combat);
                 }));
         // X spells: no Epiphany at the Drownyard for X=0 (it reveals one card), a random target stays random
+        l.add(noPlay("omarthis-elesh-norn", "Omarthis with four lands under Elesh Norn: X=2 dies as it enters (-2/-2)", Fid.APPROX, "MAIN1", true,
+                "Omarthis, Ghostfire Initiate", c -> { c.bf("Mountain", 4, c.ai); c.hand("Omarthis, Ghostfire Initiate", c.ai); c.bf("Elesh Norn, Grand Cenobite", c.opp); }));
+        l.add(noPlay("fire-ice-not-at-the-face", "Fire // Ice in the second main phase against a player with no creatures: Fire is not thrown at their face", Fid.APPROX, "MAIN2", true,
+                "Fire // Ice", c -> { c.bf("Mountain", c.ai); c.bf("Island", c.ai); c.hand("Fire // Ice", c.ai); c.hand("Grizzly Bears", c.ai); c.hand("Forest", c.ai); c.hand("Island", c.ai); }));
+        l.add(play("fire-ice-cantrip-at-their-end", "Ice at the end of the opponent's turn: a card for two mana that were not used", Fid.APPROX, "END_OF_TURN", false,
+                "Fire // Ice", c -> { c.bf("Mountain", c.ai); c.bf("Island", c.ai); c.hand("Fire // Ice", c.ai); c.bf("Forest", c.opp); }));
         l.add(noPlay("epiphany-x0", "Epiphany at the Drownyard with a single Island (X=0)", Fid.APPROX, "END_OF_TURN", false,
                 "Epiphany at the Drownyard", c -> { c.bf("Island", c.ai); c.hand("Epiphany at the Drownyard", c.ai); c.bf("Grizzly Bears", c.opp); }));
         l.add(new Scenario("goblin-test-pilot", "Goblin Test Pilot's target is random: the AI does not aim it", Fid.APPROX, "MAIN1", true,
@@ -666,6 +672,43 @@ public class AiReportScenarioTest extends AITest {
                 c -> { c.bf("Island", 3, c.ai); c.hand("Pact of Negation", c.ai); c.stack(c.opp, "Serra Angel"); }));
         l.add(play("pact-payable", "Pact of Negation with five Islands against a Serra Angel: it can be paid", Fid.APPROX, M1, false, "Pact of Negation",
                 c -> { c.bf("Island", 5, c.ai); c.hand("Pact of Negation", c.ai); c.stack(c.opp, "Serra Angel"); }));
+        // Regenerate, Animate and Destroy abilities: used when they do something, never when they do nothing
+        final Setup skeletonsBlock = c -> {
+            c.bf("Swamp", 2, c.ai);
+            final Card blocker = c.bf("Drudge Skeletons", c.ai); final Card att = c.bf("Hill Giant", c.opp);
+            final Combat combat = new Combat(c.opp); combat.addAttacker(att, c.ai); combat.addBlocker(att, blocker);
+            c.game.getPhaseHandler().setCombat(combat);
+        };
+        l.add(play("regen-blocker", "Drudge Skeletons blocks a Hill Giant: the shield saves it", Fid.APPROX, "COMBAT_DECLARE_BLOCKERS", false,
+                "Drudge Skeletons", skeletonsBlock));
+        l.add(noPlay("regen-shield-up", "Drudge Skeletons already has a shield: no second one", Fid.APPROX, "COMBAT_DECLARE_BLOCKERS", false,
+                "Drudge Skeletons", c -> { skeletonsBlock.run(c);
+                    c.ai.getCardsIn(ZoneType.Battlefield).stream().filter(k -> k.getName().equals("Drudge Skeletons")).forEach(Card::incShieldCount); }));
+        l.add(noPlay("regen-idle", "Drudge Skeletons with nothing happening: no shield for nothing", Fid.APPROX, M1, true,
+                "Drudge Skeletons", c -> { c.bf("Swamp", 2, c.ai); c.bf("Drudge Skeletons", c.ai); c.bf("Hill Giant", c.opp); }));
+        l.add(play("regen-in-response", "Lightning Bolt aimed at Drudge Skeletons: regenerate in response", Fid.APPROX, M1, false,
+                "Drudge Skeletons", c -> { c.bf("Swamp", 2, c.ai); final Card sk = c.bf("Drudge Skeletons", c.ai); c.stack(c.opp, "Lightning Bolt", sk); }));
+        l.add(noPlay("regen-bolt-at-face", "Lightning Bolt aimed at the AI itself: nothing to regenerate", Fid.APPROX, M1, false,
+                "Drudge Skeletons", c -> { c.bf("Swamp", 2, c.ai); c.bf("Drudge Skeletons", c.ai); c.stack(c.opp, "Lightning Bolt", c.ai); }));
+        l.add(noPlay("animate-already", "Mutavault is a creature already this turn: no second animation", Fid.APPROX, M1, true,
+                "Mutavault", c -> {
+                    c.bf("Mountain", 3, c.ai); final Card mv = c.bf("Mutavault", c.ai); c.bf("Hill Giant", c.opp);
+                    for (final SpellAbility sa : mv.getSpellAbilities()) {
+                        if (sa.getApi() == forge.game.ability.ApiType.Animate) { sa.setActivatingPlayer(c.ai); c.resolve(sa); break; }
+                    }
+                }));
+        l.add(noPlay("animate-own-mana", "Mutavault alone: it would tap itself for its own {1} and be a tapped creature", Fid.APPROX, "COMBAT_BEGIN", true,
+                "Mutavault", c -> { c.bf("Mutavault", c.ai); }));
+        l.add(play("animate-attack", "Mutavault against an empty board: animate it and attack (at the start of combat, where the AI animates)", Fid.APPROX, "COMBAT_BEGIN", true,
+                "Mutavault", c -> { c.bf("Mountain", 2, c.ai); c.bf("Mutavault", c.ai); }));
+        l.add(noPlay("destroy-no-tapped-creature", "Royal Assassin with only untapped creatures to aim at", Fid.APPROX, M1, true,
+                "Royal Assassin", c -> { c.bf("Swamp", c.ai); c.bf("Royal Assassin", c.ai); c.bf("Hill Giant", c.opp); }));
+        l.add(play("destroy-tapped-creature", "Royal Assassin with a tapped Hill Giant to destroy", Fid.APPROX, M1, true,
+                "Royal Assassin", c -> { c.bf("Swamp", c.ai); c.bf("Royal Assassin", c.ai); c.bf("Hill Giant", c.opp).tap(true, null, null); }));
+        l.add(noPlay("destroy-indestructible", "Royal Assassin against a tapped indestructible Darksteel Colossus", Fid.APPROX, M1, true,
+                "Royal Assassin", c -> { c.bf("Swamp", c.ai); c.bf("Royal Assassin", c.ai); c.bf("Darksteel Colossus", c.opp).tap(true, null, null); }));
+        l.add(noPlay("destroy-own-creature", "Royal Assassin with only its own tapped creature to destroy", Fid.APPROX, M1, true,
+                "Royal Assassin", c -> { c.bf("Swamp", c.ai); c.bf("Royal Assassin", c.ai); c.bf("Hill Giant", c.ai).tap(true, null, null); }));
         // Seal of Fire against Shalai, Voice of Plenty: the player is hexproof, the 2 damage cannot kill a 4-toughness flyer
         l.add(noPlay("seal-of-fire-shalai", "Seal of Fire aimed at Shalai that it cannot kill (the player at 2 life is hexproof)", Fid.APPROX, "END_OF_TURN", false,
                 "Seal of Fire", c -> { c.bf("Seal of Fire", c.ai); c.bf("Shalai, Voice of Plenty", c.opp); c.opp.setLife(2, null); }));
@@ -975,7 +1018,7 @@ public class AiReportScenarioTest extends AITest {
             throw t;
         }
         SUMMARY.add((failure == null ? "OK     " : "BUG    ") + s + (failure == null ? "" : " -> " + failure));
-        AssertJUnit.assertNull(s.toString(), failure);
+        AssertJUnit.assertNull(s + (failure == null ? "" : " -> " + failure), failure); // the reason is in the assertion, not only in the summary
     }
 
     @AfterClass

@@ -2521,7 +2521,10 @@ public class ComputerUtil {
             // TODO
             // computer will need to choose a type based on whether it needs a creature or land,
             // otherwise, lib search for most common type left then, reveal chosenType to Human
-            if (game.getPhaseHandler().is(PhaseType.UNTAP) && logic == null) { // Storage Matrix
+            if ("Turnabout".equals(logic)) {
+                // the lands are what a mana loop untaps
+                chosen = validTypes.contains("Land") ? "Land" : "";
+            } else if (game.getPhaseHandler().is(PhaseType.UNTAP) && logic == null) { // Storage Matrix
                 double amount = 0;
                 for (String type : validTypes) {
                     CardCollection list = CardLists.filter(ai.getCardsIn(ZoneType.Battlefield), CardPredicates.isType(type), CardPredicates.TAPPED);
@@ -3490,6 +3493,29 @@ public class ComputerUtil {
             }
             if (sources < need.getValue()) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Sacrificing this noncreature token would cost the AI: an opposing permanent punishes it (Bloodroot Apothecary: the
+     * player who sacrifices a noncreature token gets two poison counters, and a Treasure or a Clue is such a token).
+     */
+    public static boolean sacrificePunished(final Player ai, final Card card) {
+        if (card == null || !card.isToken() || card.isCreature()) {
+            return false;
+        }
+        for (final Card c : ai.getOpponents().getCardsIn(ZoneType.Battlefield)) {
+            for (final forge.game.trigger.Trigger t : c.getTriggers()) {
+                if (t.getMode() != forge.game.trigger.TriggerType.Sacrificed || !t.hasParam("ValidCard")
+                        || !t.getParam("ValidCard").contains("token") || !t.getParam("ValidCard").toLowerCase().contains("noncreature")) {
+                    continue;
+                }
+                final String valid = t.getParamOrDefault("ValidPlayer", "");
+                if (valid.contains("Opponent") || valid.contains("Player")) {
+                    return true;
+                }
             }
         }
         return false;
