@@ -940,7 +940,9 @@ public class AiController {
      */
     private boolean assemblyApproved(final SpellAbility sa) {
         try {
-            if (ComboGuard.problem(player, sa, null, deckPlan(player).combos) != null) {
+            final String assemblyProblem = ComboGuard.problem(player, sa, null, deckPlan(player).combos);
+            if (assemblyProblem != null) {
+                VetoLog.refused(player, sa, assemblyProblem, "assembly");
                 return false;
             }
             sa.setActivatingPlayer(player);
@@ -1080,6 +1082,9 @@ public class AiController {
         if (!checkAiSpecificRestrictions(sa)) {
             return AiPlayDecision.CantPlayAi;
         }
+        if (ComputerUtil.cannotPayPact(player, sa)) {
+            return AiPlayDecision.CantAfford; // the pact would cost the game at the next upkeep
+        }
         if (sa instanceof WrappedAbility) {
             return canPlaySa(((WrappedAbility) sa).getWrappedAbility());
         }
@@ -1214,6 +1219,9 @@ public class AiController {
                     return AiPlayDecision.BadEtbEffects;
                 }
             }
+            if (!sa.isLandAbility() && sa.isSpell() && LegalityGuard.etbWithoutTarget(player, card)) {
+                return AiPlayDecision.BadEtbEffects; // Journey to Nowhere, Oblivion Ring, Necromancy ... with nothing to aim at
+            }
             if (!sa.isLandAbility() && !checkETBEffects(card, sa, null)) {
                 return AiPlayDecision.BadEtbEffects;
             }
@@ -1297,6 +1305,11 @@ public class AiController {
 
     public CardCollection getCardsToDiscard(final int min, final int max, final CardCollection validCards, final SpellAbility sa) {
         if (validCards.size() > min) {
+            // the High Tide loop keeps its Stroke of Genius, High Tide, untap spells and counterspells
+            final CardCollection tideSafe = LoopRunner.withoutTideKeys(player, validCards);
+            if (tideSafe.size() >= min && tideSafe.size() < validCards.size()) {
+                return chooseCardsToDiscard(min, max, tideSafe, sa);
+            }
             final ComboPlan combos = deckPlan(player).combos;
             // a deck that wants creatures in the graveyard throws away the right ones
             final CardCollection forCombo = combos.preferredDiscards(player, validCards, min);
@@ -1868,6 +1881,14 @@ public class AiController {
         CardCollection landsWannaPlay = ComputerUtilAbility.getAvailableLandsToPlay(game, player);
         if (landsWannaPlay != null) {
             landsWannaPlay = filterLandsToPlay(landsWannaPlay);
+            if (landsWannaPlay != null && landsWannaPlay.size() > 1) {
+                // a land that makes no mana yet (Temple of the False God with four lands to come) waits for the others
+                final CardCollection working = CardLists.filter(landsWannaPlay,
+                        l -> !LegalityGuard.isDormantLand(player, l));
+                if (!working.isEmpty()) {
+                    landsWannaPlay = working;
+                }
+            }
             if (landsWannaPlay != null && !landsWannaPlay.isEmpty()) {
                 // TODO search for other land it might want to play?
                 Card land = chooseBestLandToPlay(landsWannaPlay);
@@ -2142,11 +2163,11 @@ public class AiController {
                 return true;
             }
             final Card h = spellAbility.getHostCard();
-            return h != null && ((ComputerUtilCard.isCardRemAIDeck(h) && !flatMc) || ComboAssembly.deadOnArrival(player, spellAbility)
-                    || (flatMc && LoopRunner.held(player, spellAbility))
+            return h != null && ((ComputerUtilCard.isCardRemAIDeck(h) && !flatMc) || (ComboAssembly.deadOnArrival(player, spellAbility) && vetoed(spellAbility, "dead-on-arrival"))
+                    || (flatMc && LoopRunner.held(player, spellAbility) && vetoed(spellAbility, "held-for-loop"))
                     || (flatMc && SurpriseEntry.isEntryAbility(spellAbility) && !SurpriseEntry.offered(player, spellAbility))
                     || (flatMc && FlatMonteCarloPicker.needlessTrick(player, spellAbility))
-                    || (flatMc && SpecialActions.waitsForCombat(player, spellAbility))
+                    || (flatMc && SpecialActions.waitsForCombat(player, spellAbility) && vetoed(spellAbility, "waits-for-combat"))
                     // an equip is an investment: it does not take the mana of a creature that could be cast instead
                     || (flatMc && spellAbility.isEquip() && !FlatMonteCarloPicker.sparesMana(player, spellAbility))
                     // the upkeep is for a forecast ability, if its cost costs nothing the first main phase needs
@@ -2200,8 +2221,11 @@ public class AiController {
             }
             final SpellAbility loop = LoopRunner.next(player, saList, this::loopApproved);
             if (loop != null) {
+                VetoLog.note(player, "loop-play " + loop.getHostCard().getName());
                 return loop; // a loop of the combo list is on the table: one more round of it
             }
+            // the loop declined its finishers this time: they are for the turn that wins, not for a draw or a mill that falls short
+            saList.removeIf(sa -> LoopRunner.keptForTheLoop(player, sa));
             final SpellAbility finish = ComboAssembly.finish(player, saList, this::assemblyApproved);
             if (finish != null) {
                 return finish; // a draw that takes the opponent's whole library: they lose at their next draw
@@ -2213,6 +2237,14 @@ public class AiController {
         }
         if (flatMc && game.getStack().isEmpty()) {
             // Stiflenought: the Dreadnought is cast as soon as its Stifle can be paid for as well, without rollouts
+            final SpellAbility blockGrant = FlatMonteCarloPicker.sureBlock(player, saList);
+            if (blockGrant != null) {
+                return blockGrant; // flying, reach... for the creature that blocks the attacker well: now or never
+            }
+            final SpellAbility evasion = FlatMonteCarloPicker.sureEvasion(player, saList);
+            if (evasion != null) {
+                return evasion; // menace, fear... for an attacker that the blockers would stop: the last moment before they are declared
+            }
             final SpellAbility sureStifle = StifleCombo.sureCast(player, saList);
             if (sureStifle != null) {
                 return sureStifle;
@@ -2378,7 +2410,7 @@ public class AiController {
                     continue; // without discovery only a ramp deck's key card gets this far
                 }
                 try {
-                    if (counter.canPlay() && counter.canTargetSpellAbility(top)) {
+                    if (counter.checkRestrictions(player) && counter.canPlay() && counter.canTargetSpellAbility(top)) {
                         // aim first: a cost that depends on the target (a discard of its mana value) cannot be checked before
                         counter.resetTargets();
                         counter.getTargets().add(top);
@@ -2400,12 +2432,19 @@ public class AiController {
             final boolean blocksDown = game.getPhaseHandler().is(PhaseType.COMBAT_DECLARE_BLOCKERS);
             extras.removeIf(sa -> !FlatMonteCarloPicker.isInteraction(sa)
                     && !(blocksDown && FlatMonteCarloPicker.isCombatTrick(sa))
+                    && !FlatMonteCarloPicker.enablesGoodBlock(player, sa) // flying/reach for the block: only now, not after the blocks
                     && !(SurpriseEntry.isEntryAbility(sa) && SurpriseEntry.offered(player, sa)));
         }
         if (mode == FlatMonteCarloPicker.Mode.BLOCKED) {
             extras.removeIf(sa -> !FlatMonteCarloPicker.isCombatTrick(sa)); // after the blocks only tricks matter
             extras.removeIf(sa -> FlatMonteCarloPicker.pointlessPump(player, sa));
             approved.removeIf(sa -> FlatMonteCarloPicker.pointlessPump(player, sa));
+            approved.removeIf(FlatMonteCarloPicker::grantsBlockingKeyword); // too late to block with it
+        }
+        if (game.getStack().isEmpty() && (mode == FlatMonteCarloPicker.Mode.RESPOND || mode == FlatMonteCarloPicker.Mode.BLOCKED)) {
+            // deathtouch, first strike, indestructible... for a creature that is not in the fight
+            extras.removeIf(sa -> FlatMonteCarloPicker.pointlessKeywordTrick(player, sa));
+            approved.removeIf(sa -> FlatMonteCarloPicker.pointlessKeywordTrick(player, sa));
         }
         final List<SpellAbility> shown = FlatMonteCarloPicker.diversify(approved, cfg.maxCandidates);
         FlatMonteCarloStats.noteReactivePoint(mode, shown.size() + extras.size());
@@ -2471,8 +2510,14 @@ public class AiController {
         return cfg;
     }
 
+    /** Logs a play dropped from the list of candidates (see {@link VetoLog}); always true, so it chains onto a test. */
+    private boolean vetoed(final SpellAbility sa, final String reason) {
+        VetoLog.refused(player, sa, reason, "list");
+        return true;
+    }
+
     /**
-     * Plays that Flat Monte Carlo never spends a card on (see {@link forge.ai.simulation.ComboGuard}): bringing back
+     * Plays that Flat Monte Carlo never spends a card on (see {@link ComboGuard}): bringing back
      * a legend that is already in play and working, a second Omniscience, Show and Tell with nothing worth putting in,
      * and a cantrip while the AI is confident to win this turn or the next. Returns the reason, or null for a fine play.
      */
@@ -2480,9 +2525,14 @@ public class AiController {
         final ComboPlan plan = deckPlan(player).combos;
         final String problem = ComboGuard.problem(player, sa, aim, plan);
         if (problem != null) {
+            VetoLog.refused(player, sa, problem, "guard");
             return problem;
         }
-        return saveCantrips && ComboGuard.isCantrip(sa) ? "cantrip-saved" : null;
+        if (saveCantrips && ComboGuard.isCantrip(sa)) {
+            VetoLog.refused(player, sa, "cantrip-saved", "guard");
+            return "cantrip-saved";
+        }
+        return null;
     }
 
     private SpellAbility refineWithFlatMonteCarlo(final List<SpellAbility> approvedIn, final List<SpellAbility> extras,
@@ -2708,7 +2758,7 @@ public class AiController {
 
     private DeckPlan flatMcDeckPlan;
 
-    /** What the deck is for, worked out once from the whole list and kept for the game; see {@link forge.ai.simulation.DeckPlan}. */
+    /** What the deck is for, worked out once from the whole list and kept for the game; see {@link DeckPlan}. */
     public DeckPlan deckPlan(final Player p) {
         if (flatMcDeckPlan == null) {
             flatMcDeckPlan = DeckPlan.forSetting(getProperty(AiProps.FLAT_MC_DECK_PLAN), p);
@@ -2869,8 +2919,10 @@ public class AiController {
             // know which: their "not now" is final, and the rollouts cannot see the waste (nothing in the score)
             return false;
         }
-        final String problem = ActivationGuard.problem(player, sa);
+        final String problem = ActivationGuard.problem(player, sa) != null ? ActivationGuard.problem(player, sa)
+                : ActivationGuard.spellProblem(player, sa);
         if (problem != null && !("valuable-sacrifice".equals(problem) && deckPlan(player).combos.isKeyCard(sa.getHostCard()))) {
+            VetoLog.refused(player, sa, problem, "discovery");
             return false; // nothing to act on: a discovered tap or mana for no effect (Oran-Rief with no new green creature)
         }
         final Card host = sa.getHostCard();
@@ -2879,6 +2931,8 @@ public class AiController {
         final boolean afterBlocks = discoveryPhase.is(PhaseType.COMBAT_DECLARE_BLOCKERS);
         if (!FlatMonteCarloPicker.isDiscoverable(sa, getBoolProperty(AiProps.FLAT_MC_BROAD_DISCOVERY) || isFlatMonteCarloMax())
                 && !(afterBlocks && FlatMonteCarloPicker.isCombatTrick(sa))
+                && !FlatMonteCarloPicker.enablesGoodBlock(player, sa)
+                && !FlatMonteCarloPicker.enablesEvasion(player, sa)
                 && !FlatMonteCarloPicker.isSavingPlay(player, sa)
                 && !isRemoveDeckManaPermanent(sa)
                 && !isRemoveDeckCostReductionPermanent(sa)
@@ -3359,7 +3413,7 @@ public class AiController {
                     return slot;
                 }
 
-                return Aggregates.random(options);
+                return NumberChoice.choose(sa, options, relatedPlayer);
             default:
                 return options.get(0);
         }
