@@ -1019,6 +1019,12 @@ public class AiController {
             return canPlay;
         }
 
+        if (ActivationGuard.tooPainfulToPay(player, sa)) {
+            sa.resetTargets();
+            VetoLog.refused(player, sa, "tap-damage", "heuristic");
+            return AiPlayDecision.CantAfford; // Manabarbs: the lands that pay for it cost more life than the AI can spare
+        }
+
         if (ActivationGuard.givesMoreThanItTakes(player, sa)) {
             sa.resetTargets();
             VetoLog.refused(player, sa, "gift-exceeds-target", "heuristic");
@@ -1315,6 +1321,10 @@ public class AiController {
             final CardCollection tideSafe = LoopRunner.withoutTideKeys(player, validCards);
             if (tideSafe.size() >= min && tideSafe.size() < validCards.size()) {
                 return chooseCardsToDiscard(min, max, tideSafe, sa);
+            }
+            final CardCollection alurenSafe = forge.ai.simulation.AlurenPlan.withoutKeys(player, validCards);
+            if (alurenSafe.size() >= min && alurenSafe.size() < validCards.size()) {
+                return chooseCardsToDiscard(min, max, alurenSafe, sa); // the pieces of the Aluren kill are kept
             }
             final ComboPlan combos = deckPlan(player).combos;
             // a deck that wants creatures in the graveyard throws away the right ones
