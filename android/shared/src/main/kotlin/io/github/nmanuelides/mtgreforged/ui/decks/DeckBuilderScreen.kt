@@ -682,12 +682,14 @@ private fun CardSearch(
         derivedStateOf {
             val perPrinting = collectionMode || filter.within == Within.Collection || !filter.hideDuplicates ||
                 filter.sets.isNotEmpty() || filter.rarities.isNotEmpty() || filter.artist.isNotBlank()
-            if (perPrinting) results else {
+            val cards = if (perPrinting) results else {
                 val owned = (draft.commander.keys + draft.main.keys).groupBy { it.name }
                 results.map { r ->
                     owned[r.name]?.firstOrNull { filter.finish == Finish.Any || it.isFoil == r.isFoil } ?: r
                 }
             }
+            // The grid keys each card by its printing: the same printing twice would crash it.
+            cards.distinctBy(::printingKey)
         }
     }
 

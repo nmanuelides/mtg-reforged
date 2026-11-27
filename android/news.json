@@ -689,6 +689,12 @@
       "title": "v1.69 · Set filter",
       "body": "Searching sets in the filters shows the exact match first (\"Zendikar\" finds Zendikar), lists more matches, and the list scrolls on its own without moving the whole panel.",
       "link": null
+    },
+    {
+      "id": "v1.70.0",
+      "title": "v1.70 · Fix",
+      "body": "Fixed an error in the deck builder when the search showed the same printing twice (for example with Search in › This deck).",
+      "link": null
     }
   ]
 }
