@@ -683,6 +683,12 @@
       "title": "v1.68 · Fixes",
       "body": "• Undo puts your mana pool back exactly as it was: tapping a land, undoing and tapping it again no longer piles up mana.\n• Discarding after drawing (\"draw a card, then discard a card\") now shows the card you just drew among the choices.",
       "link": null
+    },
+    {
+      "id": "v1.69.0",
+      "title": "v1.69 · Set filter",
+      "body": "Searching sets in the filters shows the exact match first (\"Zendikar\" finds Zendikar), lists more matches, and the list scrolls on its own without moving the whole panel.",
+      "link": null
     }
   ]
 }

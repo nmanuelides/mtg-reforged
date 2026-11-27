@@ -1,5 +1,7 @@
 package io.github.nmanuelides.mtgreforged.ui.decks
 
+import androidx.compose.foundation.layout.heightIn
+
 import io.github.nmanuelides.mtgreforged.ui.components.SetSymbol
 import io.github.nmanuelides.mtgreforged.ui.components.ManaSymbol
 import androidx.compose.ui.input.key.type
@@ -437,9 +439,23 @@ private fun Picker(options: () -> List<Pair<String, String>>, selected: Set<Stri
     TextFilter(query, placeholder) { query = it }
     val q = query.trim().lowercase()
     val hits = remember(q, all) {
-        if (q.isEmpty()) all.take(8) else all.filter { (k, label) -> q in label.lowercase() || k.equals(q, true) }.take(8)
+        if (q.isEmpty()) all.take(8) else all
+            .filter { (k, label) -> q in label.lowercase() || k.equals(q, true) }
+            // Best matches first: the exact name or code ("Zendikar"), then names starting with it, then the rest.
+            .sortedBy { (k, label) ->
+                val name = label.substringBeforeLast(" (").lowercase()
+                when {
+                    name == q || k.equals(q, true) -> 0
+                    name.startsWith(q) -> 1
+                    else -> 2
+                }
+            }
+            .take(40)
     }
-    hits.forEach { (key, label) -> SuggestionRow(label, key in selected) { onToggle(key) } }
+    // Its own scroll, so the matches scroll without moving the whole filter panel.
+    Column(Modifier.fillMaxWidth().heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
+        hits.forEach { (key, label) -> SuggestionRow(label, key in selected) { onToggle(key) } }
+    }
 }
 
 @Composable
