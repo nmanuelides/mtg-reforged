@@ -23,6 +23,7 @@ import io.github.nmanuelides.mtgreforged.ui.components.EntranceScope
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.ui.composed
 import androidx.compose.runtime.rememberUpdatedState
@@ -341,6 +342,7 @@ fun DeckBuilderScreen(
     var importing by remember { mutableStateOf(importFirst) }
     var exporting by remember { mutableStateOf(false) }
     var cheapening by remember { mutableStateOf(false) }
+    var analyzing by remember { mutableStateOf(false) }
     var problem by remember { mutableStateOf<String?>(null) }
     // Filters outlive the screen (one set for the collection, one for decks) until "Clear all".
     var filter by remember { mutableStateOf(LastFilters.get(collection)) }
@@ -452,6 +454,7 @@ fun DeckBuilderScreen(
                 onImport = { importing = true },
                 onExport = { exporting = true },
                 onCheapest = { cheapening = true },
+                onAnalyze = { analyzing = true },
                 compact = compactHeader,
                 canExport = draft.total > 0,
                 onSave = { saveNow() },
@@ -528,6 +531,7 @@ fun DeckBuilderScreen(
 
     if (exporting) ExportDialog(name, draft) { exporting = false }
     if (cheapening) CheapestDialog(draft) { cheapening = false }
+    if (analyzing) DeckAnalysisDialog(draft, format) { analyzing = false }
 
     if (importing) {
         ImportDialog(
@@ -559,6 +563,8 @@ private fun Header(
     onExport: () -> Unit,
     canExport: Boolean,
     onCheapest: () -> Unit,
+    /** Opens the deck analysis (decks only, not the collection). */
+    onAnalyze: () -> Unit = {},
     compact: Boolean = false,
     onSave: () -> Unit,
     canSave: Boolean,
@@ -589,6 +595,7 @@ private fun Header(
                 listOfNotNull(
                     MenuItem("Import", Icons.Default.FileDownload, Palette.Slate, onClick = onImport),
                     MenuItem("Export", Icons.Default.IosShare, Palette.Slate, enabled = canExport, onClick = onExport),
+                    if (!collection) MenuItem("Deck analysis", Icons.Default.Insights, Palette.Plum, enabled = canExport, onClick = onAnalyze) else null,
                     if (!collection) MenuItem("Switch to cheapest printings", Icons.Default.Savings, Palette.Sage, enabled = canExport, onClick = onCheapest) else null,
                     if (clear != null) MenuItem("Delete collection", Icons.Default.DeleteForever, Palette.Terracotta) { clearing = 1 } else null,
                 ),
@@ -610,6 +617,7 @@ private fun Header(
         OrnateButton(if (compact) "" else "Import", onImport, icon = Icons.Default.FileDownload, accent = Palette.Slate)
         OrnateButton(if (compact) "" else "Export", onExport, icon = Icons.Default.IosShare, accent = Palette.Slate, enabled = canExport)
         if (!LocalCollectionMode.current) {
+            OrnateButton(if (compact) "" else "Analysis", onAnalyze, icon = Icons.Default.Insights, accent = Palette.Plum, enabled = canExport)
             OrnateButton(if (compact) "" else "Cheapest", onCheapest, icon = Icons.Default.Savings, accent = Palette.Sage, enabled = canExport)
         }
         OrnateButton(if (compact) "" else saveLabel, onSave, style = OrnateStyle.Primary, icon = Icons.Default.Save, enabled = canSave)

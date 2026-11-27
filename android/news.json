@@ -701,6 +701,12 @@
       "title": "v1.71 · Deck names",
       "body": "Deck names keep characters like ? and : (\"Es Joda, no?\") instead of showing them as _.",
       "link": null
+    },
+    {
+      "id": "v1.72.0",
+      "title": "v1.72 · Deck analysis",
+      "body": "New Analysis button in the deck builder. Overview: mana curve, card types, colored symbols against the lands that make each color, and a suggested land count. Roles: ramp, card draw, removal, wipes, counters, protection and tutors next to the usual Commander guidelines. Odds: lands in the opening hand, hitting land drops, commander on curve and when you draw any card. Sample hand: deal 7, mulligan and draw turn by turn.",
+      "link": null
     }
   ]
 }
