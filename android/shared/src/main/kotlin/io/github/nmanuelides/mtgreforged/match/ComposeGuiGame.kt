@@ -1152,8 +1152,7 @@ class ComposeGuiGame : NetworkGuiGame() {
     }
 
     override fun manipulateCardList(
-        title: String?, cards: Iterable<CardView>, manipulable: Iterable<CardView>?,
-        toTop: Boolean, toBottom: Boolean, toAnywhere: Boolean,
+        title: String?, cards: Iterable<CardView>, manipulable: Iterable<CardView>?, secondPile: ZoneType?,
     ): List<CardView> {
         val all = cards.toList()
         val order = PromptHost.ask<List<Int>?>(Prompt.Order(title.orEmpty(), all.map { describe(it, null) }), null)
