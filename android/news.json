@@ -695,6 +695,12 @@
       "title": "v1.70 · Fix",
       "body": "Fixed an error in the deck builder when the search showed the same printing twice (for example with Search in › This deck).",
       "link": null
+    },
+    {
+      "id": "v1.71.0",
+      "title": "v1.71 · Deck names",
+      "body": "Deck names keep characters like ? and : (\"Es Joda, no?\") instead of showing them as _.",
+      "link": null
     }
   ]
 }

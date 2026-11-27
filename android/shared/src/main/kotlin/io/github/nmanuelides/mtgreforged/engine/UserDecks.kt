@@ -18,7 +18,16 @@ object UserDecks {
     fun list(format: Engine.Format): List<Engine.DeckEntry> =
         dir(format).listFiles { f -> f.extension == "dck" }.orEmpty()
             .sortedByDescending { it.lastModified() }
-            .map { Engine.DeckEntry(it.nameWithoutExtension, it, custom = true) }
+            .map { Engine.DeckEntry(nameIn(it) ?: it.nameWithoutExtension, it, custom = true) }
+
+    /**
+     * The deck's real name, from the file's own "Name=" line: file names can't hold ? / : * " < > |,
+     * so "Es Joda, no?" is saved as "Es Joda, no_.dck" but still shows with its question mark.
+     */
+    private fun nameIn(file: File): String? = runCatching {
+        file.useLines { lines -> lines.take(12).firstOrNull { it.startsWith("Name=") } }
+            ?.removePrefix("Name=")?.trim()?.takeIf { it.isNotEmpty() }
+    }.getOrNull()
 
     /** Saves [deck] under its name, replacing [previous] if the deck was renamed. */
     fun save(deck: Deck, format: Engine.Format, previous: Engine.DeckEntry? = null): Engine.DeckEntry {
@@ -27,7 +36,7 @@ object UserDecks {
         DeckSerializer.writeDeck(deck, file)
         if (previous != null && previous.custom && previous.file != file) previous.file.delete()
         Engine.invalidateDecks(format)
-        return Engine.DeckEntry(safe, file, custom = true)
+        return Engine.DeckEntry(deck.name.trim().ifBlank { safe }, file, custom = true)
     }
 
     fun delete(entry: Engine.DeckEntry, format: Engine.Format) {
